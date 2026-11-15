@@ -11,17 +11,16 @@ import kotlinx.serialization.json.contentOrNull
 /**
  * The account's plan, from the Web Player's accountAttributes answer (`data.me.account`: `product`
  * and `attributes.ads`). Read once the page is signed in, and forgotten when the account signs out,
- * so it always says which account plays now.
+ * so it always says which account is active now.
  *
- * [premium] is null until it is read: the ad machinery then works as it always did. True for a paid
- * plan with its ads off, where nothing refuses, mutes or reloads for an ad (Spotify sends none there).
- * False for a free account, or one that still gets ads.
+ * [premium] is null until it is read, true for a paid ad-free plan (Premium, Duo, Family, Student),
+ * and false for a free or ad-supported account (which [PremiumAccountGate] blocks in Orpheon Kids).
  */
 object AccountPlan {
     private val _premium = MutableStateFlow<Boolean?>(null)
     val premium: StateFlow<Boolean?> = _premium
 
-    /** True when the account is a paid one with its ads off: the ad machinery is off. */
+    /** True when the account is on an ad-free paid plan. */
     val isPremium: Boolean get() = _premium.value == true
 
     /** The plan read, or forgotten (null): a sign-out, or a new sign-in. */

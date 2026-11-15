@@ -1142,6 +1142,15 @@ object SongPlayer {
         order: List<String>? = null, positionMs: Long? = null,
         @Suppress("UNUSED_PARAMETER") songs: List<SongsModel>? = null, alone: Boolean = false,
     ) {
+        val cachedPremium = runCatching { app.myspoti.host.android.MyspotiRuntime.host.accounts.list.value.current?.premium }.getOrNull()
+        if (!app.myspoti.spotify.PremiumAccountGate.canPlay(
+                livePremium = app.myspoti.spotify.AccountPlan.premium.value,
+                cachedPremium = cachedPremium,
+            )
+        ) {
+            app.myspoti.host.android.Logbook.log("playSong refused: Spotify Premium required")
+            return
+        }
         // Data saver on mobile data: Spotify can't stream, only Local Files play.
         if (com.music.spotui.data.DataSaver.active) {
             main.post {

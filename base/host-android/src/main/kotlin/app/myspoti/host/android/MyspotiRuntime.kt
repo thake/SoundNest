@@ -148,21 +148,7 @@ object MyspotiRuntime {
                     host.noteSignedIn(fresh = sawSignedOut)
                     val now = android.os.SystemClock.elapsedRealtime()
                     if (AccountPlan.premium.value == null && (planAskedAt == 0L || now - planAskedAt >= PLAN_ASK_GAP_MS)) {
-                        planAskedAt = now
-                        // The account asked about: a switch while the answer comes leaves the next one's plan unknown.
-                        val profile = host.profile
-                        runCatching {
-                            val answer = spotify.raw.gql("accountAttributes", kotlinx.serialization.json.buildJsonObject { })
-                            val a = ((answer as kotlinx.serialization.json.JsonObject)["data"] as kotlinx.serialization.json.JsonObject)
-                                .let { (it["me"] as kotlinx.serialization.json.JsonObject)["account"] as kotlinx.serialization.json.JsonObject }
-                            val attrs = a["attributes"] as? kotlinx.serialization.json.JsonObject
-                            fun v(o: kotlinx.serialization.json.JsonObject?, k: String) = (o?.get(k) as? kotlinx.serialization.json.JsonPrimitive)?.content
-                            val plan = AccountPlan.fromAnswer(answer)
-                            host.accounts.update { it.plan(profile, plan) }
-                            if (host.profile == profile) AccountPlan.set(plan)
-                            Logbook.log("account: product=${v(a, "product")} country=${v(a, "country")} catalogue=${v(attrs, "catalogue")} onDemand=${v(attrs, "onDemand")} ads=${v(attrs, "ads")}")
-                            Logbook.fact("account", "product=${v(a, "product")} country=${v(a, "country")} catalogue=${v(attrs, "catalogue")} onDemand=${v(attrs, "onDemand")} ads=${v(attrs, "ads")}")
-                        }
+                        fetchAccountPlan(now)
                     }
                 }
                 val s = spotify.player.state.value
@@ -223,6 +209,33 @@ object MyspotiRuntime {
 
     /** When the account's plan was last asked for (AccountPlan), so a failed or unknown answer is asked again later; 0: at once. */
     @Volatile private var planAskedAt = 0L
+
+    private suspend fun fetchAccountPlan(now: Long = android.os.SystemClock.elapsedRealtime()) {
+        planAskedAt = now
+        val profile = host.profile
+        runCatching {
+            val answer = spotify.raw.gql("accountAttributes", kotlinx.serialization.json.buildJsonObject { })
+            val a = ((answer as kotlinx.serialization.json.JsonObject)["data"] as kotlinx.serialization.json.JsonObject)
+                .let { (it["me"] as kotlinx.serialization.json.JsonObject)["account"] as kotlinx.serialization.json.JsonObject }
+            val attrs = a["attributes"] as? kotlinx.serialization.json.JsonObject
+            fun v(o: kotlinx.serialization.json.JsonObject?, k: String) = (o?.get(k) as? kotlinx.serialization.json.JsonPrimitive)?.content
+            val plan = AccountPlan.fromAnswer(answer)
+            host.accounts.update { it.plan(profile, plan) }
+            if (host.profile == profile) AccountPlan.set(plan)
+            Logbook.log("account: product=${v(a, "product")} country=${v(a, "country")} catalogue=${v(attrs, "catalogue")} onDemand=${v(attrs, "onDemand")} ads=${v(attrs, "ads")}")
+            Logbook.fact("account", "product=${v(a, "product")} country=${v(a, "country")} catalogue=${v(attrs, "catalogue")} onDemand=${v(attrs, "onDemand")} ads=${v(attrs, "ads")}")
+        }
+    }
+
+    /** Immediately checks `accountAttributes` for the active signed-in Spotify session. */
+    fun refreshAccountPlanNow() {
+        planAskedAt = 0L
+        scope.launch {
+            if (spotify.ready.value && !host.loginRequired.value) {
+                fetchAccountPlan()
+            }
+        }
+    }
 
     /**
      * The page is moving to another account (a switch, an added account): what the API knows of the

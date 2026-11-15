@@ -118,14 +118,36 @@ class MainActivity : AppCompatActivity() {
                         requestedOrientation = orientationFor(config)
                     }
                     androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) {
+                        val livePlan by app.myspoti.spotify.AccountPlan.premium.collectAsState()
+                        val accountList by MyspotiRuntime.host.accounts.list.collectAsState()
+                        val currentAccount = accountList.current
+                        val premiumDecision = app.myspoti.spotify.PremiumAccountGate.evaluate(
+                            signedIn = signedIn,
+                            livePremium = livePlan,
+                            cachedPremium = currentAccount?.premium,
+                        )
+                        androidx.compose.runtime.LaunchedEffect(premiumDecision) {
+                            if (premiumDecision == app.myspoti.spotify.PremiumGateDecision.PremiumRequired) {
+                                runCatching { com.music.spotui.di.SongPlayer.pause("premium-gate") }
+                            }
+                        }
                         val entry = com.music.spotui.ui.screens.Onboarding.entry(
-                            signedIn, setupNeeded, connecting,
+                            signedIn, setupNeeded, connecting, premiumDecision,
                         )
                         when {
                             showLook -> com.music.spotui.ui.look.LookStep(onNext = {
                                 com.music.spotui.data.preferences.LookPref.setChosen(this@MainActivity); showLook = false
                                 setupNeeded = com.music.spotui.ui.screens.Setup.needed(this@MainActivity)
                             })
+                            entry == com.music.spotui.ui.screens.Entry.PREMIUM_REQUIRED ->
+                                com.music.spotui.ui.screens.PremiumRequiredScreen(
+                                    accountName = currentAccount?.name,
+                                    onSwitchOrLogout = { com.music.spotui.di.SessionActions.logout(this@MainActivity) },
+                                    onRecheck = {
+                                        app.myspoti.spotify.AccountPlan.set(null)
+                                        MyspotiRuntime.refreshAccountPlanNow()
+                                    },
+                                )
                             entry == com.music.spotui.ui.screens.Entry.SETUP -> com.music.spotui.ui.screens.SetupScreen(
                                 onDone = { setupNeeded = false },
                             )
@@ -327,6 +349,9 @@ class MainActivity : AppCompatActivity() {
         }
         connecting = false
         if (showingLogin) hideLogin()
+        if (app.myspoti.spotify.AccountPlan.premium.value == null) {
+            MyspotiRuntime.refreshAccountPlanNow()
+        }
     }
 
     /** Logout: leave the app's screens for Spotify's login page. */
