@@ -64,8 +64,6 @@ class Api constructor(
         const val LIKED_COVER = "https://misc.scdn.co/liked-songs/liked-songs-640.png"
         /** The "Local Files" folder pinned under Liked Songs in the library (not a Spotify item). */
         const val LOCAL_FILES_ID = "local-files"
-        /** "Downloaded" (songs kept for offline listening), pinned under Local Files. */
-        const val DOWNLOADS_ID = "downloads"
         /** "Your Episodes" (saved podcast episodes). */
         const val EPISODES_ID = "your-episodes"
         /** Prefix of the library id of a followed show in the Podcasts chip (a plain show id otherwise). */
@@ -199,20 +197,6 @@ class Api constructor(
             addedAt = t.addedAt.orEmpty(),
             playable = false,
             rowUid = t.uid.orEmpty(),
-        )
-        // A song of another provider (a search's, an album's of that provider): no Spotify id, so the actions that
-        // need one are off; it plays once found on Spotify (SongPlayer.playSong).
-        if (com.music.spotui.data.catalog.CatalogRuntime.isCatalogUri(t.uri)) return SongsModel(
-            id = stableId("catalog:${t.uri}"),
-            title = t.name.take(128),
-            album = t.album?.name.orEmpty(),
-            singer = singer,
-            coverUri = cover(t.album?.images.orEmpty()),
-            url = com.music.spotui.data.catalog.CatalogRuntime.PLAY_PREFIX + t.uri,
-            explicit = t.explicit,
-            durationMs = t.durationMs.toInt(),
-            albumId = t.album?.uri.orEmpty(),
-            artistIds = t.artists.map { it.uri },
         )
         return SongsModel(
             id = stableId("track:$id"),
@@ -686,9 +670,7 @@ class Api constructor(
         if (artistName.isBlank() && knownArtistId.isBlank()) { emit(Response.Success(ArtistOverviewModel(name = artistName))); return@flow }
         if (!ready()) { emit(Response.Error(notSignedIn())); return@flow }
         val uri = when {
-            // An artist of another provider: its Spotify page when Spotify has the same name, else its own.
-            knownArtistId.contains(':') ->
-                runCatching { com.music.spotui.data.catalog.CatalogRuntime.spotifyArtistFor(knownArtistId) }.getOrNull()?.let { "spotify:artist:$it" } ?: knownArtistId
+            knownArtistId.contains(':') -> knownArtistId
             knownArtistId.isNotBlank() -> "spotify:artist:$knownArtistId"
             else -> runCatching { findArtist(artistName) }.getOrNull()?.uri
         }
@@ -930,14 +912,9 @@ class Api constructor(
 
     suspend fun getAlbumPage(asked: String, stored: Boolean = true): Flow<Response<ContextPageModel>> = flow {
         emit(Response.Loading())
-        // An album of another provider (a whole uri): its Spotify copy when Spotify has it, else its own page,
-        // read from that provider and not kept on storage.
-        val other = asked.contains(':')
-        if (other && !ready()) { emit(Response.Error(notSignedIn())); return@flow }
-        val albumId = if (other) runCatching { com.music.spotui.data.catalog.CatalogRuntime.spotifyAlbumFor(asked) }.getOrNull() ?: asked else asked
-        val onSpotify = !albumId.contains(':')
-        val uri = if (onSpotify) "spotify:album:$albumId" else albumId
-        val saved = if (stored && onSpotify) withContext(Dispatchers.IO) { ScreenCache.albumPage(albumId).read() } else null
+        val albumId = asked.substringAfterLast(':')
+        val uri = "spotify:album:$albumId"
+        val saved = if (stored) withContext(Dispatchers.IO) { ScreenCache.albumPage(albumId).read() } else null
         if (saved != null) {
             SongPlayer.registerContext(saved.tracks.map { it.url }, uri)
             emit(Response.Success(saved))
@@ -981,15 +958,13 @@ class Api constructor(
             footer = albumFooter(album),
         )
         // Written before the first emit: a collector that only wants the first page stops the flow there.
-        if (onSpotify) {
-            ScreenCache.albumPage(albumId).write(page)
-            ScreenCache.pruneAlbumPages(ALBUM_PAGES_KEPT)
-        }
+        ScreenCache.albumPage(albumId).write(page)
+        ScreenCache.pruneAlbumPages(ALBUM_PAGES_KEPT)
         emit(Response.Success(page))
         val avatar = firstArtist?.let { runCatching { api.catalog.artist(it.uri) }.getOrNull() }?.images?.let(::cover).orEmpty()
         if (avatar.isNotBlank() && avatar != page.ownerAvatar) {
             val withAvatar = page.copy(ownerAvatar = avatar)
-            if (onSpotify) ScreenCache.albumPage(albumId).write(withAvatar)
+            ScreenCache.albumPage(albumId).write(withAvatar)
             emit(Response.Success(withAvatar))
         }
     }
@@ -1029,7 +1004,6 @@ class Api constructor(
             ownerAvatar = cover(pl.ownerImages),
             ownerUri = pl.ownerUri.orEmpty(),
             metaLine = saves,
-            isBlend = pl.isBlend,
             canLeave = pl.canLeave,
         )
         // The first page gives the total: the rest is asked for PLAYLIST_PARALLEL pages at a time
@@ -1147,24 +1121,6 @@ class Api constructor(
             onSuccess = { HomeCache.folders[folderUri] = it; emit(Response.Success(it)) },
             onFailure = { Log.e("Api", "getLibraryFolder failed", it); if (HomeCache.folders[folderUri] == null) emit(Response.Error(it.message ?: "error")) },
         )
-    }
-
-    /** The looping Canvas video for a track, cached per track (also when there is none). */
-    suspend fun getCanvasUrl(trackId: String): String? {
-        if (trackId.isBlank()) return null
-        CanvasCache.map[trackId]?.let { return it.value }
-        if (!ready()) return null
-        val url = runCatching { api.extras.canvas("spotify:track:$trackId")?.videoUrl }.getOrNull()
-        CanvasCache.map[trackId] = CanvasCache.Entry(url)
-        return url
-    }
-
-    /** The Canvas already looked up for [trackId]: null when never asked, else its url (or none). */
-    fun knownCanvas(trackId: String): Result<String?>? = CanvasCache.map[trackId]?.let { Result.success(it.value) }
-
-    private object CanvasCache {
-        class Entry(val value: String?)
-        val map = java.util.concurrent.ConcurrentHashMap<String, Entry>()
     }
 
     /** The signed-in account (name, avatar, plan). Spotify does not give the e-mail to the Web Player. */

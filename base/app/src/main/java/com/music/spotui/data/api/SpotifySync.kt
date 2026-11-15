@@ -28,7 +28,6 @@ object SpotifySync {
             val ok = runCatching { api.playlists.addTracks("spotify:playlist:$playlistId", listOf("spotify:track:$trackId")) }
                 .onFailure { Log.w(TAG, "add $trackId to $playlistId failed: ${it.message}") }.isSuccess
             if (ok) { membershipCache[playlistId]?.add(trackId); Api.invalidatePlaylist(playlistId) }
-            if (ok) com.music.spotui.data.offline.OfflineCollections.refreshOne(context.applicationContext, "spotify:playlist:$playlistId")
             onDone(ok)
         }
     }
@@ -45,7 +44,6 @@ object SpotifySync {
                 .onFailure { Log.w(TAG, "add ${uris.size} songs to $playlistId failed: ${it.message}") }.isSuccess
             // Part of it may be in even when refused: read the playlist again when asked.
             membershipCache.remove(playlistId); Api.invalidatePlaylist(playlistId)
-            com.music.spotui.data.offline.OfflineCollections.refreshOne(context.applicationContext, "spotify:playlist:$playlistId")
             onDone(ok)
         }
     }

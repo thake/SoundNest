@@ -9,33 +9,24 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.outlined.QueueMusic
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -52,12 +43,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import app.myspoti.api.FriendActivity
 import app.myspoti.api.TimeRange
 import app.myspoti.api.TopContent
 import app.myspoti.api.best
 import app.myspoti.engine.R
-import app.myspoti.host.android.MyspotiRuntime
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
 import com.music.spotui.data.api.TopStats
@@ -65,9 +54,7 @@ import com.music.spotui.data.local.ListenHistory
 import com.music.spotui.di.SongPlayer
 import com.music.spotui.ui.components.spotifyImageUrl
 import com.music.spotui.ui.navigation.artistRoute
-import com.music.spotui.ui.navigation.profileRoute
 import com.music.spotui.ui.theme.AppAccent
-import com.music.spotui.ui.theme.AppBackground
 import com.music.spotui.ui.theme.AppMuted
 import com.music.spotui.ui.theme.AppText
 import com.music.spotui.ui.theme.tone
@@ -250,99 +237,5 @@ fun ArtistTopBadge(artistId: String, modifier: Modifier = Modifier) {
         Icon(Icons.Filled.EmojiEvents, contentDescription = null, tint = AppAccent, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(6.dp))
         Text(stringResource(text, n), color = AppText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
-/**
- * Friend activity, as the official feed shows it: each followed person sharing their listening,
- * their latest track and where it was played from, "Now" for the past 15 minutes. Tapping the
- * person opens their profile, tapping the row plays the track in its context.
- */
-@OptIn(ExperimentalGlideComposeApi::class)
-@Composable
-fun FriendActivityScreen(navController: NavController) {
-    var attempt by remember { mutableIntStateOf(0) }
-    var state by remember { mutableStateOf<Result<List<FriendActivity>>?>(null) }
-    LaunchedEffect(attempt) {
-        state = runCatching { MyspotiRuntime.api.users.friendActivity() }
-    }
-    val now = remember(state) { System.currentTimeMillis() }
-    Column(Modifier.fillMaxSize().background(AppBackground).statusBarsPadding()) {
-        // Opened from Home's header (no longer a tab): back to it.
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(4.dp, 12.dp, 8.dp, 8.dp)) {
-            androidx.compose.material3.IconButton(onClick = { navController.popBackStack() }) {
-                Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.accessibility_navigate_back), tint = AppText)
-            }
-            Text(stringResource(R.string.friends_title), fontWeight = FontWeight.Bold, color = AppText, fontSize = 22.sp, maxLines = 1,
-                overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            Icon(Icons.Filled.Refresh, stringResource(R.string.friends_refresh), tint = AppText,
-                modifier = Modifier.size(40.dp).clip(CircleShape).clickable { state = null; attempt++ }.padding(8.dp))
-        }
-        val s = state
-        val friends = s?.getOrNull()
-        LazyColumn(contentPadding = PaddingValues(bottom = com.music.spotui.ui.components.bottomBarsSpace())) {
-            when {
-                s == null -> item { com.music.spotui.ui.components.SkeletonList(count = 6, round = true) }
-                friends == null -> item {
-                    com.music.spotui.ui.components.ErrorRetry(stringResource(R.string.friends_failed)) { state = null; attempt++ }
-                }
-                friends.isEmpty() -> item {
-                    Text(stringResource(R.string.friends_empty), color = StatsSubtle, fontSize = 14.sp, modifier = Modifier.padding(16.dp))
-                }
-                else -> items(friends, key = { it.user.uri }) { f -> FriendRow(f, now, navController) }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalGlideComposeApi::class)
-@Composable
-private fun FriendRow(f: FriendActivity, now: Long, navController: NavController) {
-    val track = f.track
-    val openProfile = { navController.navigate(profileRoute(f.user.uri.substringAfterLast(':'), f.user.name)) }
-    Row(
-        verticalAlignment = Alignment.Top,
-        modifier = Modifier.fillMaxWidth()
-            .clickable { if (track != null) SongPlayer.playSong(track.uri, contextUri = f.contextUri) else openProfile() }
-            .padding(16.dp, 10.dp),
-    ) {
-        Box(Modifier.clip(CircleShape).clickable(onClick = openProfile)) {
-            com.music.spotui.ui.components.ProfileAvatar(url = f.user.imageUrl, name = f.user.name, size = 48.dp)
-        }
-        Column(Modifier.padding(start = 12.dp).weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // The name takes the room and the time sits at the end, by the cover (a spacer of
-                // its own shared the room with the name and left the time halfway on wide screens).
-                Box(Modifier.weight(1f)) {
-                    Text(f.user.name, color = AppText, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1,
-                        overflow = TextOverflow.Ellipsis, modifier = Modifier.clickable(onClick = openProfile))
-                }
-                if (f.isNowPlaying(now)) {
-                    Box(Modifier.size(8.dp).clip(CircleShape).background(AppAccent))
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.friends_now), color = AppAccent, fontSize = 12.sp, maxLines = 1)
-                } else if (f.timestampMs > 0) {
-                    Text(
-                        android.text.format.DateUtils.getRelativeTimeSpanString(f.timestampMs, now,
-                            android.text.format.DateUtils.MINUTE_IN_MILLIS, android.text.format.DateUtils.FORMAT_ABBREV_RELATIVE).toString(),
-                        color = StatsSubtle, fontSize = 12.sp, maxLines = 1,
-                    )
-                }
-            }
-            if (track != null) {
-                Text(listOf(track.name, track.artists.joinToString(", ") { it.name }).filter { it.isNotBlank() }.joinToString(" • "),
-                    color = AppText, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
-                val where = f.contextName ?: track.album?.name
-                if (!where.isNullOrBlank()) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
-                    Icon(Icons.Outlined.QueueMusic, contentDescription = null, tint = StatsSubtle, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(where, color = StatsSubtle, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
-        }
-        f.trackImageUrl?.let { cover ->
-            GlideImage(model = spotifyImageUrl(cover.replaceFirst("http://", "https://")), contentDescription = null,
-                contentScale = ContentScale.Crop, modifier = Modifier.padding(start = 10.dp).size(44.dp).clip(RoundedCornerShape(4.dp)))
-        }
     }
 }

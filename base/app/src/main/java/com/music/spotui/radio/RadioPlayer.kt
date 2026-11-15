@@ -72,8 +72,7 @@ object RadioPlayer {
     )
 
     /**
-     * Below -2^32: out of the range MediaStore hands out (always >= 0) and of the downloads' own
-     * negative ids (OfflineStore.localIdOf, -1 to -2^31), so it is never taken for either.
+     * Below -2^32: out of the range MediaStore hands out (always >= 0), so it is never taken for a file.
      */
     private fun stableId(station: RadioStation) = -(1L shl 32) - (station.stationUuid.hashCode().toLong() and 0x7fffffffL)
 }

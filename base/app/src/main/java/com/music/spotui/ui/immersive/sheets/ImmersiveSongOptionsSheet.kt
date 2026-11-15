@@ -16,7 +16,6 @@ import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.AddCircleOutline
 import androidx.compose.material.icons.rounded.Album
-import androidx.compose.material.icons.rounded.ArrowCircleDown
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Bookmark
@@ -54,7 +53,6 @@ import com.music.spotui.di.Haptics
 import com.music.spotui.di.SongPlayer
 import com.music.spotui.ui.components.AddToPlaylistSheet
 import com.music.spotui.ui.components.CreditsSheet
-import com.music.spotui.ui.components.DownloadBadge
 import com.music.spotui.ui.components.SavedInSheet
 import com.music.spotui.ui.components.ShareTarget
 import com.music.spotui.ui.immersive.sheets.ImmersiveSleepTimerSheet as SleepTimerSheet
@@ -66,9 +64,9 @@ import kotlinx.coroutines.launch
 
 /**
  * The track menu of the Immersive look: the same rows, order and actions as the Classic
- * [com.music.spotui.ui.components.SongOptionsSheet] (it calls the same player, offline and
- * extension code), drawn with the Immersive sheet kit and wearing the song's cover colours.
- * The pickers behind a row (playlists, sleep timer, credits, speed) are the shared sheets.
+ * [com.music.spotui.ui.components.SongOptionsSheet], drawn with the Immersive sheet kit and wearing
+ * the song's cover colours. The pickers behind a row (playlists, sleep timer, credits, speed) are
+ * the shared sheets.
  */
 @Composable
 fun ImmersiveSongOptionsSheet(
@@ -117,8 +115,6 @@ fun ImmersiveSongOptionsSheet(
     // A Live Radio station playing right now: no queue, album or artist page of its own, but
     // (unlike a track with no Spotify id) a name and homepage worth sharing.
     val isRadio = nowPlaying && com.music.spotui.radio.RadioPlayer.current() != null
-    val episodeKey = com.music.spotui.data.offline.episodeKeyOf(song)
-    val downloadKey = episodeKey ?: song.spotifyTrackId
     fun toast(text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
 
     ImmersiveSheet(onDismiss = onDismiss, imageUrl = song.coverUri) {
@@ -156,43 +152,6 @@ fun ImmersiveSongOptionsSheet(
             ImmersiveSheetRow(Icons.AutoMirrored.Rounded.QueueMusic, stringResource(R.string.context_menu_go_to_queue), enabled = !isRadio) {
                 onDismiss()
                 onOpenQueue()
-            }
-        }
-        val offline = com.music.spotui.data.offline.OfflineStore.statusOf(downloadKey)
-        when {
-            offline == com.music.spotui.data.offline.OfflineStatus.Done -> ImmersiveSheetRow(
-                null, stringResource(R.string.context_menu_undownload),
-                leading = { DownloadBadge(offline, size = 22.dp) },
-            ) {
-                val gone = if (episodeKey != null) {
-                    com.music.spotui.data.offline.PodcastDownloader.remove(downloadKey)
-                    true
-                } else com.music.spotui.data.offline.OfflineCollections.removeSong(downloadKey)
-                toast(if (gone) context.getString(R.string.toast_undownload) else com.music.spotui.data.offline.OfflineCollections.keptMessage(context, downloadKey))
-                onDismiss()
-            }
-            offline == com.music.spotui.data.offline.OfflineStatus.Queued ||
-                offline is com.music.spotui.data.offline.OfflineStatus.Downloading -> ImmersiveSheetRow(
-                null, stringResource(R.string.download_cancel),
-                leading = { DownloadBadge(offline, size = 22.dp) },
-            ) {
-                if (episodeKey != null) com.music.spotui.data.offline.PodcastDownloader.cancel(downloadKey)
-                else com.music.spotui.data.offline.OfflineDownloader.cancel(downloadKey)
-                onDismiss()
-            }
-            else -> ImmersiveSheetRow(
-                Icons.Rounded.ArrowCircleDown, stringResource(R.string.context_menu_download),
-                enabled = downloadKey.isNotBlank(),
-                leading = if (offline != null) ({ DownloadBadge(offline, size = 22.dp) }) else null,
-            ) {
-                if (episodeKey != null) {
-                    com.music.spotui.data.offline.PodcastDownloader.enqueue(song)
-                } else com.music.spotui.ui.components.DownloadAsk.start(context) { q ->
-                    com.music.spotui.data.offline.OfflineCollections.downloadSong(song, q)
-                    Haptics.confirm()
-                    toast(context.getString(R.string.download_notification_downloading))
-                }
-                onDismiss()
             }
         }
         ImmersiveSheetRow(Icons.Rounded.Radio, stringResource(R.string.context_menu_go_to_song_radio), enabled = hasId) {
@@ -257,7 +216,7 @@ fun ImmersiveSongOptionsSheet(
         }
 
         // "Not interested": kept on this phone only; the song leaves the queue and lists skip it.
-        if (hasId && episodeKey == null) {
+        if (hasId && !song.url.startsWith("episode:")) {
             val hidden = com.music.spotui.data.preferences.HiddenSongs.isHidden(song.spotifyTrackId)
             ImmersiveSheetRow(Icons.Rounded.ThumbDownOffAlt, stringResource(if (hidden) R.string.show_song_again else R.string.hide_song)) {
                 if (hidden) com.music.spotui.data.preferences.HiddenSongs.show(context, song.spotifyTrackId) else SongPlayer.hideSong(song)
@@ -311,7 +270,7 @@ fun ImmersiveSongOptionsSheet(
         if (nowPlaying && song.url.startsWith("episode:")) {
             ImmersiveSheetRow(Icons.Rounded.Speed, stringResource(R.string.playback_speed)) { showSpeed = true }
         }
-        // The app's own playback (extensions, downloads, files): its equalizer, speed and silences.
+        // The app's own playback (local files): its equalizer, speed and silences.
         if (nowPlaying && com.music.spotui.di.LocalPlayer.active.value) {
             ImmersiveSheetRow(Icons.Rounded.GraphicEq, stringResource(R.string.equalizer_title)) {
                 onDismiss()
@@ -342,10 +301,6 @@ fun ImmersiveSongOptionsSheet(
             }
             ImmersiveSheetRow(Icons.Rounded.Analytics, stringResource(R.string.nerd_title)) { showNerd = true }
         }
-        // Entries from extensions (menu.items), after the app's own; each names its extension.
-        if (hasId) com.music.spotui.extensions.ExtensionMenuEntries(
-            app.myspoti.extensions.Surface.TRACK_MENU, trackUri, song.title, song.singer, onDone = onDismiss,
-        )
         Spacer(Modifier.height(12.dp))
     }
 }

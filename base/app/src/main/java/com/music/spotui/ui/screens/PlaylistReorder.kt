@@ -36,12 +36,12 @@ object PlaylistReorder {
     data class RowMove(val uid: String, val beforeUid: String?)
 
     /**
-     * The rows can be moved by hand: an own or collaborative playlist (not a Blend) shown whole, in
+     * The rows can be moved by hand: an own or collaborative playlist shown whole, in
      * its own order and from its start, with no search narrowing it, and every row known by its
      * own id (the same song twice is two rows).
      */
-    fun allowed(type: String, editable: Boolean, isBlend: Boolean, customOrder: Boolean, complete: Boolean, find: String, rowUids: List<String>): Boolean =
-        type == "playlist" && editable && !isBlend && customOrder && complete && find.isBlank() &&
+    fun allowed(type: String, editable: Boolean, customOrder: Boolean, complete: Boolean, find: String, rowUids: List<String>): Boolean =
+        type == "playlist" && editable && customOrder && complete && find.isBlank() &&
             rowUids.size > 1 && rowUids.none { it.isBlank() } && rowUids.toSet().size == rowUids.size
 
     /**

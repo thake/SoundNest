@@ -23,16 +23,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.SignalCellularAlt
 import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.GraphicEq
@@ -63,21 +60,17 @@ import androidx.compose.foundation.clickable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import app.myspoti.engine.R
-import com.music.spotui.data.preferences.DownloadQuality
 import com.music.spotui.data.preferences.StreamingQuality
-import com.music.spotui.data.preferences.getDownloadQuality
 import com.music.spotui.data.preferences.getStreamingQuality
-import com.music.spotui.data.preferences.setDownloadQuality
 import com.music.spotui.data.preferences.setStreamingQuality
 import com.music.spotui.ui.immersive.Immersive
 import com.music.spotui.ui.look.rememberReduceMotion
 import com.music.spotui.ui.navigation.Routes
-import com.music.spotui.ui.screens.installedRoute
 import com.music.spotui.ui.screens.shareDiagnosticReport
 import kotlinx.coroutines.launch
 
 /** Where the Immersive Settings are: the list of categories, one category, or a choice inside it. */
-private enum class SettingsPage { Root, Playback, Sources, Lyrics, StreamingWifi, StreamingCell, Crossfade, Downloads, DownloadQuality, Storage, Data, Display, Look, Rotation, Language, LyricsLanguage, App, Accounts, Library }
+private enum class SettingsPage { Root, Playback, Lyrics, StreamingWifi, StreamingCell, Crossfade, Storage, Data, Display, Look, Rotation, Language, LyricsLanguage, App, Accounts, Library }
 
 private val StreamingChoices = listOf(
     Triple(StreamingQuality.AUTO, R.string.quality_streaming_auto, R.string.quality_streaming_auto_detail),
@@ -86,14 +79,6 @@ private val StreamingChoices = listOf(
     Triple(StreamingQuality.HIGH, R.string.quality_streaming_high, R.string.quality_streaming_high_detail),
     // Offered with a Premium account only (see the page below).
     Triple(StreamingQuality.VERY_HIGH, R.string.quality_streaming_very_high, R.string.quality_streaming_very_high_detail),
-)
-
-private val DownloadChoices = listOf(
-    Triple(DownloadQuality.OFF, R.string.quality_download_off, R.string.quality_download_off_detail),
-    Triple(DownloadQuality.SMALL, R.string.quality_download_small, R.string.quality_download_small_detail),
-    Triple(DownloadQuality.CD, R.string.quality_download_cd, R.string.quality_download_cd_detail),
-    Triple(DownloadQuality.HI_RES, R.string.quality_download_hires, R.string.quality_download_hires_detail),
-    Triple(DownloadQuality.ASK, R.string.quality_download_ask, R.string.quality_download_ask_detail),
 )
 
 /**
@@ -109,7 +94,7 @@ fun ImmersiveSettingsScreen(navController: NavController) {
     val stack = rememberSaveable(
         saver = listSaver(
             save = { list -> list.map { it.name } },
-            restore = { names -> names.map { SettingsPage.valueOf(it) }.toMutableStateList() },
+            restore = { names -> names.mapNotNull { runCatching { SettingsPage.valueOf(it) }.getOrNull() }.toMutableStateList() },
         ),
     ) { mutableStateListOf<SettingsPage>() }
     val page = stack.lastOrNull() ?: SettingsPage.Root
@@ -135,15 +120,12 @@ fun ImmersiveSettingsScreen(navController: NavController) {
         label = "settings pages",
     ) { p ->
         when (p) {
-            SettingsPage.Root -> SettingsRoot(navController, open, back)
+            SettingsPage.Root -> SettingsRoot(open, back)
             SettingsPage.Playback -> PlaybackPage(navController, open, back)
-            SettingsPage.Sources -> SourcesPage(navController, back)
             SettingsPage.Lyrics -> LyricsPage(open, back)
             SettingsPage.StreamingWifi -> StreamingPage(cellular = false, back)
             SettingsPage.StreamingCell -> StreamingPage(cellular = true, back)
             SettingsPage.Crossfade -> CrossfadePage(back)
-            SettingsPage.Downloads -> DownloadsPage(navController, open, back)
-            SettingsPage.DownloadQuality -> DownloadQualityPage(back)
             SettingsPage.Storage -> StoragePage(back)
             SettingsPage.Data -> DataPage(back)
             SettingsPage.Display -> DisplayPage(open, back)
@@ -151,7 +133,7 @@ fun ImmersiveSettingsScreen(navController: NavController) {
             SettingsPage.Rotation -> RotationPage(back)
             SettingsPage.Language -> LanguagePage(back)
             SettingsPage.LyricsLanguage -> LyricsLanguagePage(back)
-            SettingsPage.App -> AppPage(navController, back)
+            SettingsPage.App -> AppPage(back)
             SettingsPage.Accounts -> AccountsPage(back)
             SettingsPage.Library -> LibraryPage(navController, back)
         }
@@ -159,13 +141,8 @@ fun ImmersiveSettingsScreen(navController: NavController) {
 }
 
 @Composable
-private fun SettingsRoot(navController: NavController, open: (SettingsPage) -> Unit, back: () -> Unit) {
-    val registry by com.music.spotui.extensions.Extensions.registry.collectAsStateWithLifecycle()
-    val withSettings = registry.extensions.mapNotNull { e ->
-        com.music.spotui.extensions.Extensions.manifest(e.id)?.settings?.takeIf { it.isNotEmpty() }?.let { e to it }
-    }
+private fun SettingsRoot(open: (SettingsPage) -> Unit, back: () -> Unit) {
     val crossfade = com.music.spotui.data.preferences.CrossfadePref.seconds
-    val audioLine = com.music.spotui.ui.screens.sourceLineSummary(app.myspoti.extensions.Action.AUDIO_SOURCE)
     // The search button: a field over the page, the rows of every page it finds, a tap opens one.
     var query by rememberSaveable { mutableStateOf<String?>(null) }
     BackHandler(enabled = query != null) { query = null }
@@ -189,6 +166,7 @@ private fun SettingsRoot(navController: NavController, open: (SettingsPage) -> U
             }
             if (q.isNotBlank()) {
                 val hits = com.music.spotui.ui.screens.SettingsSearch.search(com.music.spotui.ui.screens.SettingsSearch.immersive, q) { ctx.getString(it) }
+                    .filter { runCatching { SettingsPage.valueOf(it.place) }.isSuccess }
                 if (hits.isEmpty()) immersiveBlock("search:none") { Text(stringResource(R.string.settings_search_empty), style = com.music.spotui.ui.immersive.Immersive.Subhead) }
                 immersiveGroup("search:hits") {
                     hits.forEach { h ->
@@ -203,18 +181,14 @@ private fun SettingsRoot(navController: NavController, open: (SettingsPage) -> U
                 return@ImmersivePage
             }
         }
-        // Where the music comes from, first: the music account (the library, the recommendations)
-        // and the sources that play and download; then how it is listened to; then the app itself.
+        // Where the music comes from, first: the music account (the library, the recommendations);
+        // then how it is listened to; then the app itself.
         immersiveGroup("music") {
             row {
                 ImmersiveGroupRow(
                     stringResource(R.string.accounts_title), detail = com.music.spotui.ui.components.switchAccountDetail(),
                     icon = Icons.Rounded.Person, chevron = true, onClick = { open(SettingsPage.Accounts) },
                 )
-            }
-            row {
-                ImmersiveGroupRow(stringResource(R.string.settings_sources_tab), icon = Icons.Rounded.Extension, chevron = true,
-                    detail = audioLine ?: stringResource(R.string.settings_sources_detail), onClick = { open(SettingsPage.Sources) })
             }
         }
         immersiveGroup("root") {
@@ -226,7 +200,6 @@ private fun SettingsRoot(navController: NavController, open: (SettingsPage) -> U
                 )
             }
             row { ImmersiveGroupRow(stringResource(R.string.settings_section_library), icon = Icons.Rounded.LibraryMusic, chevron = true, onClick = { open(SettingsPage.Library) }) }
-            row { ImmersiveGroupRow(stringResource(R.string.settings_section_downloads), icon = Icons.Rounded.Download, chevron = true, onClick = { open(SettingsPage.Downloads) }) }
             row { ImmersiveGroupRow(stringResource(R.string.settings_section_lyrics), icon = Icons.Rounded.Lyrics, chevron = true, onClick = { open(SettingsPage.Lyrics) }) }
         }
         immersiveGroup("more") {
@@ -246,83 +219,7 @@ private fun transitionValue(crossfade: Int): String = when (com.music.spotui.dat
     com.music.spotui.data.preferences.TransitionPref.Mode.OFF -> stringResource(R.string.settings_crossfade_off)
 }
 
-/**
- * The sources, on a page of their own (they were at the bottom of Playback and of Downloads):
- * which extension plays first and which downloads first, the extensions' own settings, and
- * the list of extensions.
- */
-@Composable
-private fun SourcesPage(navController: NavController, back: () -> Unit) {
-    val registry by com.music.spotui.extensions.Extensions.registry.collectAsStateWithLifecycle()
-    val withSettings = registry.extensions.mapNotNull { e ->
-        com.music.spotui.extensions.Extensions.manifest(e.id)?.settings?.takeIf { it.isNotEmpty() }?.let { e to it }
-    }
-    val none = com.music.spotui.extensions.Extensions.sources(app.myspoti.extensions.Action.AUDIO_SOURCE).isEmpty() &&
-        com.music.spotui.extensions.Extensions.sources(app.myspoti.extensions.Action.DOWNLOAD_SOURCE).isEmpty()
-    ImmersivePage(title = stringResource(R.string.settings_sources_tab), onBack = back) {
-        sourcesGroup(app.myspoti.extensions.Action.AUDIO_SOURCE, navController)
-        sourcesGroup(app.myspoti.extensions.Action.DOWNLOAD_SOURCE, navController)
-        // Where searches, albums and artists come from: the metadata providers, in their order.
-        immersiveGroup("metadata", headerRes = R.string.metadata_title, footerRes = R.string.metadata_footer) {
-            row {
-                com.music.spotui.ui.screens.MetadataOrderList(ImmersiveSourceLook, rowPadding = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-            }
-        }
-        // The installed extensions that declare settings, each opening its page.
-        immersiveGroup("extension-settings", headerRes = if (withSettings.isEmpty()) null else R.string.ext_settings_header) {
-            withSettings.forEach { (e, settings) ->
-                row {
-                    ImmersiveGroupRow(
-                        e.name, detail = settings.joinToString { it.label }, chevron = true,
-                        onClick = { navController.navigate(installedRoute(e.id)) },
-                    )
-                }
-            }
-        }
-        immersiveGroup("extensions", footerRes = if (none) R.string.settings_sources_none else null) {
-            row {
-                ImmersiveGroupRow(
-                    stringResource(R.string.extensions_title), detail = stringResource(R.string.extensions_row_detail),
-                    icon = Icons.Rounded.Extension, chevron = true,
-                    onClick = { navController.navigate(Routes.Extensions.route) },
-                )
-            }
-        }
-    }
-}
-
 // ---------------------------------------------------------------- Playback
-
-private val ImmersiveSourceLook = com.music.spotui.ui.screens.SourceLook(
-    Immersive.Text, Immersive.TextSecondary, Immersive.Accent, Immersive.BodyStrong, Immersive.Caption)
-
-/** The order a source action asks extensions in, as a card ([com.music.spotui.ui.screens.SourceOrderList]); nothing without any such extension. */
-private fun androidx.compose.foundation.lazy.LazyListScope.sourcesGroup(action: app.myspoti.extensions.Action, navController: NavController) {
-    if (com.music.spotui.extensions.Extensions.sources(action).isEmpty()) return
-    val audio = action == app.myspoti.extensions.Action.AUDIO_SOURCE
-    immersiveGroup("sources:${action.key}",
-        headerRes = if (audio) R.string.sources_audio_title else R.string.sources_download_title,
-        footerRes = if (audio) R.string.sources_audio_footer else R.string.sources_download_footer) {
-        row {
-            com.music.spotui.ui.screens.SourceOrderList(action, withAccount = audio, look = ImmersiveSourceLook,
-                onOpen = { navController.navigate(com.music.spotui.ui.screens.installedRoute(it)) },
-                rowPadding = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-        }
-    }
-}
-
-/** Where the order of [action] is now: one row, with that order in a line, to the Sources page. */
-private fun androidx.compose.foundation.lazy.LazyListScope.sourcesLink(action: app.myspoti.extensions.Action, open: (SettingsPage) -> Unit) {
-    if (com.music.spotui.extensions.Extensions.sources(action).isEmpty()) return
-    immersiveGroup("sources-link:${action.key}") {
-        row {
-            ImmersiveGroupRow(
-                stringResource(if (action == app.myspoti.extensions.Action.AUDIO_SOURCE) R.string.sources_audio_title else R.string.sources_download_title),
-                detail = com.music.spotui.ui.screens.sourceLineSummary(action), chevron = true, onClick = { open(SettingsPage.Sources) },
-            )
-        }
-    }
-}
 
 @Composable
 private fun PlaybackPage(navController: NavController, open: (SettingsPage) -> Unit, back: () -> Unit) {
@@ -333,16 +230,8 @@ private fun PlaybackPage(navController: NavController, open: (SettingsPage) -> U
     var headsetSkip by remember { mutableStateOf(app.myspoti.host.android.PlaybackService.skipsOnEpisodes(ctx)) }
     var keepPlaying by remember { mutableStateOf(app.myspoti.host.android.PlaybackService.keepsPlayingOnClose(ctx)) }
     val crossfade = com.music.spotui.data.preferences.CrossfadePref.seconds
-    // The first source of the audio order, when it is an extension announcing settings here:
-    // they show, and Spotify's quality (kept, still used for what Spotify plays) leaves the screen.
-    val registry by com.music.spotui.extensions.Extensions.registry.collectAsStateWithLifecycle()
-    // A source picked in the player for this session leads too ([com.music.spotui.extensions.SessionSource]).
-    val session by com.music.spotui.extensions.Extensions.sessionSource.collectAsStateWithLifecycle()
-    val ext = remember(registry, session) { com.music.spotui.extensions.Extensions.sectionPlacement(app.myspoti.extensions.SettingSection.PLAYBACK) }
-    val extHeader = ext?.let { stringResource(R.string.ext_section_settings, it.name) }
     ImmersivePage(title = stringResource(R.string.settings_section_playback), onBack = back) {
-        if (ext != null && extHeader != null) extensionSectionGroup(ext, extHeader)
-        if (ext?.hidesAppQuality != true) immersiveGroup("quality", footerRes = R.string.quality_streaming_detail) {
+        immersiveGroup("quality", footerRes = R.string.quality_streaming_detail) {
             row { ImmersiveGroupRow(stringResource(R.string.quality_streaming_wifi_title), value = stringResource(label(wifi)), chevron = true, onClick = { open(SettingsPage.StreamingWifi) }) }
             row { ImmersiveGroupRow(stringResource(R.string.quality_streaming_cell_title), value = stringResource(label(cell)), chevron = true, onClick = { open(SettingsPage.StreamingCell) }) }
         }
@@ -404,7 +293,6 @@ private fun PlaybackPage(navController: NavController, open: (SettingsPage) -> U
                 )
             }
         }
-        sourcesLink(app.myspoti.extensions.Action.AUDIO_SOURCE, open)
     }
 }
 
@@ -696,83 +584,27 @@ private fun CrossfadePage(back: () -> Unit) {
     )
 }
 
-// ---------------------------------------------------------------- Downloads
-
-@Composable
-private fun DownloadsPage(navController: NavController, open: (SettingsPage) -> Unit, back: () -> Unit) {
-    val ctx = LocalContext.current
-    val quality = getDownloadQuality(ctx)
-    val size =android.text.format.Formatter.formatShortFileSize(ctx, com.music.spotui.data.offline.OfflineStore.totalBytes())
-    // The first extension of the download order, when it announces settings here; its role quality
-    // takes the place of the app's (kept, and still passed to every extension as `quality`).
-    val registry by com.music.spotui.extensions.Extensions.registry.collectAsStateWithLifecycle()
-    val ext = remember(registry) { com.music.spotui.extensions.Extensions.sectionPlacement(app.myspoti.extensions.SettingSection.DOWNLOADS) }
-    val extHeader = ext?.let { stringResource(R.string.ext_section_settings, it.name) }
-    ImmersivePage(title = stringResource(R.string.settings_section_downloads), onBack = back) {
-        if (ext?.hidesAppQuality != true) immersiveGroup("quality", footerRes = R.string.quality_download_detail) {
-            row {
-                ImmersiveGroupRow(stringResource(R.string.quality_download_title),
-                    value = stringResource(DownloadChoices.first { it.first == quality }.second), chevron = true,
-                    onClick = { open(SettingsPage.DownloadQuality) })
-            }
-        }
-        if (ext != null && extHeader != null) extensionSectionGroup(ext, extHeader)
-        // Where downloads come from: the download-source extensions, in the order they are asked.
-        sourcesLink(app.myspoti.extensions.Action.DOWNLOAD_SOURCE, open)
-        if (com.music.spotui.extensions.Extensions.sources(app.myspoti.extensions.Action.DOWNLOAD_SOURCE).isEmpty()) immersiveGroup("source") {
-            row {
-                ImmersiveGroupRow(
-                    stringResource(R.string.downloads_source_row_title),
-                    detail = stringResource(
-                        if (com.music.spotui.extensions.Extensions.hasDownloadSource()) R.string.downloads_source_row_on
-                        else R.string.downloads_source_row_off,
-                    ),
-                    chevron = true, onClick = { navController.navigate(Routes.Extensions.route) },
-                )
-            }
-        }
-        // A downloaded song's lyrics kept with it, shown without a connection.
-        immersiveGroup("lyrics") {
-            row {
-                ImmersiveSwitchRow(stringResource(R.string.settings_download_lyrics_title), checked = com.music.spotui.data.preferences.LyricsOfflinePref.on,
-                    onChecked = { com.music.spotui.data.preferences.LyricsOfflinePref.set(ctx, it) }, detail = stringResource(R.string.settings_download_lyrics_detail))
-            }
-        }
-        // Their space and their removal: in Storage.
-        if (com.music.spotui.data.offline.OfflineStore.tracks.isNotEmpty()) immersiveGroup("storage") {
-            row {
-                ImmersiveGroupRow(
-                    stringResource(R.string.settings_section_storage), detail = stringResource(R.string.downloads_size, size),
-                    chevron = true, onClick = { open(SettingsPage.Storage) },
-                )
-            }
-        }
-    }
-}
-
 // ---------------------------------------------------------------- Storage
 
-/** What the app keeps on the phone: the media cache's size, the caches (emptied here) and the downloads. */
+/** What the app keeps on the phone: the AutoMix analysis and image caches (emptied here). */
 @Composable
 private fun StoragePage(back: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val storage = com.music.spotui.data.AppStorage
-    var ask by remember { mutableStateOf(false) }
     var refresh by remember { mutableStateOf(0) }
     var clearing by remember { mutableStateOf(false) }
     val usage by androidx.compose.runtime.produceState<com.music.spotui.data.AppStorage.Usage?>(null, refresh) { value = storage.usage(ctx) }
-    val size = android.text.format.Formatter.formatShortFileSize(ctx, com.music.spotui.data.offline.OfflineStore.totalBytes())
-    val opened = storage.mediaCacheMbOpen
-    val labels = storage.MEDIA_CACHE_CHOICES.associateWith { com.music.spotui.ui.screens.cacheSizeLabel(it) }
     ImmersivePage(title = stringResource(R.string.settings_section_storage), onBack = back) {
-        immersiveGroup("media", headerRes = R.string.settings_storage_media_cache,
-            footerRes = if (opened != null && opened != storage.mediaCacheMb) R.string.settings_storage_media_cache_restart else R.string.settings_storage_media_cache_detail) {
-            storage.MEDIA_CACHE_CHOICES.forEach { mb ->
-                row { ImmersiveChoiceRow(labels.getValue(mb), selected = storage.mediaCacheMb == mb, onClick = { storage.chooseMediaCacheMb(mb) }) }
-            }
-        }
         immersiveGroup("caches") {
+            usage?.let { u ->
+                row {
+                    ImmersiveGroupRow(
+                        stringResource(R.string.settings_automix_cache),
+                        value = android.text.format.Formatter.formatShortFileSize(ctx, u.automix),
+                    )
+                }
+            }
             row {
                 ImmersiveGroupRow(
                     stringResource(R.string.settings_storage_clear_cache),
@@ -788,43 +620,6 @@ private fun StoragePage(back: () -> Unit) {
                         }
                     },
                 )
-            }
-        }
-        if (com.music.spotui.data.offline.OfflineStore.tracks.isNotEmpty()) immersiveGroup("remove") {
-            row {
-                ImmersiveGroupRow(
-                    stringResource(R.string.settings_item_remove_downloads_title), detail = stringResource(R.string.downloads_size, size),
-                    destructive = true, onClick = { ask = true },
-                )
-            }
-        }
-    }
-    if (ask) ImmersiveAlertDialog(
-        onDismissRequest = { ask = false },
-        title = { Text(stringResource(R.string.settings_storage_remove_downloads_dialog_title), style = Immersive.Headline) },
-        text = { Text(stringResource(R.string.playlist_entity_remove_download_dialog_description), style = Immersive.Subhead) },
-        confirmButton = {
-            TextButton(onClick = { ask = false; com.music.spotui.data.offline.OfflineDownloader.removeAll() }) {
-                Text(stringResource(R.string.playlist_entity_remove_download_dialog_positive_button), color = Immersive.Destructive)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = { ask = false }) { Text(stringResource(R.string.add_to_playlist_button_cancel), color = Immersive.Accent) }
-        },
-    )
-}
-
-@Composable
-private fun DownloadQualityPage(back: () -> Unit) {
-    val ctx = LocalContext.current
-    var current by remember { mutableStateOf(getDownloadQuality(ctx)) }
-    ImmersivePage(title = stringResource(R.string.quality_download_title), onBack = back) {
-        immersiveGroup("choices", footerRes = R.string.quality_download_detail) {
-            DownloadChoices.forEach { (value, label, detail) ->
-                row {
-                    ImmersiveChoiceRow(stringResource(label), selected = current == value, detail = stringResource(detail),
-                        onClick = { current = value; setDownloadQuality(ctx, value) })
-                }
             }
         }
     }
@@ -877,7 +672,6 @@ private fun DataPage(back: () -> Unit) {
 @Composable
 private fun DisplayPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
     val ctx = LocalContext.current
-    var canvasWifiOnly by remember { mutableStateOf(com.music.spotui.data.preferences.isCanvasWifiOnly(ctx)) }
     val energy by app.myspoti.power.EnergySettings.state.collectAsStateWithLifecycle()
     val look = com.music.spotui.data.preferences.LookPref.look
     val rotation = com.music.spotui.data.preferences.OrientationPref.mode
@@ -924,27 +718,6 @@ private fun DisplayPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
             row {
                 ImmersiveSwitchRow(stringResource(R.string.settings_amoled_theme), checked = energy.blackPreference,
                     onChecked = app.myspoti.power.EnergySettings::setBlackBackground, detail = stringResource(R.string.settings_amoled_theme_subtitle))
-            }
-            // The looping visuals, as in the Classic settings: off while the energy saver holds them.
-            row {
-                ImmersiveSwitchRow(stringResource(R.string.settings_item_canvas_title),
-                    checked = energy.canvasEnabled && !energy.policy.saverEnabled,
-                    enabled = !energy.policy.saverEnabled,
-                    onChecked = app.myspoti.power.EnergySettings::setCanvasEnabled,
-                    detail = stringResource(if (energy.policy.saverEnabled) R.string.energy_saver_summary else R.string.video_settings_canvas_subtitle))
-            }
-            row {
-                ImmersiveSwitchRow(stringResource(R.string.canvas_wifi_only), checked = canvasWifiOnly,
-                    onChecked = { canvasWifiOnly = it; com.music.spotui.data.preferences.setCanvasWifiOnly(ctx, it) },
-                    detail = stringResource(R.string.canvas_wifi_only_detail))
-            }
-            row {
-                ImmersiveSwitchRow(stringResource(R.string.settings_music_video_title), checked = com.music.spotui.data.preferences.MusicVideoPref.on,
-                    onChecked = { com.music.spotui.data.preferences.MusicVideoPref.set(ctx, it) }, detail = stringResource(R.string.settings_music_video_detail))
-            }
-            row {
-                ImmersiveSwitchRow(stringResource(R.string.settings_song_pip_title), checked = com.music.spotui.data.preferences.SongPipPref.on,
-                    onChecked = { com.music.spotui.data.preferences.SongPipPref.set(ctx, it) }, detail = stringResource(R.string.settings_song_pip_detail))
             }
             row {
                 ImmersiveSwitchRow(stringResource(R.string.settings_hide_dj_title), checked = com.music.spotui.data.preferences.HideDjPref.on,
@@ -999,28 +772,29 @@ private fun rotationLabel(mode: String): Int = when (mode) {
     else -> R.string.settings_rotation_portrait
 }
 
-/** The accent colour of one look, for everyone (the same palette the supporter sheet uses). */
+/** The accent colour of one look. */
 @Composable
 private fun AccentRow(look: com.music.spotui.data.preferences.Look) {
     val ctx = LocalContext.current
+    val accentPref = com.music.spotui.data.preferences.AccentPref
     androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
         Text(stringResource(R.string.supporter_accent), style = Immersive.Body)
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(top = 10.dp)) {
-            for (a in com.music.spotui.data.api.SupportReminder.Accent.entries) {
-                val selected = com.music.spotui.data.api.SupportReminder.accentOf(look) == a
+            for (a in com.music.spotui.data.preferences.AccentPref.Accent.entries) {
+                val selected = accentPref.accentOf(look) == a
                 val name = stringResource(when (a) {
-                    com.music.spotui.data.api.SupportReminder.Accent.GREEN -> R.string.color_green
-                    com.music.spotui.data.api.SupportReminder.Accent.BLUE -> R.string.color_blue
-                    com.music.spotui.data.api.SupportReminder.Accent.PURPLE -> R.string.color_purple
-                    com.music.spotui.data.api.SupportReminder.Accent.PINK -> R.string.color_pink
-                    com.music.spotui.data.api.SupportReminder.Accent.ORANGE -> R.string.color_orange
+                    com.music.spotui.data.preferences.AccentPref.Accent.GREEN -> R.string.color_green
+                    com.music.spotui.data.preferences.AccentPref.Accent.BLUE -> R.string.color_blue
+                    com.music.spotui.data.preferences.AccentPref.Accent.PURPLE -> R.string.color_purple
+                    com.music.spotui.data.preferences.AccentPref.Accent.PINK -> R.string.color_pink
+                    com.music.spotui.data.preferences.AccentPref.Accent.ORANGE -> R.string.color_orange
                 })
                 Box(
                     Modifier.size(38.dp)
                         .semantics { contentDescription = name; role = Role.RadioButton }
                         .clip(CircleShape).background(a.color)
                         .then(if (selected) Modifier.border(3.dp, Immersive.Text, CircleShape) else Modifier)
-                        .clickable { com.music.spotui.data.api.SupportReminder.setAccent(ctx, look, a) },
+                        .clickable { accentPref.setAccent(ctx, look, a) },
                 )
             }
         }
@@ -1116,34 +890,19 @@ private fun LyricsLanguagePage(back: () -> Unit) {
 // ---------------------------------------------------------------- App
 
 @Composable
-private fun AppPage(navController: NavController, back: () -> Unit) {
+private fun AppPage(back: () -> Unit) {
     val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val check = com.music.spotui.data.api.rememberUpdateCheckState(ctx)
+    var about by remember { mutableStateOf(false) }
+    if (about) com.music.spotui.ui.components.AboutSheet(onDismiss = { about = false })
     ImmersivePage(title = stringResource(R.string.settings_section_app), onBack = back) {
-        immersiveGroup("updates") {
+        immersiveGroup("about") {
             row {
-                ImmersiveSwitchRow(stringResource(R.string.settings_auto_update_title), checked = com.music.spotui.data.preferences.AutoUpdateCheckPref.on,
-                    onChecked = { com.music.spotui.data.preferences.AutoUpdateCheckPref.set(ctx, it) }, detail = stringResource(R.string.settings_auto_update_detail))
-            }
-            row {
-                val known = com.music.spotui.updateRelease.value ?: remember { com.music.spotui.data.api.UpdateChecker.known(ctx) }
-                val detail = buildString {
-                    if (known != null) appendLine(ctx.getString(R.string.settings_update_available, known.version))
-                    check.message?.takeIf { known == null || check.isError }?.let { appendLine(it) }
-                    append(check.lastCheckedText)
-                }
                 ImmersiveGroupRow(
-                    stringResource(R.string.settings_about_version, app.myspoti.engine.BuildConfig.VERSION_NAME),
-                    detail = detail,
-                    detailColor = if (check.isError) Immersive.Destructive else Immersive.TextSecondary,
-                    onClick = if (known != null) ({ com.music.spotui.updateRelease.value = known }) else null,
-                    trailing = {
-                        if (check.checking) androidx.compose.material3.CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = Immersive.Accent)
-                        else androidx.compose.material3.IconButton(onClick = { scope.launch { check.run() } }) {
-                            androidx.compose.material3.Icon(Icons.Rounded.Refresh, stringResource(R.string.settings_update_refresh), tint = Immersive.Accent)
-                        }
-                    },
+                    stringResource(R.string.creator_biography_section_title),
+                    detail = stringResource(R.string.about_detail),
+                    value = app.myspoti.engine.BuildConfig.VERSION_NAME,
+                    chevron = true,
+                    onClick = { about = true },
                 )
             }
         }
@@ -1177,48 +936,7 @@ private fun AppPage(navController: NavController, back: () -> Unit) {
 /** The Spotify accounts kept on the phone ([com.music.spotui.ui.components.AccountsList]), and signing this one out. */
 @Composable
 private fun AccountsPage(back: () -> Unit) {
-    val ctx = androidx.compose.ui.platform.LocalContext.current
-    // Passing the setup to or from another of the user's devices (a QR code, the same Wi-Fi).
-    var passSend by remember { mutableStateOf(false) }
-    var passReceive by remember { mutableStateOf(false) }
-    if (passSend) com.music.spotui.pass.PassSendFlow { passSend = false }
-    if (passReceive) com.music.spotui.pass.PassReceiveDialog { passReceive = false }
-    val isTv = remember { ctx.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK) }
     ImmersivePage(title = stringResource(R.string.accounts_title), onBack = back) {
-        // The account provider: where extension plays are counted and the library is read from (one at a time).
-        immersiveGroup("account", headerRes = R.string.settings_account_provider_title, footerRes = R.string.settings_account_provider_detail) {
-            for (id in app.myspoti.api.account.AccountProviders.OFFERED) row {
-                ImmersiveChoiceRow(
-                    com.music.spotui.ui.components.accountProviderLabel(id),
-                    selected = com.music.spotui.data.preferences.AccountProviderPref.id == id,
-                    onClick = { com.music.spotui.data.preferences.AccountProviderPref.set(ctx, id) },
-                )
-            }
-            if (com.music.spotui.data.preferences.AccountProviderPref.id == app.myspoti.api.account.AccountProviders.YTMUSIC) row {
-                val ytm = com.music.spotui.di.YtmRuntime
-                var signingIn by remember { mutableStateOf(false) }
-                ImmersiveGroupRow(
-                    title = stringResource(if (ytm.signedIn) R.string.settings_ytm_sign_out else R.string.settings_ytm_account_title),
-                    detail = stringResource(if (ytm.signedIn) R.string.settings_ytm_signed_in else R.string.settings_ytm_signed_out) + "\n" +
-                        stringResource(R.string.settings_ytm_sync_note),
-                    destructive = ytm.signedIn,
-                    chevron = !ytm.signedIn,
-                    onClick = { if (ytm.signedIn) ytm.signOut() else signingIn = true },
-                )
-                if (signingIn) com.music.spotui.ui.components.YtmSignInDialog(onDismiss = { signingIn = false })
-            }
-        }
-        // Songs an extension streams, played by the chosen provider too (unheard): counted there.
-        if (com.music.spotui.data.preferences.AccountProviderPref.id != app.myspoti.api.account.AccountProviders.NONE) immersiveGroup("listen-sync") {
-            row {
-                ImmersiveSwitchRow(
-                    stringResource(R.string.settings_connect_mirror_title),
-                    checked = com.music.spotui.data.preferences.ConnectMirrorPref.on,
-                    onChecked = { com.music.spotui.data.preferences.ConnectMirrorPref.set(ctx, it) },
-                    detail = stringResource(R.string.settings_connect_mirror_detail),
-                )
-            }
-        }
         immersiveGroup("accounts") {
             row { com.music.spotui.ui.components.AccountsList() }
         }
@@ -1229,11 +947,6 @@ private fun AccountsPage(back: () -> Unit) {
                     onClick = { com.music.spotui.di.SessionActions.logout(com.music.spotui.di.Graph.app) },
                 )
             }
-        }
-        immersiveGroup("pass", headerRes = R.string.pass_section) {
-            // A TV has no camera: it only receives.
-            if (!isTv) row { ImmersiveGroupRow(stringResource(R.string.pass_send), detail = stringResource(R.string.pass_send_detail), chevron = true, onClick = { passSend = true }) }
-            row { ImmersiveGroupRow(stringResource(R.string.pass_receive), detail = stringResource(R.string.pass_receive_detail), chevron = true, onClick = { passReceive = true }) }
         }
     }
 }

@@ -24,7 +24,7 @@ object SessionActions {
      * Signs out and drops everything tied to the account, so the next account on
      * this phone starts clean: prefs and in-memory caches, the saved screens,
      * the listen history (the Recap), and the Web Player's cookies, Web storage
-     * and cache (in the host). Downloads are put aside under the account (OfflineAccounts), not deleted.
+     * and cache (in the host).
      * With other accounts kept on the phone, this one is removed and the one used last takes over.
      */
     fun logout(context: android.content.Context) {
@@ -41,23 +41,16 @@ object SessionActions {
 
     /**
      * Everything that follows the account leaves with it: nothing of it keeps playing or showing,
-     * its caches are dropped, its downloads put aside under it (OfflineAccounts). [forget]: a sign-out
-     * or a removal, its listen history goes; otherwise (a switch) it is put aside under it too.
-     * Extensions are the app's and keep running; their settings and the quality are the account's (ProfilePrefs).
+     * and its caches are dropped. [forget]: a sign-out or a removal, its listen history goes;
+     * otherwise (a switch) it is put aside under it too.
      */
     private fun leaveAccount(app: android.content.Context, forget: Boolean) {
-        // This account's downloads go aside: the next account on the phone sees none of them.
         val account = com.music.spotui.data.api.ProfileCache.id
-        val key = account?.let { com.music.spotui.data.offline.OfflineAccounts.keyOf(it) } ?: MyspotiRuntime.host.accounts.list.value.current?.key
-        MyspotiRuntime.scope.launch {
-            runCatching { com.music.spotui.data.offline.OfflineAccounts.park(app, account) }
-                .onFailure { Logbook.log("offline: sign-out park failed: ${it.message}") }
-        }
+        val key = account?.let { com.music.spotui.data.accountKeyOf(it) } ?: MyspotiRuntime.host.accounts.list.value.current?.key
         app.getSharedPreferences("myspoti_prefs", android.content.Context.MODE_PRIVATE)
             .edit().putBoolean("LoggedIn", false).remove("CurrentAccountName").apply()
-        // Nothing of the account keeps playing or showing: local songs, the clip, the notification.
+        // Nothing of the account keeps playing or showing: local songs, the notification.
         LocalPlayer.stop()
-        com.music.spotui.video.MusicVideoController.clearSession()
         PlaybackService.end()
         runCatching { MyspotiRuntime.scope.launch { runCatching { MyspotiRuntime.api.player.pause() } } }
         com.music.spotui.ui.screens.ContextViewModel.clearCache()
@@ -127,9 +120,9 @@ object SessionActions {
     }
 
     /**
-     * [profile] is removed from the phone: its sign-in and Web data are deleted (its profile), its listen
-     * history too; its downloads stay put aside (OfflineAccounts), back if it is added again. The active
-     * account is first left for the one used last; the only account left is signed out instead.
+     * [profile] is removed from the phone: its sign-in and Web data are deleted (its profile), and
+     * its listen history too. The active account is first left for the one used last; the only
+     * account left is signed out instead.
      */
     fun removeAccount(context: android.content.Context, profile: String) {
         val host = MyspotiRuntime.host
@@ -158,9 +151,7 @@ object SessionActions {
      * The Spotify session was lost without a sign-out (an anonymous token, Spotify's sign-in page
      * back): whose account comes next is not known, maybe another one. What follows the account
      * forgets it as a sign-out does (the profile, so ProfileCache.id is read again as soon as the
-     * next session is ready; the likes kept for later stay their account's, sent to it only), and
-     * nothing kept by account is removed: the downloads stay in place for the account read next
-     * (OfflineAccounts.claim puts another account's aside then). Nothing else of a sign-out is done.
+     * next session is ready; the likes kept for later stay their account's, sent to it only).
      */
     fun sessionLost() {
         Logbook.log("session lost without a sign-out: the account is read again at the next session")

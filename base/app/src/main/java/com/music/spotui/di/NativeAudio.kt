@@ -41,10 +41,7 @@ import kotlinx.serialization.json.jsonPrimitive
  * registers a device of its own on the account, shown as this phone.
  *
  * An ad the account's player is given is never asked for nor played by the engine: it moves on
- * to the next song. While an extension plays, the engine is the listen mirror's device
- * ([MirrorEngine], [AccountSync]): it plays the extension's song unheard, without the audio focus,
- * at its smallest file, and the page is not used for it. With the engine off or left aside, the
- * mirror is the page's, and a running engine leaves the account's devices meanwhile ([leaveForMirror]).
+ * to the next song.
  *
  * Debug builds drive it by hand too (TestControlReceiver): native-play <uri> [--ez l3 true],
  * native-pause, native-resume, native-seek <ms>, native-next [<uri>], native-prev, native-transfer,
@@ -73,11 +70,6 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
 
     private const val ASIDE_MS = 15 * 60_000L
 
-    /**
-     * The page's listen-sync mirror starts (an extension plays, the page plays the song unheard): the engine
-     * stops and leaves the account's devices, so the page's play is the page's own. The next play of
-     * the account's songs starts it again.
-     */
     fun leaveForMirror() {
         if (engine == null) return
         log("the listen mirror plays on the page: the engine stops until the account's songs play again")
@@ -95,10 +87,6 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
     override val deviceId: String? get() = engine?.deviceId
     override val holdsPlayback: Boolean get() = engine?.now?.value != null
 
-    /**
-     * The listen mirror holds the engine ([EngineSyncPage], from its first play to its end), or the
-     * engine is muted by it: its songs are the mirror's, not the account's to show or follow.
-     */
     @Volatile private var mirrorHolds = false
     override fun mirrorHeld(on: Boolean) { mirrorHolds = on }
     override val mirrors: Boolean get() = engine?.let { mirrorHolds || it.muted } == true

@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * it, a song picked in the list plays next in it, songs added to the list join what is to come.
  * The player shows shuffle on.
  *
- * The local player (extensions, downloads, files of the device) deals its own order the same way
+ * The local player (files of the device) deals its own order the same way
  * already (LocalPlayer.setShuffle): nothing changes there. A list Spotify keeps on its own shuffle
  * (an account that may only shuffle, see SpotifyPlayer.onRefused) is left to it, and the user told.
  */
@@ -121,7 +121,7 @@ object AppShuffle {
                 val now = SongPlayer.nowPlaying.value
                 if (now.contextUri != was || !now.uri.startsWith(TRACK)) return@whenPlaying false
                 app.myspoti.host.android.Logbook.log("shuffle: Myspoti's off, $was back in its order")
-                SongPlayer.playSong(now.uri, contextUri = was, order = back, positionMs = SongPlayer.getCurrentPosition(), askExtensions = false)
+                SongPlayer.playSong(now.uri, contextUri = was, order = back, positionMs = SongPlayer.getCurrentPosition())
                 true
             }
             return true
@@ -202,7 +202,7 @@ object AppShuffle {
         SongPlayer.setPageShuffle(false)
         state.shuffle.value = true
         state.updateQueue(dealt.mapNotNull(songs::get))
-        SongPlayer.playSong(song.url, contextUri = uri, order = dealt, positionMs = positionMs, askExtensions = false)
+        SongPlayer.playSong(song.url, contextUri = uri, order = dealt, positionMs = positionMs)
         return true
     }
 

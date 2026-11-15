@@ -12,14 +12,13 @@ import app.myspoti.automix.MixPlanner
 import app.myspoti.automix.TrackAnalysis
 import app.myspoti.automix.DurationBounds
 import com.music.spotui.di.Graph
-import com.music.spotui.extensions.ExtensionAudio
 import java.io.File
 import java.security.MessageDigest
 import java.util.concurrent.Executors
 
 /**
- * AutoMix: DJ-style transitions between the local player's songs (extension streams, downloads,
- * the phone's files). Spotify songs play in the Web Player, whose audio the app never has.
+ * AutoMix: DJ-style transitions between the local player's songs (the phone's files).
+ * Spotify songs play in the Web Player, whose audio the app never has.
  *
  * Each song is analysed once in the background (see [Analyzer]) and the result kept in the cache;
  * [planFor] gives the transition between two analysed songs. LocalPlayer plays it (see its AutoMix part).
@@ -147,7 +146,7 @@ object AutoMix {
         private set
     fun changeMixPodcasts(value: Boolean) { mixPodcasts = value; Graph.app.getSharedPreferences(PREFS, 0).edit().putBoolean("automix_podcasts", value).apply(); com.music.spotui.di.LocalPlayer.autoMixSettingsChanged() }
 
-    /** Extension streams analysed on mobile data too (each is read a second time: about the song's size again). On by default: off, songs heard on mobile data are not mixed. */
+    /** Streams analysed on mobile data too. On by default: off, streams heard on mobile data are not mixed. */
     var analyzeOnMobileData by mutableStateOf(Graph.app.getSharedPreferences(PREFS, 0).getBoolean("automix_mobile_data", true))
         private set
     fun changeAnalyzeOnMobileData(value: Boolean) {
@@ -293,7 +292,6 @@ object AutoMix {
     private val asked = HashSet<String>()
     private val retry = AnalysisRetry()
     private val fileVersions = java.util.concurrent.ConcurrentHashMap<String, String>()
-    private val streamKeys = ArrayDeque<Pair<app.myspoti.extensions.AudioStream, String>>()
     private val baseKeys = java.util.concurrent.ConcurrentHashMap<String, String>()
     @Volatile private var cacheEpoch = 0L
     /** Songs without an analysis for now, and why (shown through [missing]). */
@@ -330,10 +328,9 @@ object AutoMix {
                 for (uri in jobs) {
                     if (epoch != cacheEpoch || requestId(uri) !in wanted) continue
                     refreshFileVersion(uri)
-                    prepareStreamKey(uri)
                     val k = key(uri)
                     if (synchronized(memory) { memory.containsKey(k) }) continue
-                    val cached = if (uri.scheme != ExtensionAudio.SCHEME || ExtensionAudio.streamOf(uri.lastPathSegment.orEmpty()) != null) load(k) else null
+                    val cached = load(k)
                     if (cached != null) { synchronized(memory) { memory[k] = cached; refused -= requestId(uri) }; ready() }
                     else pending += uri
                 }
@@ -369,20 +366,8 @@ object AutoMix {
     private fun analyse(uri: Uri, epoch: Long): Pair<String, TrackAnalysis>? {
         val id = requestId(uri)
         val cancelled = { epoch != cacheEpoch || id !in wanted }
-        var cacheKey = key(uri)
+        val cacheKey = key(uri)
         try {
-            if (uri.scheme == ExtensionAudio.SCHEME) {
-                val saver = com.music.spotui.data.DataSaver.active
-                if (com.music.spotui.data.DataSaver.metered && (saver || !analyzeOnMobileData)) {
-                    synchronized(memory) { refused[id] = Reason.MobileData }
-                    return null
-                }
-                if (ExtensionAudio.resolve(uri, ahead = true) == null) throw java.io.IOException("no stream")
-                prepareStreamKey(uri)
-                cacheKey = key(uri)
-                // A source had not answered at the cache pass: its old analysis may now be usable.
-                load(cacheKey)?.let { return cacheKey to it }
-            }
             if (cancelled()) return null
             val t0 = System.currentTimeMillis()
             val pcm = TrackDecoder.decode(uri, cancelled)
@@ -486,31 +471,12 @@ object AutoMix {
         }
     }
 
-    private fun requestId(uri: Uri): String =
-        if (uri.scheme == ExtensionAudio.SCHEME) "ext:" + uri.lastPathSegment.orEmpty() else uri.toString()
+    private fun requestId(uri: Uri): String = uri.toString()
 
     /** No file I/O or large manifest hashing on the player/UI thread. */
     fun key(uri: Uri): String {
         val id = requestId(uri)
-        if (uri.scheme == ExtensionAudio.SCHEME) {
-            val stream = ExtensionAudio.streamOf(uri.lastPathSegment.orEmpty())
-            if (stream != null) return synchronized(streamKeys) {
-                streamKeys.firstOrNull { it.first === stream }?.second ?: "$id:pending:${System.identityHashCode(stream)}"
-            }
-        }
         return fileVersions[id] ?: baseKeys.getOrPut(id) { digest(id) }
-    }
-
-    private fun prepareStreamKey(uri: Uri) {
-        if (uri.scheme != ExtensionAudio.SCHEME) return
-        val stream = ExtensionAudio.streamOf(uri.lastPathSegment.orEmpty()) ?: return
-        synchronized(streamKeys) { if (streamKeys.any { it.first === stream }) return }
-        // Signed query strings expire; provider, recording path and audio metadata do not.
-        val k = digest(AnalysisIdentity.stream(requestId(uri), stream.providerId, stream.durationMs, stream.codec, stream.source, stream.url, stream.manifest))
-        synchronized(streamKeys) {
-            streamKeys.addLast(stream to k)
-            while (streamKeys.size > 24) streamKeys.removeFirst()
-        }
     }
 
     private fun digest(id: String): String = MessageDigest.getInstance("SHA-1").digest(id.toByteArray())

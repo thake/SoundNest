@@ -103,54 +103,6 @@ object AppShufflePref {
     }
 }
 
-/**
- * "Count extension plays on your music account": a song an extension streams live is played by the
- * chosen account provider's web player too ([AccountProviderPref]: Spotify's Web Player, YouTube
- * Music's web app), unheard, so the provider counts it (and Spotify Connect sees and controls it; see
- * [com.music.spotui.di.AccountSync]). Off: the extension's stream alone. Off for a new install; an
- * install from before this default keeps what it had (on, the earlier default, when never changed),
- * and the value read the first time is stored so a later update keeps it. Downloads are never
- * synced (the earlier "Sync downloaded songs with Spotify" key, `download_spotify_sync`, is no
- * longer read).
- */
-object ConnectMirrorPref {
-    private const val KEY = "connect_mirror"
-    var on by androidx.compose.runtime.mutableStateOf(initial(com.music.spotui.di.Graph.app))
-        private set
-
-    private fun initial(c: Context): Boolean {
-        val p = prefs(c)
-        if (p.contains(KEY)) return p.getBoolean(KEY, false)
-        // Never set: an update of an older install had it on by default, a new install starts off.
-        val updated = runCatching { c.packageManager.getPackageInfo(c.packageName, 0).let { it.lastUpdateTime > it.firstInstallTime } }
-            .getOrDefault(false)
-        p.edit().putBoolean(KEY, updated).apply()
-        return updated
-    }
-
-    fun set(c: Context, value: Boolean) {
-        on = value
-        prefs(c).edit().putBoolean(KEY, value).apply()
-        com.music.spotui.di.AccountSync.listen.refresh()
-    }
-}
-
-/**
- * The automatic update check at launch (on by default: the app behaved that way before this
- * option existed). Off means no check when the app starts — a check asked for in Settings still
- * works, it reads the same release list.
- */
-object AutoUpdateCheckPref {
-    private const val KEY = "auto_update_check"
-    var on by androidx.compose.runtime.mutableStateOf(prefs(com.music.spotui.di.Graph.app).getBoolean(KEY, true))
-        private set
-
-    fun set(c: Context, value: Boolean) {
-        on = value
-        prefs(c).edit().putBoolean(KEY, value).apply()
-    }
-}
-
 /** Screen rotation: portrait (the default), automatic (follows the system), or landscape. */
 object OrientationPref {
     private const val KEY = "screen_orientation"
@@ -234,22 +186,6 @@ object TransitionPref {
 }
 
 /**
- * "Music videos": the video button in the player, the lookup behind it and a clip that starts
- * by itself on the next song. On by default; off, the player is audio (and Canvas) only.
- */
-object MusicVideoPref {
-    private const val KEY = "music_video_enabled"
-    var on by androidx.compose.runtime.mutableStateOf(prefs(com.music.spotui.di.Graph.app).getBoolean(KEY, true))
-        private set
-
-    fun set(c: Context, value: Boolean) {
-        on = value
-        prefs(c).edit().putBoolean(KEY, value).apply()
-        if (!value) com.music.spotui.video.MusicVideoController.setOn(false)
-    }
-}
-
-/**
  * "Hide the DJ" on Home (off by default): Spotify's DJ, which comes in the home feed as a
  * playlist card, leaves the shelves. Read by both Home screens as state.
  */
@@ -258,8 +194,7 @@ object HideDjPref {
     var on by androidx.compose.runtime.mutableStateOf(prefs(com.music.spotui.di.Graph.app).getBoolean(KEY, false))
         private set
 
-    /** Hidden here or by an extension's look (`home.dj`). */
-    val hidden: Boolean get() = on || com.music.spotui.extensions.ExtensionLook.hides(app.myspoti.extensions.UiPart.HOME_DJ)
+    val hidden: Boolean get() = on
 
     fun set(c: Context, value: Boolean) {
         on = value
@@ -312,8 +247,7 @@ object PlayerLyricsCardPref {
     var on by androidx.compose.runtime.mutableStateOf(prefs(com.music.spotui.di.Graph.app).getBoolean(KEY, true))
         private set
 
-    /** Shown: on here and not hidden by an extension's look (`player.lyrics-card`). */
-    val shown: Boolean get() = on && !com.music.spotui.extensions.ExtensionLook.hides(app.myspoti.extensions.UiPart.PLAYER_LYRICS_CARD)
+    val shown: Boolean get() = on
 
     fun set(c: Context, value: Boolean) {
         on = value
@@ -331,8 +265,7 @@ object PlayerSourceLinePref {
     var on by androidx.compose.runtime.mutableStateOf(prefs(com.music.spotui.di.Graph.app).getBoolean(KEY, true))
         private set
 
-    /** Shown: on here and not hidden by an extension's look (`player.source`). */
-    val shown: Boolean get() = on && !com.music.spotui.extensions.ExtensionLook.hides(app.myspoti.extensions.UiPart.PLAYER_SOURCE)
+    val shown: Boolean get() = on
 
     fun set(c: Context, value: Boolean) {
         on = value
@@ -350,8 +283,7 @@ object PlayerCapsulePref {
     var on by androidx.compose.runtime.mutableStateOf(prefs(com.music.spotui.di.Graph.app).getBoolean(KEY, true))
         private set
 
-    /** Shown: on here and not hidden by an extension's look (`player.capsule`). */
-    val shown: Boolean get() = on && !com.music.spotui.extensions.ExtensionLook.hides(app.myspoti.extensions.UiPart.PLAYER_CAPSULE)
+    val shown: Boolean get() = on
 
     fun set(c: Context, value: Boolean) {
         on = value
@@ -399,23 +331,6 @@ object PlayerVolumePref {
 object LyricsKeepAwakePref {
     private const val KEY = "lyrics_keep_screen_on"
     var on by androidx.compose.runtime.mutableStateOf(prefs(com.music.spotui.di.Graph.app).getBoolean(KEY, true))
-        private set
-
-    fun set(c: Context, value: Boolean) {
-        on = value
-        prefs(c).edit().putBoolean(KEY, value).apply()
-    }
-}
-
-/**
- * "Picture-in-picture" (Settings > Display, both looks): leaving the app while a song plays opens
- * a small window with its cover, the line being sung and previous, play/pause and next buttons
- * ([com.music.spotui.ui.components.SongPip]). Off by default: asked for on Discord, and "keep it
- * optional" there too. A music video keeps its own window whatever this says.
- */
-object SongPipPref {
-    private const val KEY = "song_pip"
-    var on by androidx.compose.runtime.mutableStateOf(prefs(com.music.spotui.di.Graph.app).getBoolean(KEY, false))
         private set
 
     fun set(c: Context, value: Boolean) {

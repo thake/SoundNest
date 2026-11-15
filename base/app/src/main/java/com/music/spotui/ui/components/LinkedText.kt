@@ -56,7 +56,7 @@ fun rememberLinkedText(text: String, linkColor: Color): AnnotatedString {
 fun openDescriptionLink(context: android.content.Context, link: String) {
     val spotify = link.contains("spotify.com", ignoreCase = true) || link.contains("spotify.link", ignoreCase = true) || link.startsWith("spotify:", ignoreCase = true)
     if (spotify) {
-        // A collaborative-playlist invitation, a Blend invitation or a short link.
+        // A collaborative-playlist invitation or a short link.
         if (link.startsWith("http", ignoreCase = true) && InviteLinks.handle(link)) return
         val uri = URI.find(link)?.let { "spotify:${it.groupValues[1].lowercase()}:${it.groupValues[2]}" }
             ?: PAGE_LINK.find(link)?.let { "spotify:${it.groupValues[1].lowercase()}:${it.groupValues[2]}" }

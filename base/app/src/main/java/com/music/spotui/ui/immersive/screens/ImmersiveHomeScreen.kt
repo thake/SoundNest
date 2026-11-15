@@ -40,7 +40,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -181,10 +180,6 @@ fun ImmersiveHomeScreen(navController: NavController) {
                             }
                         }
                     }
-                    // Sections from extensions (home.sections), after Spotify's own.
-                    item(key = "home:extensions") {
-                        com.music.spotui.extensions.ExtensionBlocks(app.myspoti.extensions.Hook.HOME, app.myspoti.extensions.Surface.HOME, "{}")
-                    }
                 }
                 home is Response.Loading -> immersiveFeedSkeleton(firstIsHero = true)
                 else -> item(key = "home:message") {
@@ -198,12 +193,6 @@ fun ImmersiveHomeScreen(navController: NavController) {
         }
         // The greeting, the bell and the profile disc on floating glass; the feed scrolls under it.
         ImmersiveFloatingHeader(title, collapse = rememberTopBarCollapse(listState, 24.dp)) {
-            // Friend activity, out of the tab bar: beside the profile, as Spotify has it.
-            com.music.spotui.ui.immersive.shell.ImmersiveBarAction(
-                androidx.compose.ui.graphics.vector.ImageVector.vectorResource(R.drawable.ic_friends_big),
-                contentDescription = stringResource(R.string.friends_title),
-                onClick = { navController.navigate(com.music.spotui.ui.navigation.Routes.Friends.route) },
-            )
             val size = LocalBarControlSize.current
             WhatsNewBell(size) { navController.navigate(Routes.WhatsNew.route) }
             // The tap area is the header's full height and reaches past the disc toward the

@@ -11,6 +11,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.music.spotui.data.preferences.AccentPref
+import com.music.spotui.data.preferences.Look
 import com.music.spotui.ui.look.ImmersiveDisplay
 import com.music.spotui.ui.look.ImmersiveSans
 
@@ -21,17 +23,14 @@ import com.music.spotui.ui.look.ImmersiveSans
  */
 object Immersive {
     // Colours.
-    /** Black, or an extension's look background (unless the AMOLED setting is on). */
-    val Page: Color get() = if (app.myspoti.power.EnergySettings.oledBlack) Color.Black
-        else com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.BACKGROUND) ?: Color.Black
-    val Raised: Color get() = com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.SURFACE) ?: Color(0xFF1C1C1E)
+    val Page: Color = Color.Black
+    val Raised: Color = Color(0xFF1C1C1E)
     val Separator = Color.White.copy(alpha = 0.10f)
     val Text = Color.White
     val TextSecondary = Color.White.copy(alpha = 0.60f)
     val TextTertiary = Color.White.copy(alpha = 0.38f)
     /** The look's own pink until an Immersive accent colour is chosen in Settings, then that colour (links, the selected tab, toggles). */
-    val Accent: Color get() = com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.ACCENT)
-        ?: com.music.spotui.data.api.SupportReminder.run { if (immersiveAccentChosen) immersiveAccent.color else Color(0xFFFF4F7B) }
+    val Accent: Color get() = AccentPref.let { if (it.immersiveAccentChosen) it.accentOf(Look.IMMERSIVE).color else Color(0xFFFF4F7B) }
     val GlassFill = Color(0xFF2C2C34).copy(alpha = 0.88f)
     val GlassEdge = Color.White.copy(alpha = 0.12f)
     /** The red of a destructive swipe, menu entry or confirmation (Leave, Remove, an error). */

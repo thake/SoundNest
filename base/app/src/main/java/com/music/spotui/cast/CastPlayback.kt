@@ -14,9 +14,9 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 /**
- * Myspoti's own player on a Cast device: the songs [LocalPlayer] plays (extension streams,
- * downloads, the phone's files) go to the Default Media Receiver of the chosen device, fetched
- * from the phone's [CastServer]. Spotify's songs are not cast here: Spotify Connect does that.
+ * Myspoti's own player on a Cast device: the songs [LocalPlayer] plays (the phone's files)
+ * go to the Default Media Receiver of the chosen device, fetched from the phone's [CastServer].
+ * Spotify's songs are not cast here: Spotify Connect does that.
  *
  * [LocalPlayer] keeps the queue and its rules (shuffle, repeat, song radio); while casting its
  * ExoPlayer is stopped, and each song it moves to is loaded on the device ([follow]). The
@@ -53,9 +53,6 @@ object CastPlayback {
     private var settleAfterLoad = false
     /** The song the device has (its LOAD sent). */
     private var loaded: LocalTrack? = null
-    /** Songs whose direct address the device could not play: proxied by the phone instead. */
-    private val directFailed = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<LocalTrack, Boolean>())
-    private var lastLoadDirect = false
     private var failures = 0
     private var reconnects = 0
     private var launchRequest = -1
@@ -292,28 +289,19 @@ object CastPlayback {
             if (track === t) loadFailed(gen, "song not readable")
             return
         }
-        // Skipped again while the song was opened (an extension may take seconds).
+        // Skipped again while the song was opened.
         if (gen != generation || track !== t || phase != Phase.READY) return
-        val direct = directUrl(t)
-        val url = direct ?: CastServer.publish(entry)
+        val url = CastServer.publish(entry)
         val cover = coverUrl(t)
         loadRequest = ++requestId
         mediaSessionId = -1
         settleAfterLoad = true
         loaded = t
-        lastLoadDirect = direct != null
         val at = startMs
         send(CastProtocol.NS_MEDIA, CastProtocol.load(loadRequest, a.sessionId, url, entry.mime, t.durationMs,
             t.title, t.artist, t.album, cover, at, wantPlaying))
         log("load sent: ${entry.mime}, ${if (entry.length >= 0) "${entry.length / 1024} KB" else "length unknown"}, " +
-            "${if (direct != null) "direct address" else "through the phone"}, from ${at / 1000} s${if (wantPlaying) "" else ", paused"}")
-    }
-
-    /** An extension's plain address (no headers, no DASH) the device can fetch itself, or null. */
-    private fun directUrl(t: LocalTrack): String? {
-        if (t.uri.scheme != com.music.spotui.extensions.ExtensionAudio.SCHEME || t in directFailed) return null
-        val s = runCatching { com.music.spotui.extensions.ExtensionAudio.resolve(t.uri) }.getOrNull() ?: return null
-        return s.url.takeIf { s.manifest == null && s.headers.isEmpty() && (it.startsWith("https://") || it.startsWith("http://")) }
+            "through the phone, from ${at / 1000} s${if (wantPlaying) "" else ", paused"}")
     }
 
     private fun coverUrl(t: LocalTrack): String? {
@@ -359,15 +347,7 @@ object CastPlayback {
     }
 
     private fun loadFailed(gen: Int, why: String) {
-        val t = loaded ?: track ?: return
-        if (lastLoadDirect && t === track) {
-            log("$why from its direct address: through the phone instead")
-            directFailed += t
-            loaded = null
-            startMs = position()
-            load(gen, t)
-            return
-        }
+        if (loaded == null && track == null) return
         failures++
         playerState = "IDLE"
         log("$why (failure $failures in a row)")
@@ -450,7 +430,6 @@ object CastPlayback {
         loaded = null
         mediaSessionId = -1; loadRequest = -1; finishedFor = -1
         reconnects = 0; failures = 0
-        directFailed.clear()
         playerState = "IDLE"
     }
 

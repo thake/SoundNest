@@ -3,6 +3,11 @@ package com.music.spotui.data
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.security.MessageDigest
+
+/** A stable, opaque folder name for a Spotify user id (the id itself is not written down). */
+fun accountKeyOf(userId: String): String =
+    MessageDigest.getInstance("SHA-256").digest(userId.toByteArray()).take(12).joinToString("") { "%02x".format(it) }
 
 /**
  * Replaces [file] with [text] whole or not at all: written to a temporary file next to it, flushed

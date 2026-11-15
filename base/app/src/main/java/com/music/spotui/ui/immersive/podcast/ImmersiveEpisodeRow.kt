@@ -35,7 +35,6 @@ import androidx.compose.ui.unit.dp
 import app.myspoti.engine.R
 import com.music.spotui.data.entity.SongsModel
 import com.music.spotui.di.Haptics
-import com.music.spotui.ui.components.EpisodeDownloadButton
 import com.music.spotui.ui.components.EpisodeProgressBar
 import com.music.spotui.ui.components.episodeClock
 import com.music.spotui.ui.components.episodeDateLabel
@@ -47,7 +46,7 @@ import com.music.spotui.ui.immersive.screens.ImmersiveRowDivider
 
 /**
  * One episode (or book chapter) of a show: cover, title, a snippet, "date · length" and what is
- * left of it, then its own controls (menu, download, play). A tap opens the episode, a long press
+ * left of it, then its own controls (menu, play). A tap opens the episode, a long press
  * opens its menu; the row shrinks a little under the finger.
  */
 @Composable
@@ -139,8 +138,6 @@ internal fun ImmersiveEpisodeRow(
                     )
                 }
                 Spacer(Modifier.weight(1f))
-                EpisodeDownloadButton(episode, size = 24.dp)
-                Spacer(Modifier.width(8.dp))
                 PlayDisc(playing = playing, onClick = onPlay)
             }
         }

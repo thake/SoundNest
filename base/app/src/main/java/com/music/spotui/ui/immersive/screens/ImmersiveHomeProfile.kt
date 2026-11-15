@@ -23,7 +23,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,18 +38,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.myspoti.engine.R
 import com.music.spotui.data.api.ProfileCache
-import com.music.spotui.data.api.SupportReminder
 import com.music.spotui.di.Graph
 import com.music.spotui.di.SessionActions
 import com.music.spotui.ui.components.AboutSheet
-import com.music.spotui.ui.components.SupporterBadge
-import com.music.spotui.ui.components.SupporterSheet
-import com.music.spotui.ui.components.SupportSheet
 import com.music.spotui.ui.immersive.Immersive
 import com.music.spotui.ui.immersive.components.ImmersiveCover
 import com.music.spotui.ui.immersive.components.immersiveClickable
 import com.music.spotui.ui.navigation.Routes
-import com.music.spotui.ui.navigation.profileRoute
 import com.music.spotui.ui.screens.AccountBrowser
 
 /**
@@ -103,16 +97,14 @@ internal fun AvatarDisc(
 }
 
 /**
- * The profile sheet behind the avatar: account name and picture (open the public profile),
- * settings, recap, history, the account page, support, about and sign-out. The same rows and
- * actions as the Classic Home screen's sheet.
+ * The profile sheet behind the avatar: account name and picture,
+ * settings, recap, history, the account page, about and sign-out.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ImmersiveProfileSheet(onOpen: (route: String) -> Unit, onDismiss: () -> Unit) {
     val name = ProfileCache.name.orEmpty()
     val avatar = ProfileCache.imageUrl
-    val myId = ProfileCache.id
     // Opened in full: half-open, the sheet and its list both moved under the finger.
     ImmersiveGlassSheet(onDismiss, rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(
@@ -122,12 +114,10 @@ internal fun ImmersiveProfileSheet(onOpen: (route: String) -> Unit, onDismiss: (
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 16.dp),
         ) {
-            // Name and picture open the public profile.
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(enabled = myId != null, role = Role.Button) { myId?.let { onOpen(profileRoute(it, name)) } }
                     .padding(horizontal = Immersive.Gutter, vertical = 8.dp),
             ) {
                 AvatarDisc(
@@ -144,14 +134,6 @@ internal fun ImmersiveProfileSheet(onOpen: (route: String) -> Unit, onDismiss: (
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(start = 14.dp),
                 )
-                if (SupportReminder.level != SupportReminder.Level.NONE) SupporterBadge(Modifier.padding(start = 10.dp))
-            }
-            if (myId != null) {
-                Text(
-                    text = stringResource(R.string.view_profile),
-                    style = Immersive.Caption,
-                    modifier = Modifier.padding(start = 82.dp, bottom = 4.dp),
-                )
             }
             HorizontalDivider(color = Immersive.Separator, modifier = Modifier.padding(vertical = 8.dp))
             SheetRow(stringResource(R.string.settings_title), stringResource(R.string.settings_detail)) {
@@ -163,16 +145,6 @@ internal fun ImmersiveProfileSheet(onOpen: (route: String) -> Unit, onDismiss: (
             SheetRow(stringResource(R.string.recents_title), stringResource(R.string.recents_detail)) {
                 onOpen(Routes.Recent.route)
             }
-            // Third-party extensions: installed, enabled, repositories.
-            val extRegistry by com.music.spotui.extensions.Extensions.registry.collectAsState()
-            val installed = extRegistry.extensions
-            SheetRow(
-                stringResource(R.string.extensions_title),
-                if (installed.isEmpty()) stringResource(R.string.extensions_row_detail)
-                else stringResource(R.string.extensions_row_count, installed.size, installed.count { it.enabled }),
-            ) {
-                onOpen(Routes.Extensions.route)
-            }
             // The account page (plan, privacy, devices), in the app's signed-in browser.
             SheetRow(
                 stringResource(R.string.immersive_screens_account_page),
@@ -181,26 +153,10 @@ internal fun ImmersiveProfileSheet(onOpen: (route: String) -> Unit, onDismiss: (
                 onDismiss()
                 AccountBrowser.open(Graph.app, AccountBrowser.ACCOUNT_URL)
             }
-            // Donations: always here, never in the way.
-            var support by remember { mutableStateOf(false) }
-            if (support) SupportSheet(onDismiss = { support = false })
-            SheetRow(
-                stringResource(R.string.support_title),
-                stringResource(R.string.support_row_detail),
-                titleColor = Immersive.Accent,
-            ) { support = true }
-            // About: version, Discord, source code and Ko-fi.
             var about by remember { mutableStateOf(false) }
             if (about) AboutSheet(onDismiss = { about = false })
             SheetRow(stringResource(R.string.creator_biography_section_title), stringResource(R.string.about_detail)) {
                 about = true
-            }
-            var perks by remember { mutableStateOf(false) }
-            if (perks) SupporterSheet(onDismiss = { perks = false })
-            if (SupportReminder.PERKS_ENABLED) {
-                SheetRow(stringResource(R.string.supporter_perks_title), stringResource(R.string.supporter_perks_detail)) {
-                    perks = true
-                }
             }
             // The other Spotify accounts kept on the phone: switch, add, remove.
             var accounts by remember { mutableStateOf(false) }

@@ -48,9 +48,9 @@ class PlaylistReorderTest {
     }
 
     private fun allowed(
-        type: String = "playlist", editable: Boolean = true, isBlend: Boolean = false, custom: Boolean = true,
+        type: String = "playlist", editable: Boolean = true, custom: Boolean = true,
         complete: Boolean = true, find: String = "", uids: List<String> = rows,
-    ) = PlaylistReorder.allowed(type, editable, isBlend, custom, complete, find, uids)
+    ) = PlaylistReorder.allowed(type, editable, custom, complete, find, uids)
 
     @Test fun ownPlaylistInItsOrderCanMove() = assertTrue(allowed())
 
@@ -58,7 +58,6 @@ class PlaylistReorderTest {
         assertFalse(allowed(type = "album"))
         assertFalse(allowed(type = "liked"))
         assertFalse(allowed(editable = false))
-        assertFalse(allowed(isBlend = true))
         assertFalse(allowed(custom = false))
         assertFalse(allowed(complete = false))
         assertFalse(allowed(find = "halo"))

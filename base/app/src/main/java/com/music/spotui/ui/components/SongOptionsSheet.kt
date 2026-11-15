@@ -35,7 +35,6 @@ import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.AddCircleOutline
-import androidx.compose.material.icons.outlined.ArrowCircleDown
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Radio
 import androidx.compose.material.icons.outlined.Share
@@ -144,10 +143,6 @@ fun SongOptionsSheet(
     // A Live Radio station playing right now: no queue, album or artist page of its own, but
     // (unlike a track with no Spotify id) a name and homepage worth sharing.
     val isRadio = nowPlaying && com.music.spotui.radio.RadioPlayer.current() != null
-    // An episode is keyed by its url ("episode:<id>") and has no track id: the Download row
-    // (and only it) follows that key, everything else in this menu stays on the track id.
-    val episodeKey = com.music.spotui.data.offline.episodeKeyOf(song)
-    val downloadKey = episodeKey ?: song.spotifyTrackId
     fun toast(text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
 
     ModalBottomSheet(
@@ -211,47 +206,6 @@ fun SongOptionsSheet(
                     onOpenQueue()
                 }
             }
-            val offline = com.music.spotui.data.offline.OfflineStore.statusOf(downloadKey)
-            when {
-                offline == com.music.spotui.data.offline.OfflineStatus.Done -> MenuRow(
-                    null, stringResource(R.string.context_menu_undownload),
-                    leading = { DownloadBadge(offline, size = 22.dp) },
-                ) {
-                    // An episode is kept by its own key (no list holds it): it goes straight.
-                    val gone = if (episodeKey != null) {
-                        com.music.spotui.data.offline.PodcastDownloader.remove(downloadKey)
-                        true
-                    } else com.music.spotui.data.offline.OfflineCollections.removeSong(downloadKey)
-                    toast(if (gone) context.getString(R.string.toast_undownload) else com.music.spotui.data.offline.OfflineCollections.keptMessage(context, downloadKey))
-                    onDismiss()
-                }
-                offline == com.music.spotui.data.offline.OfflineStatus.Queued ||
-                    offline is com.music.spotui.data.offline.OfflineStatus.Downloading -> MenuRow(
-                    null, stringResource(R.string.download_cancel),
-                    leading = { DownloadBadge(offline, size = 22.dp) },
-                ) {
-                    if (episodeKey != null) com.music.spotui.data.offline.PodcastDownloader.cancel(downloadKey)
-                    else com.music.spotui.data.offline.OfflineDownloader.cancel(downloadKey)
-                    onDismiss()
-                }
-                // Enabled for episodes too: refused ones keep the error badge, and a tap tries
-                // again (the audio URL is resolved at that moment, so a retry can succeed).
-                else -> MenuRow(
-                    Icons.Outlined.ArrowCircleDown, stringResource(R.string.context_menu_download),
-                    enabled = downloadKey.isNotBlank(),
-                    leading = if (offline != null) ({ DownloadBadge(offline, size = 22.dp) }) else null,
-                ) {
-                    if (episodeKey != null) {
-                        // No quality dialog: it is the publisher's own file, encoded once.
-                        com.music.spotui.data.offline.PodcastDownloader.enqueue(song)
-                    } else com.music.spotui.ui.components.DownloadAsk.start(context) { q ->
-                        com.music.spotui.data.offline.OfflineCollections.downloadSong(song, q)
-                        com.music.spotui.di.Haptics.confirm()
-                        toast(context.getString(R.string.download_notification_downloading))
-                    }
-                    onDismiss()
-                }
-            }
             MenuRow(Icons.Outlined.Radio, stringResource(R.string.context_menu_go_to_song_radio), enabled = hasId) {
                 onDismiss()
                 playerViewModel.goToSongRadio(song.spotifyTrackId, song.title,
@@ -268,7 +222,7 @@ fun SongOptionsSheet(
             }
             MenuRow(Icons.Outlined.Info, stringResource(R.string.track_credits), enabled = hasId) { showCredits = true }
             // "Not interested": kept on this phone only; the song leaves the queue and lists skip it.
-            if (hasId && episodeKey == null) {
+            if (hasId && !song.url.startsWith("episode:")) {
                 val hidden = com.music.spotui.data.preferences.HiddenSongs.isHidden(song.spotifyTrackId)
                 MenuRow(Icons.Outlined.ThumbDownOffAlt, stringResource(if (hidden) R.string.show_song_again else R.string.hide_song)) {
                     if (hidden) com.music.spotui.data.preferences.HiddenSongs.show(context, song.spotifyTrackId) else SongPlayer.hideSong(song)
@@ -354,10 +308,6 @@ fun SongOptionsSheet(
                 }
                 MenuRow(Icons.Outlined.Analytics, stringResource(R.string.nerd_title)) { showNerd = true }
             }
-            // Entries from extensions (menu.items), after the app's own; each names its extension.
-            if (hasId) com.music.spotui.extensions.ExtensionMenuEntries(
-                app.myspoti.extensions.Surface.TRACK_MENU, "spotify:track:${song.spotifyTrackId}", song.title, song.singer, onDone = onDismiss,
-            )
             Spacer(Modifier.height(12.dp))
         }
     }
@@ -423,16 +373,6 @@ internal fun CreditsSheet(song: SongsModel, onDismiss: () -> Unit) {
                     Text(role.artists.joinToString(", ") { it.name }, color = AppText, fontSize = 16.sp)
                     Text(role.role, color = AppMuted, fontSize = 13.sp)
                 }
-            }
-            // What extensions add about the song (trackinfo.provide), under Spotify's credits.
-            if (song.spotifyTrackId.isNotBlank()) {
-                val info = androidx.compose.runtime.remember(song.spotifyTrackId) {
-                    com.music.spotui.extensions.Extensions.trackInfo(song.spotifyTrackId, song.title, song.singer, song.album, song.durationMs.toLong(), song.coverUri)
-                }
-                com.music.spotui.extensions.ExtensionBlocks(
-                    app.myspoti.extensions.Hook.TRACK_INFO, app.myspoti.extensions.Surface.TRACK_INFO, info.toJson(),
-                    context = com.music.spotui.extensions.placeJson("track", info.uri, info.title, info.artist),
-                )
             }
         }
     }

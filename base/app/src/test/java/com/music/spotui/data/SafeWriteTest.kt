@@ -1,6 +1,5 @@
 package com.music.spotui.data
 
-import com.music.spotui.data.offline.OfflineAccounts
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -42,9 +41,9 @@ class SafeWriteTest {
 
     @Test
     fun accountKeyIsStableOpaqueAndDistinct() {
-        assertEquals(OfflineAccounts.keyOf("alice"), OfflineAccounts.keyOf("alice"))
-        assertNotEquals(OfflineAccounts.keyOf("alice"), OfflineAccounts.keyOf("bob"))
-        assertEquals(24, OfflineAccounts.keyOf("alice").length)
-        assertFalse(OfflineAccounts.keyOf("alice").contains("alice"))
+        assertEquals(accountKeyOf("alice"), accountKeyOf("alice"))
+        assertNotEquals(accountKeyOf("alice"), accountKeyOf("bob"))
+        assertEquals(24, accountKeyOf("alice").length)
+        assertFalse(accountKeyOf("alice").contains("alice"))
     }
 }

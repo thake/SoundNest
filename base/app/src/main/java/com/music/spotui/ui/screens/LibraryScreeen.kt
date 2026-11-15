@@ -118,7 +118,7 @@ fun LibraryScreen(navController: NavController) {
         val top = (entries as? Response.Success)?.data.orEmpty().take(8).mapNotNull { e ->
             when {
                 e.isFolder || LibraryEdits.isPending(e.spotifyId) || e.spotifyId.startsWith(LOCAL_PLAYLIST_PREFIX) -> null
-                e.spotifyId in setOf(Api.HomeCache.LOCAL_FILES_ID, Api.HomeCache.DOWNLOADS_ID, Api.HomeCache.EPISODES_ID) -> null
+                e.spotifyId in setOf(Api.HomeCache.LOCAL_FILES_ID, Api.HomeCache.EPISODES_ID) -> null
                 e.spotifyId == Api.HomeCache.LIKED_SONGS_ID -> "liked" to ""
                 e.isPlaylist -> "playlist" to e.spotifyId
                 else -> "album" to e.spotifyId
@@ -288,25 +288,20 @@ fun LibraryScreen(navController: NavController) {
         val refreshing by libraryViewModel.refreshing.collectAsState()
         when (entries) {
             is Response.Loading -> LibrarySkeleton(PaddingValues(0.dp))
-            // Offline / error: the pinned folders (Local Files, Downloaded) stay reachable.
+            // Offline / error: the pinned folders (Local Files) stay reachable.
             else -> androidx.compose.material3.pulltorefresh.PullToRefreshBox(
                 isRefreshing = refreshing,
                 onRefresh = { libraryViewModel.refresh() },
                 modifier = Modifier.fillMaxSize(),
             ) {
                 val localName = stringResource(R.string.local_files_title)
-                val downloadsName = stringResource(R.string.collection_downloaded)
                 val localSubtitle = stringResource(R.string.assisted_curation_search_playlist) + " • " + stringResource(R.string.local_playlist_subtitle)
-                val hasDownloads = com.music.spotui.data.offline.OfflineStore.tracks.isNotEmpty() ||
-                    com.music.spotui.data.offline.OfflineDownloader.requests.isNotEmpty()
                 val likedName = stringResource(R.string.collection_liked_songs_title)
-                // Liked Songs, Local Files and Downloaded stay on top; the rest follows the
-                // chosen sort. "Récents" is not here: it lives on the profile panel, as in the
-                // official app (it is the account's history, not a library folder).
+                // Liked Songs and Local Files stay on top; the rest follows the chosen sort.
                 val radioOn = com.music.spotui.radio.RadioFeaturePref.on
                 val radioName = stringResource(R.string.live_radio_title)
                 val rootPinned = ((entries as? Response.Success)?.data ?: emptyList())
-                    .indexOfFirst { it.spotifyId == Api.HomeCache.LIKED_SONGS_ID } + (if (com.music.spotui.data.preferences.LocalFilesPref.shown) 2 else 1) + (if (hasDownloads) 1 else 0) + (if (radioOn) 1 else 0)
+                    .indexOfFirst { it.spotifyId == Api.HomeCache.LIKED_SONGS_ID } + (if (com.music.spotui.data.preferences.LocalFilesPref.shown) 2 else 1) + (if (radioOn) 1 else 0)
                 val allEntries = ((entries as? Response.Success)?.data ?: emptyList()).map {
                     if (it.spotifyId == Api.HomeCache.LIKED_SONGS_ID) it.copy(name = likedName, subtitle = "") else it
                 }.let { list ->
@@ -320,10 +315,6 @@ fun LibraryScreen(navController: NavController) {
                         spotifyId = com.music.spotui.radio.RadioFeaturePref.LIBRARY_ENTRY_ID, name = radioName, subtitle = "",
                         coverUri = "android.resource://${LocalContext.current.packageName}/drawable/live_radio_cover", isPlaylist = true,
                     )
-                    // "Downloaded" right after it, once something was downloaded.
-                    val downloads = com.music.spotui.data.entity.LibraryEntry(
-                        spotifyId = Api.HomeCache.DOWNLOADS_ID, name = downloadsName, subtitle = "", coverUri = "", isPlaylist = true,
-                    )
                     val at = list.indexOfFirst { it.spotifyId == Api.HomeCache.LIKED_SONGS_ID } + 1
                     // Then the phone's own playlists (files of this phone, not on Spotify).
                     val localLists = com.music.spotui.data.local.LocalPlaylists.list().map { p ->
@@ -333,7 +324,7 @@ fun LibraryScreen(navController: NavController) {
                         )
                     }
                     list.take(at) + (if (com.music.spotui.data.preferences.LocalFilesPref.shown) listOf(local) else emptyList()) + (if (radioOn) listOf(radio) else emptyList()) +
-                        (if (hasDownloads) listOf(downloads) else emptyList()) + localLists + list.drop(at)
+                        localLists + list.drop(at)
                 }.let { list ->
                     LibraryOrder.version
                     LibraryOrder.arrange(list, LibraryOrder.sort, LibraryOrder.custom(LibraryOrder.ROOT), rootPinned)
@@ -342,7 +333,7 @@ fun LibraryScreen(navController: NavController) {
                 val myId = com.music.spotui.data.api.ProfileCache.name?.let { com.music.spotui.data.api.ProfileCache.id }
                 val (chipEntries, chipArtists) = com.music.spotui.data.local.LibraryChips.apply(
                     chip, allEntries, followedArtists,
-                    setOf(Api.HomeCache.LIKED_SONGS_ID, Api.HomeCache.LOCAL_FILES_ID, Api.HomeCache.DOWNLOADS_ID,
+                    setOf(Api.HomeCache.LIKED_SONGS_ID, Api.HomeCache.LOCAL_FILES_ID,
                         com.music.spotui.radio.RadioFeaturePref.LIBRARY_ENTRY_ID),
                     myId, followedShows, setOf(Api.HomeCache.EPISODES_ID),
                 )
@@ -631,7 +622,6 @@ fun SumUpLibraryScreen(
 @Composable
 fun LibraryEntryCover(entry: LibraryEntry, modifier: Modifier) {
     val drawn = when {
-        entry.spotifyId == Api.HomeCache.DOWNLOADS_ID -> R.drawable.downloads_cover
         entry.spotifyId == Api.HomeCache.LOCAL_FILES_ID || entry.spotifyId.startsWith(LOCAL_PLAYLIST_PREFIX) -> R.drawable.local_files_cover
         entry.spotifyId == com.music.spotui.radio.RadioFeaturePref.LIBRARY_ENTRY_ID -> R.drawable.live_radio_cover
         entry.isFolder -> R.drawable.folder_cover
@@ -648,7 +638,7 @@ const val LOCAL_PLAYLIST_PREFIX = "local-playlist:"
 private fun prefetchLibraryEntry(entry: LibraryEntry) = when {
     LibraryEdits.isPending(entry.spotifyId) -> Unit
     entry.isFolder || entry.spotifyId.startsWith(LOCAL_PLAYLIST_PREFIX) || entry.spotifyId.startsWith(Api.HomeCache.SHOW_PREFIX) -> Unit
-    entry.spotifyId == Api.HomeCache.LOCAL_FILES_ID || entry.spotifyId == Api.HomeCache.DOWNLOADS_ID || entry.spotifyId == Api.HomeCache.EPISODES_ID || entry.spotifyId == Api.HomeCache.NEW_EPISODES_ID -> Unit
+    entry.spotifyId == Api.HomeCache.LOCAL_FILES_ID || entry.spotifyId == Api.HomeCache.EPISODES_ID || entry.spotifyId == Api.HomeCache.NEW_EPISODES_ID -> Unit
     entry.spotifyId == com.music.spotui.radio.RadioFeaturePref.LIBRARY_ENTRY_ID -> Unit
     entry.spotifyId == Api.HomeCache.LIKED_SONGS_ID -> ContextViewModel.prefetch("liked", "")
     entry.isPlaylist -> ContextViewModel.prefetch("playlist", entry.spotifyId)
@@ -661,7 +651,6 @@ private fun openLibraryEntry(entry: LibraryEntry, navController: NavController) 
     if (entry.isFolder) navController.navigate(folderRoute(entry.folderUri, entry.name))
     else if (entry.spotifyId.startsWith(LOCAL_PLAYLIST_PREFIX)) navController.navigate(localPlaylistRoute(entry.spotifyId.removePrefix(LOCAL_PLAYLIST_PREFIX)))
     else if (entry.spotifyId.startsWith(Api.HomeCache.SHOW_PREFIX)) navController.navigate(showRoute(entry.spotifyId.removePrefix(Api.HomeCache.SHOW_PREFIX), entry.name))
-    else if (entry.spotifyId == Api.HomeCache.DOWNLOADS_ID) navController.navigate(Routes.Downloads.route)
     else if (entry.spotifyId == Api.HomeCache.LOCAL_FILES_ID) navController.navigate(Routes.LocalFiles.route)
     else if (entry.spotifyId == com.music.spotui.radio.RadioFeaturePref.LIBRARY_ENTRY_ID) navController.navigate(Routes.LiveRadio.route)
     else if (entry.spotifyId == Api.HomeCache.LIKED_SONGS_ID) navController.navigate(Routes.Liked.route)
@@ -685,7 +674,7 @@ fun LibraryGridScreen(
     navController: NavController,
     /** The library level whose order a long press then a drag changes; null: no moving. */
     reorderLevel: String? = null,
-    /** Entries at the top that never move (Liked Songs, Local Files, Downloaded). */
+    /** Entries at the top that never move (Liked Songs, Local Files). */
     pinned: Int = 0,
     /** As in [SumUpLibraryScreen]. */
     note: String? = null,
@@ -931,13 +920,6 @@ private fun AccountSheet(
             HorizontalDivider(color = tone(0xFF2A2A2A))
 
             // Spotify's own account pages (plan, privacy, devices), signed in, in the app.
-            val context = androidx.compose.ui.platform.LocalContext.current
-            com.music.spotui.data.api.ProfileCache.id?.let { myId ->
-                AccountRow(stringResource(R.string.view_profile)) {
-                    onDismiss()
-                    navController.navigate(com.music.spotui.ui.navigation.profileRoute(myId, account.name))
-                }
-            }
             AccountRow(stringResource(R.string.settings_title)) {
                 onDismiss()
                 navController.navigate(com.music.spotui.ui.navigation.Routes.Settings.route)

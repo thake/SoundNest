@@ -1,7 +1,7 @@
 package com.music.spotui.data.preferences
 
 /*
- * Appearance choices on top of the look: the wallpaper's colours (Material You) for the Classic
+ * Appearance choices on top of the look: Accent color, wallpaper colours (Material You) for the Classic
  * look, and the font of both looks. Compose state, so every screen redraws when one changes.
  */
 
@@ -14,6 +14,61 @@ import androidx.compose.ui.graphics.Color
 private const val PREF = "settings_prefs"
 
 private fun prefs(c: Context) = c.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+
+/**
+ * Per-look Accent color preference (preserved from upstream theme settings without donation popups).
+ */
+object AccentPref {
+    private const val ACCENT_PREFS = "support_reminder"
+    private const val KEY_ACCENT = "accent"
+    private const val KEY_ACCENT_CLASSIC = "accent_classic"
+    private const val KEY_ACCENT_IMMERSIVE = "accent_immersive"
+
+    enum class Accent(val key: String, val color: Color) {
+        GREEN("green", Color(0xFF1ED760)),
+        BLUE("blue", Color(0xFF509BF5)),
+        PURPLE("purple", Color(0xFFAF7AF6)),
+        PINK("pink", Color(0xFFF573A0)),
+        ORANGE("orange", Color(0xFFFF9E3D)),
+    }
+
+    var classicAccent by mutableStateOf(Accent.GREEN)
+        private set
+
+    var immersiveAccent by mutableStateOf(Accent.GREEN)
+        private set
+
+    var immersiveAccentChosen by mutableStateOf(false)
+        private set
+
+    fun accentOf(look: Look): Accent = if (look == Look.IMMERSIVE) immersiveAccent else classicAccent
+
+    val accentColor: Color get() = accentOf(LookPref.look).color
+
+    private fun accentPrefs(context: Context) = context.getSharedPreferences(ACCENT_PREFS, Context.MODE_PRIVATE)
+
+    fun init(context: Context) {
+        val p = accentPrefs(context)
+        if (p.contains(KEY_ACCENT) && !p.contains(KEY_ACCENT_CLASSIC) && !p.contains(KEY_ACCENT_IMMERSIVE)) {
+            val old = p.getString(KEY_ACCENT, "green")
+            p.edit().putString(KEY_ACCENT_CLASSIC, old).putString(KEY_ACCENT_IMMERSIVE, old).apply()
+        }
+        classicAccent = Accent.entries.firstOrNull { it.key == p.getString(KEY_ACCENT_CLASSIC, "green") } ?: Accent.GREEN
+        immersiveAccent = Accent.entries.firstOrNull { it.key == p.getString(KEY_ACCENT_IMMERSIVE, "green") } ?: Accent.GREEN
+        immersiveAccentChosen = p.contains(KEY_ACCENT_IMMERSIVE)
+    }
+
+    fun setAccent(context: Context, look: Look, value: Accent) {
+        if (look == Look.IMMERSIVE) {
+            immersiveAccent = value
+            immersiveAccentChosen = true
+            accentPrefs(context).edit().putString(KEY_ACCENT_IMMERSIVE, value.key).apply()
+        } else {
+            classicAccent = value
+            accentPrefs(context).edit().putString(KEY_ACCENT_CLASSIC, value.key).apply()
+        }
+    }
+}
 
 /**
  * "Dynamic colors (Material You)": the Classic look's accent taken from the wallpaper (Android 12
@@ -57,8 +112,8 @@ object DynamicColorPref {
 }
 
 /**
- * "App font": Myspoti's own fonts (Manrope in the Classic look, Inter in the Immersive one, the
- * default) or the phone's system font. No font is bundled for it: the system one is the phone's.
+ * "App font": the app's own fonts (Manrope in the Classic look, Inter in the Immersive one, the
+ * default) or the phone's system font.
  */
 object AppFontPref {
     private const val KEY = "system_font"
@@ -69,22 +124,6 @@ object AppFontPref {
 
     fun set(c: Context, value: Boolean) {
         system = value
-        prefs(c).edit().putBoolean(KEY, value).apply()
-    }
-}
-
-/**
- * "Download lyrics with songs": a downloaded song's lyrics are looked up and kept with it, so the
- * lyrics show without a connection. On by default.
- */
-object LyricsOfflinePref {
-    private const val KEY = "download_lyrics"
-
-    var on by mutableStateOf(prefs(com.music.spotui.di.Graph.app).getBoolean(KEY, true))
-        private set
-
-    fun set(c: Context, value: Boolean) {
-        on = value
         prefs(c).edit().putBoolean(KEY, value).apply()
     }
 }

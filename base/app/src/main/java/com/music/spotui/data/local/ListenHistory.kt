@@ -80,7 +80,7 @@ object ListenHistory {
     fun clear() = synchronized(lock) { loaded = null; file?.delete(); owner()?.delete() }
 
     /*
-     * The history belongs to the account it was heard on, as the downloads do (OfflineAccounts): on an
+     * The history belongs to the account it was heard on ([com.music.spotui.data.accountKeyOf]): on an
      * account switch it is put aside under that account's key (`listen-history/<key>.jsonl`) and the
      * next account's comes back. A history from before has no owner and goes to the first account read.
      */

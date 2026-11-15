@@ -152,7 +152,7 @@ private fun ConsentPage(o: DesktopConsent.Open) {
     Column(Modifier.fillMaxSize().background(tone(0xFF121212)).statusBarsPadding().navigationBarsPadding().imePadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { DesktopConsent.finish(o, null) }) {
-                Icon(Icons.Rounded.Close, stringResource(R.string.ext_auth_close), tint = AppText)
+                Icon(Icons.Rounded.Close, stringResource(android.R.string.cancel), tint = AppText)
             }
             Column(Modifier.weight(1f)) {
                 Text(o.deviceName, color = AppText, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)

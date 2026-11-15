@@ -116,49 +116,31 @@ fun WelcomeScreen(onLogin: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter).rise(3),
             ) {
-                // A TV remote: the button takes the focus at once and shows it (a white ring); a
-                // focus with no look left nothing on screen to say what OK would do.
-                val ctx = androidx.compose.ui.platform.LocalContext.current
-                val tv = remember { com.music.spotui.ui.tv.Tv.isTv(ctx) }
-                // The account is chosen before any sign-in: Spotify's is no longer the first thing asked.
-                val choosesAccount = Onboarding.welcomeChoosesAccount(tv)
-                val focus = remember { androidx.compose.ui.focus.FocusRequester() }
-                var focused by remember { mutableStateOf(false) }
-                if (tv) LaunchedEffect(Unit) { delay(300); runCatching { focus.requestFocus() } }
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(54.dp)
-                        .then(if (tv) Modifier.focusRequester(focus).onFocusChanged { focused = it.isFocused } else Modifier)
                         .pressable(0.96f, onClick = onLogin)
                         .clip(RoundedCornerShape(50))
-                        .then(if (focused) Modifier.border(3.dp, Color.White, RoundedCornerShape(50)) else Modifier)
                         .background(AppAccent),
                 ) {
-                    Text(stringResource(if (choosesAccount) R.string.welcome_start else R.string.welcome_login), color = Color.Black, fontFamily = AppSans,
-                        fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                    Text(
+                        stringResource(R.string.welcome_login),
+                        color = Color.Black,
+                        fontFamily = AppSans,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                    )
                 }
-                // Or the whole setup of another device of the user's, by its QR code (same Wi-Fi).
-                var passing by remember { mutableStateOf(false) }
-                var passFocused by remember { mutableStateOf(false) }
                 Text(
-                    stringResource(R.string.pass_sign_in_with_device),
-                    color = AppText, fontFamily = AppSans, fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
-                    modifier = Modifier.padding(top = 10.dp)
-                        .onFocusChanged { passFocused = it.isFocused }
-                        .pressable(0.96f, onClick = { passing = true })
-                        .clip(RoundedCornerShape(50))
-                        // The remote's focus shows on a TV, as on the button above.
-                        .then(if (passFocused) Modifier.border(2.dp, Color.White, RoundedCornerShape(50)) else Modifier)
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                )
-                if (passing) com.music.spotui.pass.PassReceiveDialog(onDismiss = { passing = false })
-                // Spotify's sign-in is the account choice's to explain when it is not the next page.
-                if (!choosesAccount) Text(
                     stringResource(R.string.welcome_privacy),
-                    color = AppText.copy(alpha = 0.5f), fontFamily = AppSans, fontSize = 13.sp, lineHeight = 18.sp,
-                    textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp),
+                    color = AppText.copy(alpha = 0.5f),
+                    fontFamily = AppSans,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 14.dp),
                 )
             }
         }

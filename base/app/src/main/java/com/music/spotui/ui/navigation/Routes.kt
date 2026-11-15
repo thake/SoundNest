@@ -25,7 +25,6 @@ sealed class Routes(
     object LocalFiles : Routes(0, "LocalFiles", "localfiles")
     /** Live Radio (radio/ module): search radio-browser.info, favorites, playback. */
     object LiveRadio : Routes(0, "LiveRadio", "liveradio")
-    object Downloads : Routes(0, "Downloads", "downloads")
     object HiddenSongs : Routes(0, "HiddenSongs", "hiddensongs")
     object Equalizer : Routes(0, "Equalizer", "equalizer")
     object Folder : Routes(0, "Folder", "folder")
@@ -38,18 +37,8 @@ sealed class Routes(
     object Recent : Routes(0, "Recent", "recent")
     /** The "What's New" feed behind the bell on Home. */
     object WhatsNew : Routes(0, "WhatsNew", "whatsnew")
-    object Friends : Routes(icon = R.drawable.ic_friends_big, label = "Amis", route = "friends", labelRes = R.string.friends_tab)
     object Settings : Routes(0, "Settings", "settings")
-    object Extensions : Routes(0, "Extensions", "extensions")
-    object Extension : Routes(0, "Extension", "extension")
-    /** A repository's extension, before it is installed (by id). */
-    object ExtensionEntry : Routes(0, "ExtensionEntry", "extension-store")
-    object Profile : Routes(0, "Profile", "profile")
 }
-
-/** A Spotify user's profile, by user id (the part after spotify:user:). */
-fun profileRoute(userId: String, name: String = ""): String =
-    "${Routes.Profile.route}/${android.net.Uri.encode(userId)}?name=${android.net.Uri.encode(name)}"
 
 /** Builds a Browse-category route carrying the search genre and a display title. */
 fun categoryRoute(genre: String, title: String): String =

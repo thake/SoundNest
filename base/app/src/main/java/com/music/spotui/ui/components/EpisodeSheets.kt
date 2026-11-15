@@ -25,10 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.ArrowCircleDown
-import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Done
-import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.PlaylistAdd
 import androidx.compose.material.icons.outlined.Share
@@ -47,56 +44,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.myspoti.engine.R
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
 import com.music.spotui.data.entity.SongsModel
-import com.music.spotui.data.offline.OfflineStatus
-import com.music.spotui.data.offline.OfflineStore
-import com.music.spotui.data.offline.PodcastDownloader
-import com.music.spotui.data.offline.episodeKeyOf
 import com.music.spotui.di.SongPlayer
 
 private val Accent: Color get() = com.music.spotui.ui.theme.AppAccent
 private val Sheet: Color get() = tone(0xFF1F1F1F)
 
-/** "episode:<id>" — an episode has no track id; the downloader and the library key on this. */
-val SongsModel.episodeKey: String? get() = episodeKeyOf(this)
-
 /** Spotify's episode uri, as the page's own menu hands it around. */
 val SongsModel.spotifyUri: String get() = "spotify:$url"
-
-/**
- * The row's download control: outlined arrow, progress ring, green disc when kept. A tap
- * downloads, cancels or removes — as the button in the official row does.
- */
-@Composable
-fun EpisodeDownloadButton(song: SongsModel, size: Dp = 26.dp) {
-    val context = LocalContext.current
-    val key = song.episodeKey ?: return
-    val status = OfflineStore.statusOf(key)
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier.size(size + 14.dp).clip(CircleShape).clickable {
-            when (status) {
-                OfflineStatus.Done -> {
-                    PodcastDownloader.remove(key)
-                    Toast.makeText(context, context.getString(R.string.toast_undownload), Toast.LENGTH_SHORT).show()
-                }
-                OfflineStatus.Queued, is OfflineStatus.Downloading -> PodcastDownloader.cancel(key)
-                else -> PodcastDownloader.enqueue(song)
-            }
-        },
-    ) {
-        when (status) {
-            null -> Icon(Icons.Outlined.Download, stringResource(R.string.episode_download), tint = AppText.copy(alpha = 0.85f), modifier = Modifier.size(size))
-            else -> DownloadBadge(status, size = size)
-        }
-    }
-}
 
 /** The episode's own "…" menu, as the official app has it (no like, no lyrics, played marks). */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalGlideComposeApi::class)
@@ -111,8 +71,6 @@ fun EpisodeOptionsSheet(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    val key = song.episodeKey
-    val status = key?.let { OfflineStore.statusOf(it) }
     // The + / ✓ follows Spotify's library: ask once for this episode's saved state.
     androidx.compose.runtime.LaunchedEffect(song.url) { SongPlayer.requestSaved(song.spotifyUri) }
     val saved = SongPlayer.library[song.spotifyUri] == true
@@ -140,22 +98,6 @@ fun EpisodeOptionsSheet(
             ) {
                 SongPlayer.setSaved(song.spotifyUri, !saved)
                 onDismiss()
-            }
-            when {
-                status == OfflineStatus.Done -> SheetAction(Icons.Outlined.DeleteOutline, stringResource(R.string.episode_download_remove)) {
-                    key?.let { PodcastDownloader.remove(it) }
-                    Toast.makeText(context, context.getString(R.string.toast_undownload), Toast.LENGTH_SHORT).show()
-                    onDismiss()
-                }
-                status == OfflineStatus.Queued || status is OfflineStatus.Downloading ->
-                    SheetAction(Icons.Outlined.ArrowCircleDown, stringResource(R.string.download_cancel)) {
-                        key?.let { PodcastDownloader.cancel(it) }
-                        onDismiss()
-                    }
-                else -> SheetAction(Icons.Outlined.ArrowCircleDown, stringResource(R.string.episode_download)) {
-                    PodcastDownloader.enqueue(song)
-                    onDismiss()
-                }
             }
             // The mark the official episode menu carries and the music menu does not.
             if (finished) {

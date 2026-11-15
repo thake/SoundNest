@@ -61,9 +61,6 @@ fun SpotuiTheme(
 ) {
     val energy by app.myspoti.power.EnergySettings.state.collectAsStateWithLifecycle()
     val policy = energy.policy
-    androidx.compose.runtime.LaunchedEffect(policy.videoMaxHeight, policy.allowBackgroundLookups) {
-        com.music.spotui.video.MusicVideoController.onEnergyPolicyChanged()
-    }
     // A new wallpaper recreates the activity: its accent is read again (Material You, see DynamicColorPref).
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     androidx.compose.runtime.remember(configuration) { com.music.spotui.data.preferences.DynamicColorPref.refresh() }
@@ -80,8 +77,6 @@ fun SpotuiTheme(
             // B19: the navigation bar was left to the system — a white band under the always-dark
             // UI (reported in the modal sheets, where the bar was opaque) with dark icons on it.
             window.navigationBarColor = Color.Transparent.toArgb()
-            // Without this Android lays its own translucent scrim on a transparent bar (API 29+),
-            // which showed as a differently coloured strip under the full-screen Canvas.
             window.isNavigationBarContrastEnforced = false
             WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = false
             // Behind the first frame and under overscroll: the palette's page colour.
@@ -96,20 +91,12 @@ fun SpotuiTheme(
         // Bare Text() uses LocalTextStyle, which MaterialTheme does NOT derive
         // from the typography — so provide Montserrat as the global default so
         // every screen picks it up without touching each Text call.
-        // An extension's look may make the text a little smaller or larger (ui.styles.text.scale).
-        val density = androidx.compose.ui.platform.LocalDensity.current
-        val scale = com.music.spotui.extensions.ExtensionLook.textScale
-        androidx.compose.runtime.CompositionLocalProvider(
-            androidx.compose.ui.platform.LocalDensity provides
-                if (scale == 1f) density else androidx.compose.ui.unit.Density(density.density, density.fontScale * scale),
-        ) {
-            androidx.compose.material3.ProvideTextStyle(
-                value = androidx.compose.material3.LocalTextStyle.current.copy(
-                    fontFamily = Montserrat,
-                    letterSpacing = (-0.2).sp,
-                ),
-                content = content,
-            )
-        }
+        androidx.compose.material3.ProvideTextStyle(
+            value = androidx.compose.material3.LocalTextStyle.current.copy(
+                fontFamily = Montserrat,
+                letterSpacing = (-0.2).sp,
+            ),
+            content = content,
+        )
     }
 }

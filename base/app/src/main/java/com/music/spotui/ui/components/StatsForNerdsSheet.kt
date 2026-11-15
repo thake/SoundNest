@@ -25,14 +25,10 @@ import androidx.media3.common.C
 import app.myspoti.engine.R
 import com.music.spotui.automix.AutoMix
 import com.music.spotui.cast.CastPlayback
-import com.music.spotui.data.offline.OfflineStore
 import com.music.spotui.data.preferences.CrossfadePref
 import com.music.spotui.data.preferences.StreamingQuality
-import com.music.spotui.di.AccountSync
 import com.music.spotui.di.LocalPlayer
 import com.music.spotui.di.SongPlayer
-import com.music.spotui.extensions.ExtensionAudio
-import com.music.spotui.extensions.Extensions
 import com.music.spotui.ui.theme.AppMuted
 import com.music.spotui.ui.theme.AppText
 import com.music.spotui.ui.theme.tone
@@ -42,10 +38,9 @@ import java.util.Locale
 /**
  * "Stats for nerds": what the app knows of the sound that plays, read again every second while the
  * sheet is open (and not at all otherwise: the reading lives in the sheet's composition). For
- * Myspoti's own player: the source, the format the decoder reports, the bit rate, the buffer, the
- * output and the processing. For Spotify: what the page announces and the mirror; the stream itself
- * is encrypted in the page, so nothing more is claimed. The sources asked and the quality announced
- * are told in full by "Why this source?" ([WhySourceSheet]), opened from the player's source line.
+ * the local player: the source, the format the decoder reports, the bit rate, the buffer, the
+ * output and the processing. For Spotify: what the page announces; the stream itself
+ * is encrypted in the page, so nothing more is claimed.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,21 +86,11 @@ internal object NerdStats {
         val rows = ArrayList<Pair<String, String>>()
         fun row(label: Int, value: String?) { if (!value.isNullOrBlank()) rows += c.getString(label) to value }
         val t = LocalPlayer.current()
-        val id = t?.uri?.takeIf { it.scheme == ExtensionAudio.SCHEME }?.lastPathSegment
-        val download = t?.let { OfflineStore.byLocalId(it.id) }
-        // The source, as the player's source line and the "why" page know it.
         row(R.string.nerd_source, when {
-            id != null -> ExtensionAudio.streamedBy(t)?.let { c.getString(R.string.nerd_source_extension, it) } ?: c.getString(R.string.nerd_source_extension_waiting)
-            download != null -> c.getString(R.string.nerd_source_download, listOfNotNull(download.file.substringAfterLast('.', "").uppercase().ifBlank { null },
-                download.source.ifBlank { null }, download.providerId?.let { Extensions.registry.value.find(it)?.name }).joinToString(" · "))
-            t != null -> c.getString(R.string.nerd_source_file)
-            else -> null
+            t == null -> null
+            t.isRadio -> c.getString(R.string.live_radio_title)
+            else -> c.getString(R.string.nerd_source_file)
         })
-        val stream = id?.let(ExtensionAudio::streamOf)
-        row(R.string.nerd_delivery, id?.let(ExtensionAudio::deliveryOf))
-        row(R.string.nerd_announced, id?.let(ExtensionAudio::qualityOf))
-        // The extension's own quality setting (manifest role quality) when it played or fetched the song.
-        row(R.string.nerd_ext_quality, id?.let { Extensions.attempts.latest(it)?.sourceQuality } ?: download?.extensionQuality)
         val f = LocalPlayer.audioFormat()
         if (f == null) {
             if (!CastPlayback.active) row(R.string.nerd_codec, c.getString(R.string.nerd_format_unknown))
@@ -115,16 +100,11 @@ internal object NerdStats {
             row(R.string.nerd_codec, mime?.let { codecName(it) + codecs + (if (it.contains('/')) " · $it" else "") })
             row(R.string.nerd_container, f.containerMimeType)
             row(R.string.nerd_sample_rate, f.sampleRate.takeIf { it > 0 }?.let(::khz))
-            row(R.string.nerd_bit_depth, bits(c, f.pcmEncoding) ?: stream?.bitDepth?.let { c.getString(R.string.nerd_bit_depth_announced, it) })
+            row(R.string.nerd_bit_depth, bits(c, f.pcmEncoding))
             row(R.string.nerd_channels, f.channelCount.takeIf { it > 0 }?.toString())
         }
         val kbps = (f?.bitrate?.takeIf { it > 0 } ?: f?.averageBitrate?.takeIf { it > 0 })?.let { c.getString(R.string.nerd_bitrate_value, it / 1000) }
-            ?: download?.takeIf { it.bytes > 0 }?.let { d ->
-                val ms = LocalPlayer.knownLength() ?: t.durationMs
-                if (ms > 0) c.getString(R.string.nerd_bitrate_average, (d.bytes * 8 / ms).toInt()) else null
-            }
         row(R.string.nerd_bitrate, kbps)
-        row(R.string.nerd_file_size, download?.bytes?.takeIf { it > 0 }?.let { android.text.format.Formatter.formatShortFileSize(c, it) })
         row(R.string.nerd_buffer, LocalPlayer.bufferedAheadMs()?.let { c.getString(R.string.nerd_buffer_value, it / 1000.0) })
         row(R.string.nerd_state, LocalPlayer.playbackState())
         rows += outputRows(c)
@@ -209,13 +189,6 @@ internal object NerdStats {
         }
         val page = app.myspoti.host.android.MyspotiRuntime.spotify.player
         rows += c.getString(R.string.nerd_device) to c.getString(R.string.nerd_device_this_phone)
-        val extension = Extensions.mirrorBy.value
-        rows += c.getString(R.string.nerd_mirror) to when {
-            extension != null -> c.getString(R.string.nerd_mirror_extension, extension)
-            AccountSync.listen.running -> c.getString(R.string.nerd_mirror_on)
-            else -> c.getString(R.string.nerd_mirror_off)
-        }
-        // The level the page is given (the lowest one while it only mirrors), and what it says it plays aloud.
         rows += c.getString(R.string.nerd_requested) to c.getString(streamingLabel(StreamingQuality.of(page.streamingLevel)))
         // AutoMix on while Spotify plays: why its songs are not mixed.
         if (!local && AutoMix.on) com.music.spotui.ui.components.autoMixReasonText(AutoMix.whyNot())?.let { rows += c.getString(R.string.nerd_automix) to c.getString(it) }

@@ -103,10 +103,6 @@ fun MyNavHost(
             if (isImmersive()) com.music.spotui.radio.ui.ImmersiveLiveRadioScreen(navHostController) else com.music.spotui.radio.ui.LiveRadioScreen(navHostController)
         }
 
-        page(Routes.Downloads.route){
-            if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveDownloadsScreen(navHostController) else com.music.spotui.ui.screens.DownloadsScreen(navHostController)
-        }
-
         page(Routes.HiddenSongs.route) {
             if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveHiddenSongsScreen(navHostController) else com.music.spotui.ui.screens.HiddenSongsScreen(navHostController)
         }
@@ -132,10 +128,6 @@ fun MyNavHost(
             if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveRecapScreen(navHostController) else com.music.spotui.ui.screens.RecapScreen(navHostController)
         }
 
-        page(Routes.Friends.route) {
-            if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveFriendsScreen(navHostController) else com.music.spotui.ui.screens.FriendActivityScreen(navHostController)
-        }
-
         // Spotify's own list for the account (every device), not this phone's counter.
         page(Routes.Recent.route) {
             if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveRecentlyPlayedScreen(navHostController) else com.music.spotui.ui.screens.RecentlyPlayedScreen(navHostController)
@@ -150,30 +142,10 @@ fun MyNavHost(
             if (isImmersive()) com.music.spotui.ui.immersive.screens.ImmersiveContextScreen(navHostController, type = "liked", id = "") else ContextScreen(navHostController, type = "liked", id = "")
         }
 
-        // Settings: sound quality, downloads, data, display, language.
+        // Settings: sound quality, storage, data, display, language.
         page(Routes.Settings.route){
             if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveSettingsScreen(navHostController) else com.music.spotui.ui.screens.SettingsScreen(navHostController)
         }
-
-        // Extensions: the Store and Installed tabs; one installed extension's page; a repository's extension before install.
-        page(Routes.Extensions.route){
-            if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveExtensionsScreen(navHostController) else com.music.spotui.ui.screens.ExtensionsScreen(navHostController)
-        }
-        page("${Routes.Extension.route}/{id}", arguments = listOf(navArgument("id") { defaultValue = "" })){ entry ->
-            if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveExtensionScreen(navHostController, entry.arguments?.getString("id").orEmpty()) else com.music.spotui.ui.screens.ExtensionScreen(navHostController, entry.arguments?.getString("id").orEmpty())
-        }
-        page("${Routes.ExtensionEntry.route}/{id}", arguments = listOf(navArgument("id") { defaultValue = "" })){ entry ->
-            if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveExtensionEntryScreen(navHostController, entry.arguments?.getString("id").orEmpty()) else com.music.spotui.ui.screens.ExtensionEntryScreen(navHostController, entry.arguments?.getString("id").orEmpty())
-        }
-        // An extension's own page (webview.page), sandboxed.
-        page("extension-page/{id}", arguments = listOf(navArgument("id") { defaultValue = "" })){ entry ->
-            com.music.spotui.ui.screens.ExtensionPageScreen(navHostController, entry.arguments?.getString("id").orEmpty())
-        }
-
-
-
-
-
 
         page(
             "${Routes.Category.route}/{genre}?title={title}",
@@ -211,25 +183,8 @@ fun MyNavHost(
             pId?.let { if (isImmersive()) com.music.spotui.ui.immersive.screens.ImmersiveContextScreen(navHostController, type = "playlist", id = it) else ContextScreen(navHostController, type = "playlist", id = it) }
         }
 
-        page(
-            "${Routes.Profile.route}/{uId}?name={name}",
-            arguments = listOf(navArgument("name") { defaultValue = "" }),
-        ) { navBackStackEntry ->
-            val uId = navBackStackEntry.arguments?.getString("uId")
-            val name = navBackStackEntry.arguments?.getString("name").orEmpty()
-            uId?.let { if (isImmersive()) com.music.spotui.ui.immersive.people.ImmersiveProfileScreen(navHostController, userId = it, userName = name) else com.music.spotui.ui.screens.ProfileScreen(navHostController, userId = it, userName = name) }
-        }
-
         page("$LIKED_BY_ARTIST_ROUTE/{key}") { navBackStackEntry ->
             navBackStackEntry.arguments?.getString("key")?.let { if (isImmersive()) com.music.spotui.ui.immersive.screens.ImmersiveContextScreen(navHostController, type = "liked-artist", id = it) else ContextScreen(navHostController, type = "liked-artist", id = it) }
-        }
-
-        page(
-            "${com.music.spotui.ui.screens.FOLLOW_LIST_ROUTE}/{uId}/{mode}",
-        ) { navBackStackEntry ->
-            val uId = navBackStackEntry.arguments?.getString("uId")
-            val mode = navBackStackEntry.arguments?.getString("mode")
-            uId?.let { if (isImmersive()) com.music.spotui.ui.immersive.people.ImmersiveFollowListScreen(navHostController, userId = it, followers = mode == "followers") else com.music.spotui.ui.screens.FollowListScreen(navHostController, userId = it, followers = mode == "followers") }
         }
 
         page(

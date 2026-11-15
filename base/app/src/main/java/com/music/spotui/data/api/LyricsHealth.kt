@@ -1,30 +1,35 @@
 package com.music.spotui.data.api
 
-import app.myspoti.extensions.Outcome
-import app.myspoti.extensions.SourceCooldown
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Which lyrics providers answer. One that fails [FAILURES_IN_A_ROW] times in a row (network, a
- * timeout, a 5xx) is set aside for [SET_ASIDE_MS] ([SourceCooldown], as for the extensions): it is
- * not asked, so a provider that is down costs no waiting. And "no lyrics for this song" from a
- * provider is kept for [MISSING_MS] per song and provider, so reopening a song does not ask again.
- * A failure is never kept as "no lyrics". [clock]: ms, for tests.
+ * timeout, a 5xx) is set aside for [SET_ASIDE_MS]: it is not asked, so a provider that is down
+ * costs no waiting. And "no lyrics for this song" from a provider is kept for [MISSING_MS] per song
+ * and provider, so reopening a song does not ask again. A failure is never kept as "no lyrics".
  */
 class LyricsHealth(private val clock: () -> Long = System::currentTimeMillis) {
-    private val cooldown = SourceCooldown(clock)
+    private val cooldownUntil = ConcurrentHashMap<String, Long>()
     private val streak = ConcurrentHashMap<String, Int>()
     private val missing = ConcurrentHashMap<String, Long>()
     private val lost = AtomicLong()
 
     /** Why [provider] is set aside ("server-down, 540 s left"), or null (it may be asked). */
-    fun reason(provider: String): String? = cooldown.reason(provider)
+    fun reason(provider: String): String? {
+        val until = cooldownUntil[provider] ?: return null
+        val leftMs = until - clock()
+        if (leftMs <= 0L) {
+            cooldownUntil.remove(provider, until)
+            return null
+        }
+        return "server-down, ${(leftMs + 999) / 1000} s left"
+    }
 
     /** [provider] answered (found or not found): its failures in a row end. */
     fun answered(provider: String) {
         streak.remove(provider)
-        cooldown.note(provider, Outcome.Found)
+        cooldownUntil.remove(provider)
     }
 
     /** A request to [provider] failed. */
@@ -33,7 +38,7 @@ class LyricsHealth(private val clock: () -> Long = System::currentTimeMillis) {
         val n = streak.merge(provider, 1, Int::plus) ?: 1
         if (n >= FAILURES_IN_A_ROW) {
             streak.remove(provider)
-            cooldown.note(provider, Outcome.ServerDown(untilMs = clock() + SET_ASIDE_MS))
+            cooldownUntil[provider] = clock() + SET_ASIDE_MS
         }
     }
 

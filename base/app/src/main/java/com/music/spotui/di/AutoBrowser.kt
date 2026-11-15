@@ -11,14 +11,9 @@ import com.music.spotui.data.api.Response
 import com.music.spotui.data.entity.ContextPageModel
 import com.music.spotui.data.entity.HomeItem
 import com.music.spotui.data.entity.SongsModel
-import com.music.spotui.data.offline.LocalPlayPlan
-import com.music.spotui.data.offline.OfflineCollections
-import com.music.spotui.data.offline.OfflineStore
-import com.music.spotui.data.offline.OfflineTrack
 import app.myspoti.api.MediaKind
 import app.myspoti.api.best
 import app.myspoti.api.groupRecents
-import com.music.spotui.data.DataSaver
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -33,16 +28,15 @@ class AudioNotReady(what: String) : IllegalStateException("player not ready: $wh
 /**
  * Android Auto / media browser tree, built from the app's own data (not the web page).
  *
- * Root tabs (Auto allows four): Home (recently played, then the home feed's shelves, each a titled
- * group), Library (Liked Songs, playlists, albums, artists), Podcasts (New episodes, then the
- * followed shows), Downloads (served from the files, no network needed). Search answers songs,
- * playlists, albums, artists, podcasts and episodes as titled groups.
- * Tapping a song plays it in its context, the way the album / playlist screens do: a downloaded
- * song plays the local copy (see [playTrack]). "Start radio" items start Spotify's radio.
+ * Root tabs: Home (recently played, then the home feed's shelves, each a titled group),
+ * Library (Liked Songs, playlists, albums, artists), Podcasts (New episodes, then the
+ * followed shows). Search answers songs, playlists, albums, artists, podcasts and episodes
+ * as titled groups. Tapping a song plays it in its context, the way the album / playlist
+ * screens do (see [playTrack]). "Start radio" items start Spotify's radio.
  *
- * Media ids: "home", "library", "podcasts", "downloads" (tabs); "liked", "playlists", "albums", "artists",
- * "dsongs", "newep" (lists); "pl:<id>", "al:<id>", "ar:<id>|<name>", "dl:<list uri>", "sh:<show id>" (contexts);
- * "t|<context uri>|<play key>" (a song), "d|<list uri or empty>|<track id>" (a downloaded song),
+ * Media ids: "home", "library", "podcasts" (tabs); "liked", "playlists", "albums", "artists",
+ * "newep" (lists); "pl:<id>", "al:<id>", "ar:<id>|<name>", "sh:<show id>" (contexts);
+ * "t|<context uri>|<play key>" (a song),
  * "radio|<seed uri>|<fallback song uri>" (start a radio).
  */
 object AutoBrowser {
@@ -84,10 +78,9 @@ object AutoBrowser {
     private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
 
     /**
-     * Browse for [parentId]. The tabs, the Library list and the Downloads answer at once (no
-     * session, no network); every other node needs the session, and waits for it instead of
-     * returning an empty list, which Android Auto keeps as the folder's content until it
-     * unsubscribes (issue #41, cold start).
+     * Browse for [parentId]. The tabs and the Library list answer at once (no session, no network);
+     * every other node needs the session, and waits for it instead of returning an empty list,
+     * which Android Auto keeps as the folder's content until it unsubscribes (issue #41, cold start).
      */
     suspend fun children(context: Context, parentId: String): List<MediaItem> {
         when {
@@ -95,15 +88,9 @@ object AutoBrowser {
                 tab(context, "home", R.string.aa_home, "aa_ic_home", STYLE_GRID),
                 tab(context, "library", R.string.aa_library, "aa_ic_library", STYLE_LIST),
                 tab(context, "podcasts", R.string.recents_filter_podcasts, "aa_ic_podcasts", STYLE_LIST),
-                tab(context, "downloads", R.string.aa_downloads, "aa_ic_downloads", STYLE_LIST),
             )
             parentId == "library" -> return libraryTab(context)
-            parentId == "downloads" -> return downloadsTab(context)
-            parentId == "dsongs" -> return downloadedSongs("")
-            parentId.startsWith("dl:") -> return downloadedSongs(parentId.removePrefix("dl:"))
         }
-        // No connection: a downloaded list opens from its files, the web page is not needed.
-        if (!OfflineStore.isOnline(context)) offlineContext(parentId)?.let { return it }
         if (!awaitPlayer()) throw AudioNotReady("browse $parentId")
         return when {
             parentId == "home" -> homeTab(context)
@@ -223,54 +210,6 @@ object AutoBrowser {
         }.take(HOME_RECENTS)
     }
 
-    // ── Downloads (from the files, no session) ──
-
-    private fun downloadsTab(context: Context): List<MediaItem> {
-        val out = ArrayList<MediaItem>()
-        val songs = OfflineStore.list()
-        if (songs.isNotEmpty()) out += browsable(
-            "dsongs", context.getString(R.string.aa_downloaded_songs), downloadedCover(context, songs.first()),
-            subtitle = songs.size.toString(), grid = false,
-        )
-        val lists = context.getString(R.string.aa_downloaded_lists)
-        OfflineCollections.collections.values.sortedBy { it.name.lowercase() }.take(MAX_ITEMS).forEach { c ->
-            val first = c.trackIds.firstNotNullOfOrNull { OfflineStore.tracks[it] }
-            out += browsable("dl:${c.uri}", c.name, first?.let { downloadedCover(context, it) }, group = lists)
-        }
-        return out
-    }
-
-    /** The downloaded songs of the list at [listUri] (all of them when empty), as local-play items. */
-    private fun downloadedSongs(listUri: String): List<MediaItem> =
-        downloadedIds(listUri).take(MAX_ITEMS).mapNotNull { OfflineStore.tracks[it] }.map { t ->
-            val d = MediaDescriptionCompat.Builder().setMediaId("d|$listUri|${t.trackId}")
-                .setTitle(t.title).setSubtitle(t.artist).setIconUri(ArtworkProvider.uriForDownloaded(t))
-                .setExtras(hints(STYLE_LIST, null)).build()
-            MediaItem(d, MediaItem.FLAG_PLAYABLE)
-        }
-
-    /** Track ids of the downloaded songs of a list in its order, or of every download (newest first). */
-    private fun downloadedIds(listUri: String): List<String> {
-        if (listUri.isBlank()) return OfflineStore.list().map { it.trackId }
-        val c = OfflineCollections.collections[listUri] ?: return emptyList()
-        val ordered = OfflineCollections.offlinePage(listUri)?.tracks?.map { it.spotifyTrackId.ifBlank { it.url } }.orEmpty()
-        return (ordered + c.trackIds).distinct().filter(OfflineStore::isDownloaded)
-    }
-
-    private fun downloadedCover(context: Context, t: OfflineTrack): Uri? = ArtworkProvider.uriForDownloaded(t)
-
-    /** Offline, a downloaded list (or Liked Songs) opens from its stored page; null when it was never downloaded. */
-    private fun offlineContext(parentId: String): List<MediaItem>? {
-        val uri = when {
-            parentId == "liked" -> "spotify:collection:tracks"
-            parentId.startsWith("pl:") -> "spotify:playlist:${parentId.removePrefix("pl:")}"
-            parentId.startsWith("al:") -> "spotify:album:${parentId.removePrefix("al:")}"
-            else -> return null
-        }
-        if (!OfflineCollections.isDownloaded(uri)) return null
-        return downloadedSongs(uri)
-    }
-
     // ── Search ──
 
     suspend fun search(query: String): List<MediaItem> {
@@ -329,7 +268,6 @@ object AutoBrowser {
         if (parts.size < 3) return
         when (parts[0]) {
             "t" -> playTrack(parts[1].ifBlank { null }, parts[2])
-            "d" -> playDownloaded(parts[1], parts[2])
             "radio" -> startRadio(parts[1], parts[2])
         }
     }
@@ -349,43 +287,13 @@ object AutoBrowser {
             return
         }
         val song = page?.tracks?.firstOrNull { it.url == key }
-        // A downloaded song plays its file, not the stream (the phone's rule, see LocalPlayPlan):
-        // offline or on the data saver the list's downloaded songs, online the whole list when it
-        // is all downloaded; a lone downloaded song (search) always.
-        val store = OfflineStore
-        val id = song?.spotifyTrackId?.ifBlank { null } ?: key.removePrefix("spotify:track:")
-        val ids = if (page != null) LocalPlayPlan.localIds(
-            page.tracks.map { it.spotifyTrackId.ifBlank { it.url } }, id, page.complete,
-            offline = !store.isOnline(Graph.app), dataSaver = DataSaver.active, isDownloaded = store::isDownloaded,
-        ) else if (store.isDownloaded(id)) listOf(id) else null
-        if (ids != null) {
-            val local = ids.mapNotNull { store.tracks[it] }
-            val at = local.indexOfFirst { it.trackId == id }
-            if (at >= 0) {
-                onMain { LocalPlayer.play(local.map(store::toLocalTrack), at, shuffle = Graph.currentSongState.shuffle.value, context = page?.name ?: local[at].title, contextUri = page?.uri.orEmpty()) }
-                return
-            }
-        }
         if (page != null) {
             Graph.currentSongState.updateQueue(page.tracks)
             SongPlayer.registerContextName(page.uri, page.name)
             if (page.type == "liked") SongPlayer.registerLikedSongs(page.tracks.map { it.url })
         }
-        // The list's songs: an audio-source extension then plays the list on from the song, as on
-        // the phone, instead of the song alone and its radio. Spotify plays the context anyway.
-        // A show's episodes play in the show, as on its screen: Spotify's queue, never the extensions'.
         SongPlayer.playSong(key, contextUri = contextUri, songs = page?.tracks?.takeIf { page.type != SHOW })
         song?.let { Graph.currentSongState.updateSongState(it.coverUri, it.title, it.singer, true, it.id, 0, it.album) }
-    }
-
-    /** The Downloads tab: always the files, from the tapped song on. */
-    private fun playDownloaded(listUri: String, trackId: String) {
-        val store = OfflineStore
-        val local = downloadedIds(listUri).mapNotNull { store.tracks[it] }
-        val at = local.indexOfFirst { it.trackId == trackId }
-        if (at < 0) return
-        val name = OfflineCollections.collections[listUri]?.name ?: Graph.app.getString(R.string.aa_downloaded_songs)
-        onMain { LocalPlayer.play(local.map(store::toLocalTrack), at, shuffle = Graph.currentSongState.shuffle.value, context = name, contextUri = listUri) }
     }
 
     /**
@@ -502,13 +410,6 @@ class ArtworkProvider : android.content.ContentProvider() {
         private val AUTHORITY = app.myspoti.engine.BuildConfig.APPLICATION_ID + ".artwork"
         private val allowedHosts = setOf("i.scdn.co", "mosaic.scdn.co", "image-cdn-ak.spotifycdn.com", "image-cdn-fa.spotifycdn.com", "thisis-images.spotifycdn.com", "seeded-session-images.scdn.co", "pickasso.spotifycdn.com")
 
-        /** A downloaded song's cover: its file (the car is offline), else the CDN image. */
-        fun uriForDownloaded(t: com.music.spotui.data.offline.OfflineTrack): Uri? {
-            if (t.cover.isNotBlank() && java.io.File(com.music.spotui.data.offline.OfflineStore.coverDir, t.cover).isFile)
-                return Uri.Builder().scheme("content").authority(AUTHORITY).appendPath("cover").appendQueryParameter("f", t.cover).build()
-            return uriFor(t.coverUrl)
-        }
-
         fun uriFor(url: String?): Uri? {
             if (url.isNullOrBlank() || !allowed(url)) return null
             return Uri.Builder().scheme("content").authority(AUTHORITY).appendPath("img").appendQueryParameter("u", url).build()
@@ -527,12 +428,6 @@ class ArtworkProvider : android.content.ContentProvider() {
     }
 
     override fun openFile(uri: Uri, mode: String): android.os.ParcelFileDescriptor? {
-        // A downloaded song's cover: only a file that a download of the store names, never a path.
-        uri.getQueryParameter("f")?.let { name ->
-            val file = com.music.spotui.data.offline.OfflineStore.tracks.values.firstOrNull { it.cover == name }
-                ?.let(com.music.spotui.data.offline.OfflineStore::coverFile) ?: return null
-            return android.os.ParcelFileDescriptor.open(file, android.os.ParcelFileDescriptor.MODE_READ_ONLY)
-        }
         val url = uri.getQueryParameter("u") ?: return null
         if (!allowed(url)) return null
         // Bounded: a binder thread must not wait on the network forever.

@@ -24,8 +24,8 @@ import javax.crypto.spec.GCMParameterSpec
  * Gets the code a Sonos takes ([CodeExchange]) by trying the subject tokens in turn: the one that
  * worked last time for the account, then the silent ones (one request each), and last Spotify's
  * consent page for its desktop client, shown in the device picker ([DesktopConsent]) and only after a
- * tap on the speaker. The desktop refresh token got there is kept encrypted with the Keystore key of
- * the downloads ([com.music.spotui.data.offline.OfflineCrypto]) and wiped at sign-out ([clear]).
+ * tap on the speaker. The desktop refresh token got there is kept encrypted with the Keystore key
+ * and wiped at sign-out ([clear]).
  *
  * Every call is a plain request to accounts.spotify.com: never the raw path, whose web headers
  * (Bearer, client-token) are not the exchange's. Each step is logged as "lan: sonos: …" by name
@@ -172,7 +172,49 @@ object ConnectCode {
             .getOrElse { e -> log("token call failed: ${e.javaClass.simpleName}"); CodeExchange.parse(-1, "") }
     }
 
-    // The refresh token, sealed with the downloads' Keystore key (AES-GCM) and kept for one account only.
+    // The refresh token, sealed with a Keystore AES-GCM key and kept for one account only.
+    private const val KEYSTORE_ALIAS = "myspoti_offline"
+    private const val KEY_PREFS = "offline_crypto"
+    @Volatile private var secretKey: javax.crypto.SecretKey? = null
+
+    private fun localSecretKey(context: Context): javax.crypto.SecretKey = secretKey ?: synchronized(this) {
+        secretKey ?: loadOrCreateSecretKey(context).also { secretKey = it }
+    }
+
+    private fun loadOrCreateSecretKey(context: Context): javax.crypto.SecretKey {
+        val kp = context.getSharedPreferences(KEY_PREFS, Context.MODE_PRIVATE)
+        val wrapped = kp.getString("key", null)
+        val ks = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        val master = ks.getKey(KEYSTORE_ALIAS, null) as? javax.crypto.SecretKey
+        if (wrapped != null && master != null) {
+            runCatching {
+                val raw = android.util.Base64.decode(wrapped, android.util.Base64.NO_WRAP)
+                val c = Cipher.getInstance("AES/GCM/NoPadding")
+                c.init(Cipher.DECRYPT_MODE, master, GCMParameterSpec(128, raw.copyOfRange(0, 12)))
+                return javax.crypto.spec.SecretKeySpec(c.doFinal(raw, 12, raw.size - 12), "AES")
+            }
+        }
+        val newMaster = master ?: javax.crypto.KeyGenerator.getInstance(
+            android.security.keystore.KeyProperties.KEY_ALGORITHM_AES,
+            "AndroidKeyStore",
+        ).apply {
+            init(
+                android.security.keystore.KeyGenParameterSpec.Builder(
+                    KEYSTORE_ALIAS,
+                    android.security.keystore.KeyProperties.PURPOSE_ENCRYPT or android.security.keystore.KeyProperties.PURPOSE_DECRYPT,
+                )
+                    .setBlockModes(android.security.keystore.KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(android.security.keystore.KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .setKeySize(256)
+                    .build()
+            )
+        }.generateKey()
+        val fileKey = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
+        val c = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.ENCRYPT_MODE, newMaster) }
+        val sealed = c.iv + c.doFinal(fileKey)
+        kp.edit().putString("key", android.util.Base64.encodeToString(sealed, android.util.Base64.NO_WRAP)).commit()
+        return javax.crypto.spec.SecretKeySpec(fileKey, "AES")
+    }
 
     private fun storedRefresh(account: String): String? {
         val p = prefs()
@@ -181,7 +223,7 @@ object ConnectCode {
         return runCatching {
             val raw = android.util.Base64.decode(sealed, android.util.Base64.NO_WRAP)
             val c = Cipher.getInstance("AES/GCM/NoPadding")
-            c.init(Cipher.DECRYPT_MODE, com.music.spotui.data.offline.OfflineCrypto.key(Graph.app), GCMParameterSpec(128, raw.copyOfRange(0, 12)))
+            c.init(Cipher.DECRYPT_MODE, localSecretKey(Graph.app), GCMParameterSpec(128, raw.copyOfRange(0, 12)))
             String(c.doFinal(raw, 12, raw.size - 12), Charsets.UTF_8)
         }.getOrNull()
     }
@@ -189,7 +231,7 @@ object ConnectCode {
     private fun storeRefresh(account: String, token: String?) {
         if (token == null) { prefs().edit().remove("refresh").remove("refresh_for").apply(); return }
         runCatching {
-            val c = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.ENCRYPT_MODE, com.music.spotui.data.offline.OfflineCrypto.key(Graph.app)) }
+            val c = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.ENCRYPT_MODE, localSecretKey(Graph.app)) }
             val sealed = c.iv + c.doFinal(token.toByteArray(Charsets.UTF_8))
             prefs().edit().putString("refresh", android.util.Base64.encodeToString(sealed, android.util.Base64.NO_WRAP)).putString("refresh_for", key(account)).apply()
         }.onFailure { log("desktop token not kept: ${it.javaClass.simpleName}") }

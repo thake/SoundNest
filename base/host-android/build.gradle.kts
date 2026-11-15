@@ -19,8 +19,6 @@ android {
 
 dependencies {
     api(project(":api-spotify"))
-    // The hidden page of the other account providers (HiddenPageHost).
-    api(project(":api-web"))
     // NativeTokens: the page's tokens as the native engine's TokenSource (pure Kotlin, no Android code).
     implementation(project(":engine"))
     implementation(libs.androidx.core.ktx)

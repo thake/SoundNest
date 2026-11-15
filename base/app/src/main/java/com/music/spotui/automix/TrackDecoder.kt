@@ -10,7 +10,7 @@ import android.net.Uri
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSpec
-import com.music.spotui.data.offline.OfflineCrypto
+import androidx.media3.datasource.DefaultDataSource
 import com.music.spotui.di.Graph
 import java.io.IOException
 import java.nio.ByteBuffer
@@ -18,8 +18,7 @@ import java.nio.ByteOrder
 
 /**
  * Decodes a whole song to the analysis signals: mid ((L+R)/2) and side ((L-R)/2) at 22.05 kHz.
- * The bytes come through the player's own data source (downloads are decrypted there, extension
- * streams resolved, DASH answers read as one file), so a song is read the way it plays.
+ * The bytes come through the player's own data source, so a song is read the way it plays.
  */
 @androidx.annotation.OptIn(UnstableApi::class)
 object TrackDecoder {
@@ -186,9 +185,7 @@ object TrackDecoder {
      * plus 7.8 s decoding). A read elsewhere (a seek) starts again from there.
      */
     private class ByteSource(private val uri: Uri, private val cancelled: () -> Boolean) : MediaDataSource() {
-        // Through the media cache for an extension's song: the bytes read for the analysis are the
-        // ones the song then plays from, not asked a second time (see ExtStreamCache).
-        private val data = com.music.spotui.data.offline.ExtStreamCache.Factory(Graph.app).createDataSource()
+        private val data = DefaultDataSource.Factory(Graph.app).createDataSource()
         private var size = -1L
         private var sizeKnown = false
         /** [data] is open at 0 from [getSize], not read yet: the first read from 0 goes on from it. */

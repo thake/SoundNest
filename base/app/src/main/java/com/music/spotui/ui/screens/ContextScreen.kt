@@ -256,8 +256,6 @@ class ContextViewModel(
         load(lastType, lastId)
     }
 
-    private var warmedFor = ""
-
     fun load(type: String, id: String) {
         lastType = type; lastId = id
         if (key == "$type:$id") return
@@ -272,14 +270,6 @@ class ContextViewModel(
                 runCatching { pending.await() }
                 recent[key]?.let { _page.value = it }
             }
-            // Fetched ahead (PagePrefetch) or opened before, on storage: shown whole at once.
-            var fromDisk = false
-            // A list downloaded as a whole opens offline: its kept page, the network refreshing it behind.
-            val offlineUri = when (type) { "album", "playlist" -> "spotify:$type:$id"; "liked" -> "spotify:collection:tracks"; else -> null }
-            if (_page.value !is Response.Success && offlineUri != null)
-                com.music.spotui.data.offline.OfflineCollections.offlinePage(offlineUri)?.let { fromDisk = true; _page.value = Response.Success(it) }
-            if (_page.value !is Response.Success && type == "playlist")
-                com.music.spotui.data.api.ScreenCache.page(id).read()?.let { fromDisk = true; _page.value = Response.Success(it) }
             val force = fresh.also { fresh = false }
             val flow = when (type) {
                 "album" -> api.getAlbumPage(id)
@@ -319,23 +309,16 @@ class ContextViewModel(
             }
             try { flow.collect { r ->
                 if (r is Response.Loading && _page.value is Response.Success) return@collect
-                // Offline or refused: the page already on screen stays rather than an error.
-                if (r is Response.Error && fromDisk && _page.value is Response.Success) return@collect
-                // The fuller list on screen (a refresh, a page kept on storage, or one opened a moment
-                // ago and kept in memory) stays until the new one is complete: the first page alone
-                // cut a long playlist short and lost the place in it, the list then growing back page
-                // by page (reported: the playlist one is in reloads and changes).
+                // The fuller list on screen (a refresh, or one opened a moment ago and kept in memory)
+                // stays until the new one is complete: the first page alone cut a long playlist short
+                // and lost the place in it, the list then growing back page by page.
                 if (r is Response.Success && !r.data.complete &&
                     (_page.value as? Response.Success)?.data?.let { it.uri == r.data.uri && it.tracks.size > r.data.tracks.size } == true) return@collect
                 _page.value = r
                 if (r is Response.Success) {
                     recent[key!!] = r
                     val p = r.data
-                    // Its first songs are made ready, so a tap plays at once (an audio-source extension).
-                    if (warmedFor != p.uri) { warmedFor = p.uri; viewModelScope.launch { runCatching { com.music.spotui.extensions.ExtensionAudio.warm(p.tracks) } } }
                     if (type == "playlist" && p.complete) com.music.spotui.data.api.PagePrefetch.refreshed(id, p)
-                    // Picked while it was still loading: the queue the extensions play gets the rest.
-                    if (p.complete) viewModelScope.launch { runCatching { com.music.spotui.extensions.ExtensionAudio.listGrew(p.uri, playedSort.apply(p.tracks)) } }
                     // Check saved state on the first page and again once complete.
                     if ((savedChecked == 0 && p.tracks.isNotEmpty()) || (p.complete && savedChecked < 2)) {
                         savedChecked = if (p.complete) 2 else 1
@@ -375,7 +358,7 @@ class ContextViewModel(
         if (p.type == "playlist") editableContext.value = withContext(Dispatchers.IO) {
             runCatching { EditablePlaylists.load().any { it.id == p.uri.substringAfterLast(':') } }.getOrDefault(false)
         }
-        if (p.type == "playlist" && !p.isBlend) members.value = withContext(Dispatchers.IO) {
+        if (p.type == "playlist") members.value = withContext(Dispatchers.IO) {
             runCatching { MyspotiRuntime.api.playlists.members(p.uri) }.getOrDefault(emptyList())
         }
         // Collaborative: each song shows who added it (the official app's small face on the row).
@@ -393,7 +376,7 @@ class ContextViewModel(
         }
         // Collaborative yet not editable here: only an invitation link lets this account add songs.
         // Said on the page instead of leaving the user wondering where the + went.
-        collabLocked.value = p.type == "playlist" && !p.isBlend && !editableContext.value && withContext(Dispatchers.IO) {
+        collabLocked.value = p.type == "playlist" && !editableContext.value && withContext(Dispatchers.IO) {
             runCatching { MyspotiRuntime.api.playlists.access(p.uri) == app.myspoti.api.PlaylistAccess.COLLABORATIVE }.getOrDefault(false)
         }
     }
@@ -472,7 +455,6 @@ class ContextViewModel(
                 Api.invalidatePlaylist(id)
                 val now = (_page.value as? Response.Success)?.data?.takeIf { it.uri == current.uri } ?: return@withContext
                 com.music.spotui.data.api.PagePrefetch.refreshed(id, now)
-                com.music.spotui.data.offline.OfflineCollections.sync(now)
             } else if (_page.value === updated) {
                 _page.value = Response.Success(current)
                 recent[k] = Response.Success(current)
@@ -505,11 +487,7 @@ class ContextViewModel(
         }
     }
 
-    /** The order the list was last played in from this page, for the songs that load after the pick. */
-    private var playedSort = TrackOrder()
-
     fun play(p: ContextPageModel, song: SongsModel, sort: TrackOrder = TrackOrder()) {
-        playedSort = sort
         // Local files of the playlist (Spotify holds their tags only): one found on this device
         // plays from there, with the other such files of the list; one not found cannot play,
         // the next song that can does.
@@ -530,37 +508,6 @@ class ContextViewModel(
                 return
             }
         }
-        // No connection (the Web Player cannot stream), or the data saver on mobile data:
-        // the page's downloaded songs play from the phone. Online, a downloaded song also plays
-        // from its file when the whole list is downloaded (it used to stream anyway).
-        val app = Graph.app
-        val store = com.music.spotui.data.offline.OfflineStore
-        val limited = com.music.spotui.data.DataSaver.active || !store.isOnline(app)
-        val ids = com.music.spotui.data.offline.LocalPlayPlan.localIds(
-            sort.apply(p.tracks).map { it.spotifyTrackId }, song.spotifyTrackId, p.complete,
-            offline = !store.isOnline(app), dataSaver = com.music.spotui.data.DataSaver.active, isDownloaded = store::isDownloaded,
-        )
-        if (ids != null) {
-            val local = ids.mapNotNull { store.tracks[it] }
-            val at = local.indexOfFirst { it.trackId == song.spotifyTrackId }.coerceAtLeast(0)
-            if (limited && local.size < p.tracks.size)
-                android.widget.Toast.makeText(app, app.getString(R.string.offline_only_downloaded, local.size, p.tracks.size), android.widget.Toast.LENGTH_SHORT).show()
-            com.music.spotui.di.LocalPlayer.play(local.map(store::toLocalTrack), at, shuffle = state.shuffle.value, context = p.name, contextUri = p.uri)
-            return
-        }
-        // An extension that gives songs' audio (audio-source): the list plays in the local
-        // player from there, like downloads; it has nothing for the picked song, Spotify plays.
-        if (!limited && com.music.spotui.extensions.Extensions.hasAudioSource()) {
-            val shuffle = state.shuffle.value
-            SongPlayer.playThroughExtensions(song.spotifyTrackId, song, p.name, { playOnSpotify(p, song, sort) }) { isLatest, _ ->
-                com.music.spotui.extensions.ExtensionAudio.playList(sort.apply(p.tracks), song, p.name, shuffle, p.uri, isLatest).also { played ->
-                    // The list finished loading while the extension was asked for the picked song.
-                    val whole = (_page.value as? Response.Success)?.data?.takeIf { it.uri == p.uri && it.complete && !p.complete }
-                    if (played && whole != null) com.music.spotui.extensions.ExtensionAudio.listGrew(p.uri, sort.apply(whole.tracks))
-                }
-            }
-            return
-        }
         playOnSpotify(p, song, sort)
     }
 
@@ -579,8 +526,7 @@ class ContextViewModel(
             return
         }
         if (order != null) state.updateQueue(sort.apply(p.tracks))
-        // The audio-source extensions were asked already (or the phone is offline): Spotify plays.
-        SongPlayer.playSong(song.url, contextUri = p.uri, order = order, askExtensions = false)
+        SongPlayer.playSong(song.url, contextUri = p.uri, order = order)
         state.updateSongState(song.coverUri, song.title, song.singer, true, song.id, 0, song.album)
     }
 }
@@ -638,7 +584,6 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
     // "Sort by" for the list, kept per list (also after leaving it or restarting the app).
     val ctx = LocalContext.current
     var sort by remember(p.uri) { mutableStateOf(TrackOrder.load(ctx, p.uri)) }
-    var askRemoveDownloads by remember { mutableStateOf(false) }
     var playlistMenu by remember { mutableStateOf(false) }
     var albumMenu by remember { mutableStateOf(false) }
     var addingSongs by remember { mutableStateOf(false) }
@@ -702,30 +647,11 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
     if (albumMenu) com.music.spotui.ui.components.AlbumOptionsSheet(p.uri, p.name, known = p) { albumMenu = false }
     if (playlistMenu) com.music.spotui.ui.components.PlaylistOptionsSheet(
         page = p,
-        onAddSongs = if (p.type == "playlist" && vm.editableContext.value && !p.isBlend) ({ addingSongs = true }) else null,
+        onAddSongs = if (p.type == "playlist" && vm.editableContext.value) ({ addingSongs = true }) else null,
         onDismiss = { playlistMenu = false },
         onChanged = { vm.reload() },
         onEdited = { name, description -> vm.showDetails(name, description) },
         onDeleted = { navController.navigateUp() },
-        onProfile = { navController.navigate(com.music.spotui.ui.navigation.profileRoute(it, p.ownerName)) },
-    )
-    if (askRemoveDownloads) androidx.compose.material3.AlertDialog(
-        onDismissRequest = { askRemoveDownloads = false },
-        containerColor = tone(0xFF282828),
-        title = { Text(stringResource(R.string.playlist_entity_remove_download_dialog_title), color = AppText) },
-        text = { Text(stringResource(R.string.playlist_entity_remove_download_dialog_description), color = AppMuted) },
-        confirmButton = {
-            androidx.compose.material3.TextButton(onClick = {
-                askRemoveDownloads = false
-                com.music.spotui.data.offline.OfflineCollections.remove(p.uri)
-                android.widget.Toast.makeText(context, context.getString(R.string.toast_undownload), android.widget.Toast.LENGTH_SHORT).show()
-            }) { Text(stringResource(R.string.playlist_entity_remove_download_dialog_positive_button), color = SpotifyGreen) }
-        },
-        dismissButton = {
-            androidx.compose.material3.TextButton(onClick = { askRemoveDownloads = false }) {
-                Text(stringResource(R.string.add_to_playlist_button_cancel), color = AppText)
-            }
-        },
     )
     savedInSong?.let { sel ->
         com.music.spotui.ui.components.SavedInSheet(song = sel, context = context, onDismiss = { savedInSong = null })
@@ -754,11 +680,10 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
             if (p.type == "liked" || p.type == "liked-artist") p.tracks.filter { SongPlayer.library["spotify:track:${it.spotifyTrackId}"] != false } else p.tracks
         }
     }
-    // An own playlist in its own order: its songs can be moved by hand, a handle on each while
-    // "Move" is on (asked on Discord).
+    // An own playlist in its own order: its songs can be moved by hand, a handle on each while "Move" is on.
     var moving by remember(p.uri) { mutableStateOf(false) }
     val canMove = remember(p, vm.editableContext.value, sort, find) {
-        PlaylistReorder.allowed(p.type, vm.editableContext.value, p.isBlend, sort.isCustom, p.complete, find, p.tracks.map { it.rowUid })
+        PlaylistReorder.allowed(p.type, vm.editableContext.value, sort.isCustom, p.complete, find, p.tracks.map { it.rowUid })
     }
     val reordering = moving && canMove
     // Unique and stable for a given list: a playlist can hold the same song twice (the id alone
@@ -786,10 +711,10 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
     LaunchedEffect(p, reordering) { drag.settle() }
     val pullState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
     val refreshing by vm.refreshing
-    // The search field and the Blend line are folded away: the page opens on its songs. A pull
-    // down at the top unfolds them in place (that pull does not refresh; the next one does), and
-    // they fold again once the songs are scrolled past them, unless a search is typed.
-    val hasExtras = (findable && all.isNotEmpty()) || p.isBlend
+    // The search field is folded away: the page opens on its songs. A pull down at the top unfolds
+    // it in place (that pull does not refresh; the next one does), and it folds again once the
+    // songs are scrolled past it, unless a search is typed.
+    val hasExtras = findable && all.isNotEmpty()
     var extrasShown by remember(p.uri) { mutableStateOf(false) }
     val revealPull = remember(p.uri) { ExtrasReveal() }
     revealPull.enabled = hasExtras && !extrasShown
@@ -897,16 +822,11 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
                             Spacer(Modifier.height(10.dp))
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.pressable(0.96f) {
-                                    if (p.ownerUri.startsWith("spotify:artist:")) {
+                                modifier = if (p.ownerUri.startsWith("spotify:artist:")) {
+                                    Modifier.pressable(0.96f) {
                                         navController.navigate(artistRoute(p.ownerName.substringBefore(",").trim(), p.ownerUri.substringAfterLast(":")))
-                                    } else if (com.music.spotui.data.catalog.CatalogRuntime.isCatalogUri(p.ownerUri)) {
-                                        // The artist of an album of another provider: its page, by its whole uri.
-                                        navController.navigate(artistRoute(p.ownerName.substringBefore(",").trim(), p.ownerUri))
-                                    } else if (p.ownerUri.startsWith("spotify:user:")) {
-                                        navController.navigate(com.music.spotui.ui.navigation.profileRoute(p.ownerUri.substringAfterLast(":"), p.ownerName))
                                     }
-                                },
+                                } else Modifier,
                             ) {
                                 if (p.ownerAvatar.isNotBlank()) {
                                     GlideImage(
@@ -937,7 +857,7 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
                     // square (26-28 dp targets were hard to hit); the start padding and the gaps give
                     // back the difference, so the glyphs barely move (a few dp apart where their
                     // centres were under 48 dp apart).
-                    val addFirst = p.type == "playlist" && vm.editableContext.value && !p.isBlend
+                    val addFirst = p.type == "playlist" && vm.editableContext.value
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
@@ -956,36 +876,10 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
                             Spacer(Modifier.width(4.dp))
                         }
                         // Saving is for other people's playlists: the user's own are in the library already.
-                        // An album of another provider is read only: Spotify can neither save nor download it.
-                        val onSpotify = !com.music.spotui.data.catalog.CatalogRuntime.isCatalogUri(p.uri)
-                        if (onSpotify && p.type != "liked" && !(p.type == "playlist" && ownPlaylist)) {
+                        if (p.type != "liked" && !(p.type == "playlist" && ownPlaylist)) {
                             LikeButton(liked = SongPlayer.library[p.uri] ?: contextSaved, size = 28.dp, touch = com.music.spotui.ui.components.MinTouch) { vm.toggleContextSaved(p) }
                         }
-                        // Once per list, not at every redraw of the header (6000 songs, mapped each time).
-                        val ids = remember(p.tracks) { p.tracks.map { it.spotifyTrackId }.filter { it.isNotBlank() }.distinct() }
-                        // Songs with no matching recording count as settled: the list can still be removed.
-                        val downloadedCount = ids.count {
-                            com.music.spotui.data.offline.OfflineStore.isDownloaded(it) ||
-                                com.music.spotui.data.offline.OfflineStore.status[it] == com.music.spotui.data.offline.OfflineStatus.Unavailable
-                        }
-                        val busy = ids.any {
-                            val st = com.music.spotui.data.offline.OfflineStore.status[it]
-                            st == com.music.spotui.data.offline.OfflineStatus.Queued || st is com.music.spotui.data.offline.OfflineStatus.Downloading
-                        }
-                        // A list downloaded as a whole stays in step with Spotify (new songs in, gone songs out).
-                        val listKept = com.music.spotui.data.offline.OfflineCollections.isDownloaded(p.uri)
-                        LaunchedEffect(listKept, p.complete, p.tracks.size) { if (listKept && p.complete) com.music.spotui.data.offline.OfflineCollections.sync(p) }
-                        if (onSpotify) com.music.spotui.ui.components.DownloadListButton(downloadedCount, ids.size, busy, kept = listKept, touch = com.music.spotui.ui.components.MinTouch) {
-                            if (listKept) askRemoveDownloads = true
-                            else {
-                                com.music.spotui.ui.components.DownloadAsk.start(context) { q ->
-                                    com.music.spotui.di.Haptics.confirm()
-                                    com.music.spotui.data.offline.OfflineCollections.download(p, q)
-                                    android.widget.Toast.makeText(context, context.getString(R.string.download_notification_downloading), android.widget.Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        }
-                        if (onSpotify && (p.type == "playlist" || p.type == "album" || p.type == "liked" || p.type == "liked-artist")) {
+                        if (p.type == "playlist" || p.type == "album" || p.type == "liked" || p.type == "liked-artist") {
                             Icon(Icons.Default.MoreVert, stringResource(R.string.content_description_context_menu), tint = AppText.copy(alpha = 0.8f),
                                 modifier = Modifier.size(com.music.spotui.ui.components.MinTouch).pressable(0.9f) { if (p.type == "playlist") playlistMenu = true else albumMenu = true }
                                     .wrapContentSize().size(26.dp))
@@ -1111,7 +1005,6 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
             }
         }
         // Liked Songs: a track unliked anywhere leaves the list right away.
-        // A Blend: its taste-match card and its members, as on the official Blend page.
         if (vm.collabLocked.value && !vm.editableContext.value) item(key = "collab-locked") {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -1121,11 +1014,6 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
                 Icon(Icons.Outlined.Group, contentDescription = null, tint = AppMuted, modifier = Modifier.size(20.dp))
                 Text(stringResource(R.string.playlist_collab_locked, p.ownerName.ifBlank { stringResource(R.string.playlist_collab_owner) }),
                     color = AppMuted, fontSize = 13.sp, modifier = Modifier.padding(start = 10.dp))
-            }
-        }
-        if (p.isBlend) item(key = "blend") {
-            androidx.compose.animation.AnimatedVisibility(extrasShown, enter = UnfoldIn, exit = FoldOut) {
-                com.music.spotui.ui.components.BlendPanel(p.uri)
             }
         }
         if (findable && all.isNotEmpty()) item(key = "find") {
@@ -1157,7 +1045,6 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
                 showCover = p.type != "album",
                 isCurrent = song.id == currentSongId,
                 saved = com.music.spotui.di.trackSaved(song.spotifyTrackId, saved),
-                offline = com.music.spotui.data.offline.OfflineStore.statusOf(song.spotifyTrackId),
                 addedBy = vm.adders.value.let { a -> a["row:" + song.rowUid] ?: a["song:" + song.spotifyTrackId] },
                 onClick = { dismissKeyboard(); if (SmartShuffle.on.value == p.uri) vm.playSmart(p, song) else vm.play(p, song, sort) },
                 onMore = { menuSong = song },
@@ -1166,7 +1053,7 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
             ) }
         }
         // "Recommended songs", as under an own playlist in the official apps (an empty one too).
-        if (p.type == "playlist" && vm.editableContext.value && find.isBlank() && !p.isBlend) recommendedItems(vm, p, ctx, currentSongId)
+        if (p.type == "playlist" && vm.editableContext.value && find.isBlank()) recommendedItems(vm, p, ctx, currentSongId)
         // Phone files added to this Spotify playlist on this phone (Spotify can't hold them).
         if (p.type == "playlist") {
             val playlistId = p.uri.substringAfterLast(":")
@@ -1356,12 +1243,12 @@ private fun RecommendedRow(song: SongsModel, isCurrent: Boolean, onPlay: () -> U
     }
 }
 
-/** The people of a collaborative playlist: owner first, then collaborators; a tap opens a profile. */
+/** The people of a collaborative playlist: owner first, then collaborators. */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 internal fun MembersSheet(
     members: List<app.myspoti.api.PlaylistMember>,
-    navController: NavController,
+    navController: NavController? = null,
     ownPlaylist: Boolean,
     me: String?,
     canLeave: Boolean,
@@ -1377,9 +1264,7 @@ internal fun MembersSheet(
             members.forEach { m ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().clickable {
-                        onDismiss(); navController.navigate(com.music.spotui.ui.navigation.profileRoute(m.username, m.name))
-                    }.padding(horizontal = 20.dp, vertical = 10.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
                 ) {
                     com.music.spotui.ui.components.ProfileAvatar(m.imageUrl, m.name, 44.dp)
                     Column(Modifier.weight(1f).padding(start = 14.dp)) {
@@ -1425,7 +1310,6 @@ private fun TrackRow(
     showCover: Boolean,
     isCurrent: Boolean,
     saved: Boolean,
-    offline: com.music.spotui.data.offline.OfflineStatus?,
     onClick: () -> Unit,
     onMore: () -> Unit,
     /** The green check tapped: where the song is saved, to take it out (as in the official app). */
@@ -1485,10 +1369,6 @@ private fun TrackRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
-                if (offline != null) {
-                    com.music.spotui.ui.components.DownloadBadge(offline, size = 14.dp)
-                    Spacer(Modifier.width(6.dp))
-                }
                 if (song.explicit) {
                     ExplicitBadge()
                     Spacer(Modifier.width(6.dp))
@@ -1625,9 +1505,8 @@ object SmartShuffle {
         val startSong = mixed.first()
         // Turned on from the player: the song playing goes on where it is, not from its start.
         val position = fromPositionMs?.takeIf { first != null && it > 0 }
-        // The song playing going on where it is stays on Spotify; a new play asks the audio-source extensions first.
         SongPlayer.playSong(startSong.url, contextUri = p.uri, order = mixed.map { "spotify:track:${it.spotifyTrackId}" }, positionMs = position,
-            songs = mixed, askExtensions = position == null)
+            songs = mixed)
         state.updateSongState(startSong.coverUri, startSong.title, startSong.singer, true, startSong.id, 0, startSong.album)
     }
 

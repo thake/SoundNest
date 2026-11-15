@@ -30,13 +30,12 @@ enum class EqPreset(val gains: FloatArray, val preamp: Float) {
 }
 
 /**
- * The equalizer, speed and silence skipping of the local player (ExoPlayer: extensions' streams,
- * downloads, the phone's files). Spotify's own songs play in the Web Player, whose decoded sound
- * the app never gets: none of this applies to them, nor to a Cast device. Kept across launches.
+ * The equalizer, speed and silence skipping of the local player (ExoPlayer: the phone's files and
+ * live radio). Spotify's own songs play in the Web Player, whose decoded sound the app never gets:
+ * none of this applies to them, nor to a Cast device. Kept across launches.
  *
  * Speed: 0.5× to 2× for everything the local player plays, 1× by default (podcasts streamed by
- * Spotify keep their own speed, the podcast player's). Off 1×, Spotify does not follow the song
- * (see AccountSync): its page plays at 1× only.
+ * Spotify keep their own speed, the podcast player's).
  *
  * Spatial audio: the stereo widened by mid/side processing (see SpatialProcessor), off by default,
  * on its own switch (the equalizer may be off).
@@ -113,8 +112,6 @@ object EqualizerPref {
         speed = value.coerceIn(0.5f, 2f)
         prefs(c).edit().putFloat("speed", speed).apply()
         com.music.spotui.di.LocalPlayer.applyPlayback()
-        // Spotify's page plays at 1× only: the listen sync stops off 1×, and starts again at 1×.
-        com.music.spotui.di.AccountSync.listen.refresh()
     }
 
     fun setSkipSilence(c: Context, on: Boolean) {

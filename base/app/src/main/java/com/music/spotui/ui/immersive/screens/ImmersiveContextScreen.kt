@@ -37,8 +37,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.DeleteOutline
-import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
@@ -51,7 +49,6 @@ import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -98,13 +95,9 @@ import com.music.spotui.data.api.Response
 import com.music.spotui.data.entity.ContextPageModel
 import com.music.spotui.data.entity.SongsModel
 import com.music.spotui.data.local.LocalPlaylists
-import com.music.spotui.data.offline.OfflineCollections
-import com.music.spotui.data.offline.OfflineStatus
-import com.music.spotui.data.offline.OfflineStore
 import com.music.spotui.di.LocalPlayer
 import com.music.spotui.di.Palette
 import com.music.spotui.di.SongPlayer
-import com.music.spotui.ui.components.DownloadAsk
 import com.music.spotui.ui.components.FastScrollbar
 import com.music.spotui.ui.components.matchesFind
 import com.music.spotui.ui.components.withRowKeys
@@ -131,7 +124,6 @@ import com.music.spotui.ui.immersive.shell.immersiveChromeScroll
 import com.music.spotui.ui.immersive.shell.immersiveTopContentPadding
 import com.music.spotui.ui.navigation.albumRoute
 import com.music.spotui.ui.navigation.artistRoute
-import com.music.spotui.ui.navigation.profileRoute
 import com.music.spotui.ui.screens.ContextViewModel
 import com.music.spotui.ui.screens.PlaylistReorder
 import com.music.spotui.ui.screens.SmartShuffle
@@ -265,7 +257,6 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
     // "Sort by" for the list, kept per list (also after leaving it or restarting the app).
     var sort by remember(p.uri) { mutableStateOf(TrackOrder.load(context, p.uri)) }
     var sortMenu by remember { mutableStateOf(false) }
-    var askRemoveDownloads by remember { mutableStateOf(false) }
     var playlistMenu by remember { mutableStateOf(false) }
     var addingSongs by remember { mutableStateOf(false) }
     var albumMenu by remember { mutableStateOf(false) }
@@ -340,29 +331,11 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
     if (albumMenu) com.music.spotui.ui.components.AlbumOptionsSheet(p.uri, p.name, known = p) { albumMenu = false }
     if (playlistMenu) com.music.spotui.ui.components.PlaylistOptionsSheet(
         page = p,
-        onAddSongs = if (p.type == "playlist" && vm.editableContext.value && !p.isBlend) ({ addingSongs = true }) else null,
+        onAddSongs = if (p.type == "playlist" && vm.editableContext.value) ({ addingSongs = true }) else null,
         onDismiss = { playlistMenu = false },
         onChanged = { vm.reload() },
         onEdited = { name, description -> vm.showDetails(name, description) },
         onDeleted = { navController.navigateUp() },
-        onProfile = { navController.navigate(profileRoute(it, p.ownerName)) },
-    )
-    if (askRemoveDownloads) ImmersiveAlertDialog(
-        onDismissRequest = { askRemoveDownloads = false },
-        title = { Text(stringResource(R.string.playlist_entity_remove_download_dialog_title), style = Immersive.Headline) },
-        text = { Text(stringResource(R.string.playlist_entity_remove_download_dialog_description), style = Immersive.Subhead) },
-        confirmButton = {
-            TextButton(onClick = {
-                askRemoveDownloads = false
-                OfflineCollections.remove(p.uri)
-                Toast.makeText(context, context.getString(R.string.toast_undownload), Toast.LENGTH_SHORT).show()
-            }) { Text(stringResource(R.string.playlist_entity_remove_download_dialog_positive_button), style = Immersive.BodyStrong.copy(color = Immersive.Accent)) }
-        },
-        dismissButton = {
-            TextButton(onClick = { askRemoveDownloads = false }) {
-                Text(stringResource(R.string.add_to_playlist_button_cancel), style = Immersive.BodyStrong)
-            }
-        },
     )
     menuSong?.let { sel ->
         val inPlaylist = p.type == "playlist"
@@ -392,7 +365,7 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
     // "Move" is on, as on the Classic page.
     var moving by remember(p.uri) { mutableStateOf(false) }
     val canMove = remember(p, vm.editableContext.value, sort, find) {
-        PlaylistReorder.allowed(p.type, vm.editableContext.value, p.isBlend, sort.isCustom, p.complete, find, p.tracks.map { it.rowUid })
+        PlaylistReorder.allowed(p.type, vm.editableContext.value, sort.isCustom, p.complete, find, p.tracks.map { it.rowUid })
     }
     val reordering = moving && canMove
     // The rows and their keys in one derived state: the list re-reads its rows outside composition
@@ -426,8 +399,7 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
         }
     }
     // What the Shuffle pill does: start the list shuffled from a random song, and every tap again
-    // jumps to another random one, as the official app's big shuffle button did (asked on
-    // Discord: in 2.2.0 a tap while the list played only turned shuffle on or off). Turning
+    // jumps to another random one, as the official app's big shuffle button did. Turning
     // shuffle off is the player's shuffle button; smart shuffle has its own button under the pill.
     fun onShuffle() {
         if (p.tracks.isEmpty()) return
@@ -487,7 +459,6 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
                     onShuffle = ::onShuffle,
                     onToggleSaved = { vm.toggleContextSaved(p) },
                     onToggleSmart = ::toggleSmart,
-                    onAskRemoveDownloads = { askRemoveDownloads = true },
                     members = crew,
                     onMembers = { showMembers = true },
                     moving = moving.takeIf { canMove },
@@ -549,10 +520,7 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
                             trackNumber = if (numbered) index + 1 else null,
                             showDuration = numbered,
                             showAlbum = !numbered,
-                            // As in the Classic list: the heart and the download of the song, from the same state
-                            // (what Spotify last reported, the list's one batch check, the downloads kept on the phone).
                             liked = com.music.spotui.di.trackSaved(song.spotifyTrackId, savedTracks),
-                            offline = OfflineStore.statusOf(song.spotifyTrackId),
                             // Collaborative: the small face of who added the song. Being moved: its handle.
                             trailing = vm.adders.value.let { a -> a["row:" + song.rowUid] ?: a["song:" + song.spotifyTrackId] }.let { m ->
                                 val face: @Composable () -> Unit = {
@@ -603,7 +571,7 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
                 }
             }
             // "Recommended songs", as under an own playlist in the official apps (an empty one too).
-            if (p.type == "playlist" && vm.editableContext.value && find.isBlank() && !p.isBlend) immersiveRecommended(vm, p, context, currentSongId)
+            if (p.type == "playlist" && vm.editableContext.value && find.isBlank()) immersiveRecommended(vm, p, context, currentSongId)
             // An album: "More like this", albums close to its first song.
             // Under an album's songs: its release date, label and copyright lines.
             if (p.type == "album" && p.footer.isNotEmpty() && find.isBlank()) item(key = "album-footer") {
@@ -621,7 +589,7 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
         FastScrollbar(listState, Modifier.align(Alignment.CenterEnd))
 
         // Search, sort and the playlist's menu live in the bar, as the header is the sleeve's.
-        val hasActions = findable || p.type == "playlist"
+        val hasActions = findable || p.type == "playlist" || p.type == "album" || p.type == "liked-artist"
         ImmersiveTopBar(
             title = p.name,
             listState = listState,
@@ -648,8 +616,7 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
                             onSort = { sort = it; TrackOrder.save(context, p.uri, it) },
                         )
                     }
-                    if (!com.music.spotui.data.catalog.CatalogRuntime.isCatalogUri(p.uri) &&
-                        (p.type == "playlist" || p.type == "album" || p.type == "liked" || p.type == "liked-artist")) ImmersiveBarAction(
+                    if (p.type == "playlist" || p.type == "album" || p.type == "liked" || p.type == "liked-artist") ImmersiveBarAction(
                         icon = Icons.Rounded.MoreHoriz,
                         contentDescription = stringResource(R.string.content_description_context_menu),
                         onClick = { if (p.type == "playlist") playlistMenu = true else albumMenu = true },
@@ -696,14 +663,12 @@ private fun ContextHeader(
     onShuffle: () -> Unit,
     onToggleSaved: () -> Unit,
     onToggleSmart: () -> Unit,
-    onAskRemoveDownloads: () -> Unit,
     members: List<app.myspoti.api.PlaylistMember> = emptyList(),
     onMembers: () -> Unit = {},
     /** Whether the songs' handles are out; null: the songs cannot be moved here (no "Move" button). */
     moving: Boolean? = null,
     onMove: () -> Unit = {},
 ) {
-    val context = LocalContext.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -764,21 +729,17 @@ private fun ContextHeader(
                 )
             }
         } else if (p.ownerName.isNotBlank()) {
+            val isArtistOwner = p.ownerUri.startsWith("spotify:artist:")
             Spacer(Modifier.height(8.dp))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .padding(horizontal = HeaderGutter)
-                    .immersiveClickable(onClick = {
-                        if (p.ownerUri.startsWith("spotify:artist:")) {
+                    .then(
+                        if (isArtistOwner) Modifier.immersiveClickable(onClick = {
                             navController.navigate(artistRoute(p.ownerName.substringBefore(",").trim(), p.ownerUri.substringAfterLast(":")))
-                        } else if (com.music.spotui.data.catalog.CatalogRuntime.isCatalogUri(p.ownerUri)) {
-                            // The artist of an album of another provider: its page, by its whole uri.
-                            navController.navigate(artistRoute(p.ownerName.substringBefore(",").trim(), p.ownerUri))
-                        } else if (p.ownerUri.startsWith("spotify:user:")) {
-                            navController.navigate(profileRoute(p.ownerUri.substringAfterLast(":"), p.ownerName))
-                        }
-                    }),
+                        }) else Modifier,
+                    ),
             ) {
                 if (p.ownerAvatar.isNotBlank()) {
                     ImmersiveCover(p.ownerAvatar, Modifier.size(24.dp), CircleShape, border = false)
@@ -832,49 +793,30 @@ private fun ContextHeader(
                     modifier = Modifier.weight(1f, fill = false).widthIn(max = 240.dp).fillMaxWidth(),
                 )
             }
-            Spacer(Modifier.height(14.dp))
-            // An album of another provider is read only: Spotify can neither save nor download it.
-            val onSpotify = !com.music.spotui.data.catalog.CatalogRuntime.isCatalogUri(p.uri)
-            if (onSpotify) Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (p.type != "liked") ImmersiveCircleButton(
-                    icon = if (saved) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                    contentDescription = stringResource(if (saved) R.string.immersive_detail_unsave else R.string.immersive_detail_save),
-                    onClick = onToggleSaved,
-                    tint = if (saved) Immersive.Accent else Immersive.Text,
-                )
-                // The page's own songs, downloaded as a whole stay in step with the catalogue.
-                val ids = p.tracks.map { it.spotifyTrackId }.filter { it.isNotBlank() }.distinct()
-                // Songs with no matching recording count as settled: the list can still be removed.
-                val downloadedCount = ids.count {
-                    OfflineStore.isDownloaded(it) || OfflineStore.status[it] == OfflineStatus.Unavailable
+            val canSmart = SmartShuffle.canPlay(p.uri)
+            if (p.type != "liked" || canSmart || moving != null) {
+                Spacer(Modifier.height(14.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (p.type != "liked") ImmersiveCircleButton(
+                        icon = if (saved) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                        contentDescription = stringResource(if (saved) R.string.immersive_detail_unsave else R.string.immersive_detail_save),
+                        onClick = onToggleSaved,
+                        tint = if (saved) Immersive.Accent else Immersive.Text,
+                    )
+                    if (canSmart) ImmersiveCircleButton(
+                        icon = Icons.Rounded.AutoAwesome,
+                        contentDescription = stringResource(R.string.smart_shuffle_title),
+                        onClick = onToggleSmart,
+                        tint = if (smart) Immersive.Accent else Immersive.Text,
+                    )
+                    // "Move": a handle on each song, to put them in another order (again: done).
+                    if (moving != null) ImmersiveCircleButton(
+                        icon = Icons.Rounded.DragHandle,
+                        contentDescription = stringResource(if (moving) R.string.done else R.string.edit_playlist_items_move_chip),
+                        onClick = onMove,
+                        tint = if (moving) Immersive.Accent else Immersive.Text,
+                    )
                 }
-                val busy = ids.any {
-                    val st = OfflineStore.status[it]
-                    st == OfflineStatus.Queued || st is OfflineStatus.Downloading
-                }
-                val listKept = OfflineCollections.isDownloaded(p.uri)
-                LaunchedEffect(listKept, p.complete, p.tracks.size) { if (listKept && p.complete) OfflineCollections.sync(p) }
-                DownloadCircle(downloadedCount, ids.size, busy, listKept) {
-                    if (listKept) onAskRemoveDownloads()
-                    else DownloadAsk.start(context) { q ->
-                        com.music.spotui.di.Haptics.confirm()
-                        OfflineCollections.download(p, q)
-                        Toast.makeText(context, context.getString(R.string.download_notification_downloading), Toast.LENGTH_SHORT).show()
-                    }
-                }
-                if (SmartShuffle.canPlay(p.uri)) ImmersiveCircleButton(
-                    icon = Icons.Rounded.AutoAwesome,
-                    contentDescription = stringResource(R.string.smart_shuffle_title),
-                    onClick = onToggleSmart,
-                    tint = if (smart) Immersive.Accent else Immersive.Text,
-                )
-                // "Move": a handle on each song, to put them in another order (again: done).
-                if (moving != null) ImmersiveCircleButton(
-                    icon = Icons.Rounded.DragHandle,
-                    contentDescription = stringResource(if (moving) R.string.done else R.string.edit_playlist_items_move_chip),
-                    onClick = onMove,
-                    tint = if (moving) Immersive.Accent else Immersive.Text,
-                )
             }
         }
     }
@@ -890,40 +832,6 @@ private fun LikedSleeve(modifier: Modifier) {
             .background(Brush.linearGradient(listOf(Color(0xFF450AF5), Color(0xFF8E8EE5), Color(0xFFC4EFD9)))),
     ) {
         Icon(Icons.Rounded.Favorite, contentDescription = null, tint = Color.White, modifier = Modifier.fillMaxSize(0.4f))
-    }
-}
-
-/**
- * The download button of an album / playlist: an arrow, a progress ring while songs download, then
- * a bin once all of them are on the phone (tap = remove the downloads). The Classic button's
- * states in a round 44 dp button.
- */
-@Composable
-private fun DownloadCircle(downloaded: Int, total: Int, busy: Boolean, kept: Boolean, onClick: () -> Unit) {
-    val all = kept && !busy
-    Box(
-        modifier = Modifier
-            .immersiveClickable(onClick = onClick)
-            .size(44.dp)
-            .clip(CircleShape)
-            .background(Immersive.Raised),
-        contentAlignment = Alignment.Center,
-    ) {
-        when {
-            all -> Icon(
-                Icons.Rounded.DeleteOutline, stringResource(R.string.context_menu_undownload),
-                tint = Immersive.Accent, modifier = Modifier.size(22.dp),
-            )
-            busy -> if (total > 0) CircularProgressIndicator(
-                progress = { downloaded.toFloat() / total },
-                color = Immersive.Accent, trackColor = Immersive.Separator,
-                strokeWidth = 2.dp, modifier = Modifier.size(22.dp),
-            ) else CircularProgressIndicator(color = Immersive.Accent, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
-            else -> Icon(
-                Icons.Rounded.Download, stringResource(R.string.context_menu_download),
-                tint = Immersive.Text, modifier = Modifier.size(22.dp),
-            )
-        }
     }
 }
 

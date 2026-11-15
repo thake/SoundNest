@@ -3,18 +3,13 @@ package com.music.spotui.ui.viewmodel
 import com.music.spotui.di.Graph
 import android.content.Context
 import androidx.compose.runtime.State
-import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.music.spotui.data.entity.SongsModel
 import com.music.spotui.di.CurrentSongState
 import com.music.spotui.di.SongPlayer
 import com.music.spotui.ui.repository.AppRepository
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
 class PlayerViewModel constructor(private val currentSongState: CurrentSongState = Graph.currentSongState, private val repository: AppRepository = Graph.repository) : ViewModel(){
@@ -45,46 +40,6 @@ class PlayerViewModel constructor(private val currentSongState: CurrentSongState
     // Spotify owns the queue (context + autoplay): skip in the engine.
     fun playNextSongs(queueSongs : List<SongsModel>, context: Context) {
         SongPlayer.swipeNext()
-    }
-
-    /**
-     * Opens the artist page for a track: resolves the EXACT artist (name + id)
-     * from the track's Spotify id when available, so a display name like "RAM"
-     * can't fuzzy-match to "Rammstein". Falls back to the display name.
-     */
-    // Associate every Canvas result with the confirmed track that requested it.
-    private val canvasRequests = CanvasRequests()
-    private val _canvasState = mutableStateOf(CanvasTrackState())
-    internal val canvasState: State<CanvasTrackState> get() = _canvasState
-    private var canvasJob: Job? = null
-
-    fun loadCanvas(trackId: String, allowFetch: Boolean = true) {
-        // Already looked up (prefetched when the song started, or a reopened player): at once,
-        // so the screen knows before its first frame whether the Canvas or the cover shows.
-        repository.knownCanvas(trackId)?.let { known ->
-            canvasJob?.cancel(); canvasJob = null
-            canvasRequests.resolve(trackId, known.getOrNull())
-            _canvasState.value = canvasRequests.state
-            return
-        }
-        val request = canvasRequests.select(trackId, allowFetch) ?: return
-        canvasJob?.cancel()
-        canvasJob = null
-        _canvasState.value = canvasRequests.state
-        if (!request.fetch) return
-        canvasJob = viewModelScope.launch {
-            try {
-                val url = withContext(Dispatchers.IO) { repository.provideCanvasUrl(request.trackId) }
-                if (canvasRequests.complete(request, url)) _canvasState.value = canvasRequests.state
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                // A transient network/token failure falls back to the artwork.
-                if (canvasRequests.fail(request)) _canvasState.value = canvasRequests.state
-            } finally {
-                if (canvasRequests.owns(request)) canvasJob = null
-            }
-        }
     }
 
     /** "Go to song radio": opens the track's radio, Spotify's station playlist. */
@@ -133,74 +88,13 @@ internal fun confirmedTrackIdFromUri(uri: String): String =
 
 /**
  * The Spotify id of the song shown, once the engine confirms it: CurrentSongState uses this
- * canonical id. A download the local player plays ("local:<its local id>", shown under that uri's
- * song id) is its song too, by [downloadedTrackId]: without it a downloaded song had no Canvas
- * (B23) nor its artists' credit.
+ * canonical id.
  */
 internal fun confirmedTrackIdForDisplay(
     uri: String,
     displayedSongId: Int,
-    downloadedTrackId: (Long) -> String? = { com.music.spotui.data.offline.OfflineStore.byLocalId(it)?.trackId },
 ): String {
-    if (uri.startsWith("local:")) {
-        val localId = uri.removePrefix("local:").toLongOrNull() ?: return ""
-        if ((uri.hashCode() and 0x7fffffff) != displayedSongId) return ""
-        return downloadedTrackId(localId).orEmpty()
-    }
     val trackId = confirmedTrackIdFromUri(uri)
     val confirmedSongId = ("track:$trackId").hashCode() and 0x7fffffff
     return trackId.takeIf { it.isNotBlank() && confirmedSongId == displayedSongId }.orEmpty()
-}
-
-internal data class CanvasTrackState(val trackId: String = "", val url: String? = null)
-internal data class CanvasRequest(val generation: Long, val trackId: String, val fetch: Boolean)
-
-/** Main-thread request ownership; generations also distinguish a replay of the same id. */
-internal class CanvasRequests {
-    var state = CanvasTrackState()
-        private set
-    private var generation = 0L
-    private var loading = false
-    private var resolved = false
-
-    fun select(trackId: String, allowFetch: Boolean = true): CanvasRequest? {
-        val changed = trackId != state.trackId
-        val fetch = trackId.isNotBlank() && allowFetch && (changed || (!loading && !resolved))
-        val stopLoading = !allowFetch && loading
-        if (!changed && !fetch && !stopLoading) return null
-        generation++
-        if (changed) {
-            state = CanvasTrackState(trackId)
-            resolved = false
-        }
-        loading = fetch
-        return CanvasRequest(generation, trackId, fetch)
-    }
-
-    fun owns(request: CanvasRequest): Boolean =
-        request.generation == generation && request.trackId == state.trackId
-
-    fun complete(request: CanvasRequest, url: String?): Boolean {
-        if (!owns(request) || !request.fetch || !loading) return false
-        state = CanvasTrackState(request.trackId, url?.takeIf { it.isNotBlank() })
-        loading = false
-        resolved = true
-        return true
-    }
-
-    /** A result known without asking (cache). */
-    fun resolve(trackId: String, url: String?) {
-        generation++
-        state = CanvasTrackState(trackId, url?.takeIf { it.isNotBlank() })
-        loading = false
-        resolved = true
-    }
-
-    fun fail(request: CanvasRequest): Boolean {
-        if (!owns(request) || !request.fetch || !loading) return false
-        state = CanvasTrackState(request.trackId)
-        loading = false
-        resolved = false
-        return true
-    }
 }

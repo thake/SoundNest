@@ -1,9 +1,6 @@
 package com.music.spotui.cli
 
-import app.myspoti.extensions.Hook
-import app.myspoti.extensions.Setting
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -27,19 +24,8 @@ class CliTest {
 
     @Test fun parsesEachCommand() {
         assertEquals(CliCommand.Status, CliParser.parse("status", emptyList()))
-        assertEquals(CliCommand.ExtInstall("/sdcard/Android/data/app.orpheon.beta.dev/files/cli/in/x.zip"),
-            CliParser.parse("ext.install", listOf("/sdcard/Android/data/app.orpheon.beta.dev/files/cli/in/x.zip")))
-        assertEquals(CliCommand.ExtEnable("my.ext", false), CliParser.parse("ext.disable", listOf("my.ext")))
-        assertEquals(CliCommand.ExtSetting("my.ext", "quality", "\"high\""), CliParser.parse("ext.setting", listOf("my.ext", "quality", "high")))
-        assertEquals(CliCommand.ExtSetting("my.ext", "on", "true"), CliParser.parse("ext.setting", listOf("my.ext", "on", "true")))
-        assertEquals(CliCommand.ExtSetting("my.ext", "on", null), CliParser.parse("ext.setting", listOf("my.ext", "on", "null")))
-        assertEquals(CliCommand.ExtPress("my.ext", "pair"), CliParser.parse("ext.press", listOf("my.ext", "pair")))
-        assertEquals(CliCommand.ExtCall("my.ext", Hook.AUDIO_SOURCE, """{"id":"1"}"""), CliParser.parse("ext.call", listOf("my.ext", "audio-source", """{"id":"1"}""")))
-        assertEquals(CliCommand.ExtCall("my.ext", Hook.LYRICS, "{}"), CliParser.parse("ext.call", listOf("my.ext", "lyrics")))
-        assertEquals(CliCommand.ExtLog("my.ext", 50), CliParser.parse("ext.log", listOf("my.ext")))
-        assertEquals(CliCommand.ExtLog("my.ext", 1000), CliParser.parse("ext.log", listOf("my.ext", "99999")))
         assertEquals(CliCommand.Play("spotify:track:4uLU6hMCjMI75M1A2tKUQC", null), CliParser.parse("play", listOf("spotify:track:4uLU6hMCjMI75M1A2tKUQC")))
-        assertEquals(CliCommand.Nav("extension/my.ext"), CliParser.parse("nav", listOf("extension/my.ext")))
+        assertEquals(CliCommand.Nav("settings"), CliParser.parse("nav", listOf("settings")))
         assertEquals(CliCommand.AutoMixSettings(), CliParser.parse("automix.settings", emptyList()))
         assertEquals(CliCommand.AutoMixSettings("style", "blend"), CliParser.parse("automix.settings", listOf("style", "blend")))
         assertEquals(CliCommand.AutoMixSettings("mobile-data", "off"), CliParser.parse("automix.settings", listOf("mobile-data", "off")))
@@ -54,13 +40,8 @@ class CliTest {
 
     @Test fun refusesBadInput() {
         assertTrue(fails("nope").startsWith("unknown command"))
-        assertTrue(fails("ext.enable").contains("missing <id>"))
-        assertTrue(fails("ext.enable", "../x").contains("bad extension id"))
-        assertTrue(fails("ext.install", "relative.zip").contains("absolute"))
-        assertTrue(fails("ext.install", "/sdcard/../data/x.zip").contains("absolute"))
-        assertTrue(fails("ext.call", "my.ext", "nohook").contains("unknown hook"))
-        assertTrue(fails("ext.call", "my.ext", "lyrics", "{oops").contains("not JSON"))
-        assertTrue(fails("ext.setting", "my.ext", "k").contains("missing <value>"))
+        assertTrue(fails("ext.enable").startsWith("unknown command"))
+        assertTrue(fails("catalog.status").startsWith("unknown command"))
         assertTrue(fails("play", "https://example.com/x").contains("spotify:"))
         assertTrue(fails("nav", "https://example.com").contains("route"))
         assertTrue(fails("pause", "extra").contains("too many"))
@@ -116,31 +97,6 @@ class CliTest {
         assertEquals("Someone", o["author"]!!.jsonPrimitive.content)
         assertEquals("https://x/y?sig=${CliMask.MASK}", o["url"]!!.jsonPrimitive.content)
         assertEquals(JsonPrimitive(3), o["n"])
-    }
-
-    @Test fun settingsHideSecretsAndButtons() {
-        val declared = listOf(
-            Setting("quality", "choice", "Quality", default = JsonPrimitive("high"), options = listOf("high", "low")),
-            Setting("password", "secret", "Password"),
-            Setting("pair", "button", "Pair again"),
-            Setting("server", "text", "Server"),
-        )
-        val shown = CliMask.settings(declared, mapOf("password" to "\"hunter22\"", "server" to "\"https://s\"", "leftover" to "\"x\""))
-        assertEquals(JsonPrimitive("high"), shown["quality"])
-        assertEquals(JsonPrimitive(CliMask.MASK), shown["password"])
-        assertEquals(JsonPrimitive("https://s"), shown["server"])
-        assertEquals(JsonPrimitive(CliMask.MASK), shown["leftover"])
-        assertFalse(shown.containsKey("pair"))
-        assertEquals(JsonNull, CliMask.settings(listOf(Setting("p", "secret", "P")), emptyMap())["p"])
-    }
-
-    @Test fun knownSecretsTakeStoredStrings() {
-        val known = CliMask.knownSecrets(listOf(Setting("password", "secret", "P"), Setting("server", "text", "S")),
-            mapOf("password" to "\"hunter22\"", "server" to "\"https://s\""), mapOf("auth" to """{"refresh":"r3fr3sh-value"}"""))
-        assertTrue("hunter22" in known)
-        assertTrue("r3fr3sh-value" in known)
-        assertFalse("https://s" in known)
-        assertEquals("log *** ok", CliMask.text("log r3fr3sh-value ok", known))
     }
 
     @Test fun replies() {

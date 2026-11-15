@@ -61,7 +61,6 @@ import com.music.spotui.data.api.Response
 import com.music.spotui.data.entity.PodcastModel
 import com.music.spotui.data.entity.SongsModel
 import com.music.spotui.di.SongPlayer
-import com.music.spotui.ui.components.EpisodeDownloadButton
 import com.music.spotui.ui.components.EpisodeOptionsSheet
 import com.music.spotui.ui.components.Loader
 import com.music.spotui.ui.components.episodeClock
@@ -489,8 +488,6 @@ private fun EpisodeRow(
                 modifier = Modifier.size(22.dp).pressable(0.9f, onClick = onMenu),
             )
             Spacer(Modifier.weight(1f))
-            EpisodeDownloadButton(episode, size = 24.dp)
-            Spacer(Modifier.width(6.dp))
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier.size(40.dp).clip(CircleShape).background(AppText).pressable(0.92f, onClick = onPlay),

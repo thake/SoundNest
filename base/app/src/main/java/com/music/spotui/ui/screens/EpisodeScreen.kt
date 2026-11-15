@@ -57,7 +57,6 @@ import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
 import com.bumptech.glide.integration.compose.placeholder
 import com.music.spotui.di.SongPlayer
-import com.music.spotui.ui.components.EpisodeDownloadButton
 import com.music.spotui.ui.components.EpisodeOptionsSheet
 import com.music.spotui.ui.components.Loader
 import com.music.spotui.ui.components.episodeClock
@@ -186,7 +185,7 @@ fun EpisodeScreen(navController: NavController, episodeId: String, fallbackName:
                         fontSize = 13.sp,
                         modifier = Modifier.padding(horizontal = 16.dp),
                     )
-                    // Action row: save, download, share, "…", then Play.
+                    // Action row: save, share, "…", then Play.
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
@@ -195,7 +194,7 @@ fun EpisodeScreen(navController: NavController, episodeId: String, fallbackName:
                             val ep = episode ?: return@SaveEpisodeButton
                             SongPlayer.setSaved(ep.spotifyUri, !saved)
                         }
-                        episode?.let { EpisodeDownloadButton(it, size = 26.dp) }
+                        Spacer(Modifier.width(20.dp))
                         Icon(
                             Icons.Default.Share,
                             contentDescription = stringResource(R.string.a11y_share),

@@ -18,8 +18,7 @@ import kotlinx.coroutines.withContext
  * Collaborative-playlist invitations: `open.spotify.com/playlist/{id}?si=…&pt={token}`, as the
  * official apps share them (or a spotify.link short link that redirects to it). `pt` is the
  * permission-grant token; claiming it makes the account a collaborator. The link is kept here
- * until the user taps "Join" on the playlist page (see [join]). Blend invitations
- * (`/blend/taste-match/{id}`) are kept as [blend] and answered from a sheet.
+ * until the user taps "Join" on the playlist page (see [join]).
  */
 object InviteLinks {
     private const val TAG = "InviteLinks"
@@ -34,12 +33,6 @@ object InviteLinks {
     /** The invitation waiting for the user's answer; cleared once joined. */
     val pending = MutableStateFlow<Invite?>(null)
 
-    /** A Blend invitation (`open.spotify.com/blend/taste-match/{id}`), a new object per link opened. */
-    class BlendLink(val id: String)
-
-    /** The Blend invitation opened, shown as a sheet over the app until answered (see BlendInviteSheet). */
-    val blend = MutableStateFlow<BlendLink?>(null)
-
     /** A shared playlist / album / artist / podcast link: its page, opened by App.kt (not played). */
     val page = MutableStateFlow<String?>(null)
 
@@ -48,7 +41,6 @@ object InviteLinks {
 
     private val PLAYLIST = Regex("""(?:open|www|play)\.spotify\.com/(?:intl-[a-z-]+/)?playlist/([A-Za-z0-9]{22})([^\s"'<>]*)""")
     private val TOKEN = Regex("""[?&]pt=([A-Za-z0-9_-]+)""")
-    private val BLEND = Regex("""spotify\.com/(?:intl-[a-z-]+/)?blend/(?:taste-match|invitation)/([A-Za-z0-9]+)""")
     private val SHORT = Regex("""https?://(?:spotify\.link|spoti\.fi)/[^\s"'<>]+""")
 
     /** The invitation inside [link] (a playlist link carrying `pt`), or null. */
@@ -65,13 +57,11 @@ object InviteLinks {
      */
     fun handle(link: String): Boolean {
         parse(link)?.let { pending.value = it; return true }
-        BLEND.find(link)?.let { blend.value = BlendLink(it.groupValues[1]); return true }
         val short = SHORT.find(link)?.value ?: return false
         scope.launch {
             val target = resolve(short) ?: return@launch
             val invite = parse(target)
             if (invite != null) { pending.value = invite; return@launch }
-            BLEND.find(target)?.let { blend.value = BlendLink(it.groupValues[1]); return@launch }
             // Not an invitation: the item the short link leads to is played, as a direct link is.
             val m = Regex("""spotify\.com/(?:intl-[a-z-]+/)?(track|album|playlist|artist|show|episode)/([A-Za-z0-9]{22})""").find(target) ?: return@launch
             runCatching {
@@ -87,7 +77,7 @@ object InviteLinks {
         runCatching {
             http.newCall(okhttp3.Request.Builder().url(link).header("user-agent", "Mozilla/5.0").build()).execute().use { r ->
                 val final = r.request.url.toString()
-                if (PLAYLIST.containsMatchIn(final) && TOKEN.containsMatchIn(final) || BLEND.containsMatchIn(final)) final
+                if (PLAYLIST.containsMatchIn(final) && TOKEN.containsMatchIn(final)) final
                 else {
                     val body = r.body.string().replace("\\/", "/")
                     PLAYLIST.find(body.replace("&amp;", "&").replace("\\u0026", "&"))?.value?.let { "https://$it" } ?: final

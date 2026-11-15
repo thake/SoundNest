@@ -57,7 +57,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import app.myspoti.api.MediaCard
 import app.myspoti.engine.R
 import app.myspoti.host.android.MyspotiRuntime
 import com.music.spotui.data.api.Features
@@ -98,7 +97,6 @@ import com.music.spotui.ui.navigation.albumRoute
 import com.music.spotui.ui.navigation.artistRoute
 import com.music.spotui.ui.navigation.categoryRoute
 import com.music.spotui.ui.navigation.playlistRoute
-import com.music.spotui.ui.navigation.profileRoute
 import com.music.spotui.ui.navigation.showRoute
 import com.music.spotui.ui.screens.SearchFilter
 import com.music.spotui.ui.viewmodel.SearchViewModel
@@ -155,12 +153,6 @@ fun ImmersiveSearchScreen(navController: NavController) {
         }
     }
 
-    val profiles by produceState(emptyList<MediaCard>(), text, filter) {
-        value = emptyList()
-        if (filter != SearchFilter.Profiles || text.isBlank()) return@produceState
-        delay(250)
-        value = runCatching { MyspotiRuntime.api.search.users(text.trim(), limit = 30).items }.getOrDefault(emptyList())
-    }
     val suggestions by produceState(emptyList<String>(), text) {
         value = emptyList()
         if (text.isBlank()) return@produceState
@@ -261,7 +253,6 @@ fun ImmersiveSearchScreen(navController: NavController) {
                 searchResults(
                     data = data,
                     filter = filter,
-                    profiles = profiles,
                     text = text,
                     loading = loading,
                     failed = failed,
@@ -285,10 +276,6 @@ fun ImmersiveSearchScreen(navController: NavController) {
                     onShow = { show ->
                         recordRecent(RecentItem(type = "show", key = show.id, name = show.name, singer = show.publisher, image = show.coverUri))
                         navController.navigate(showRoute(show.id, show.name))
-                    },
-                    onProfile = { card ->
-                        dismissKeyboard()
-                        navController.navigate(profileRoute(card.uri.substringAfterLast(':'), card.title))
                     },
                 )
             }
@@ -433,7 +420,6 @@ private fun RowDivider() {
 private fun LazyListScope.searchResults(
     data: SearchResults,
     filter: SearchFilter,
-    profiles: List<MediaCard>,
     text: String,
     loading: Boolean,
     failed: Boolean,
@@ -446,7 +432,6 @@ private fun LazyListScope.searchResults(
     onAlbum: (AlbumsModel) -> Unit,
     onPlaylist: (LibraryEntry) -> Unit,
     onShow: (PodcastModel) -> Unit,
-    onProfile: (MediaCard) -> Unit,
 ) {
     val top = filter == SearchFilter.Top
     val songs = if (top || filter == SearchFilter.Songs) data.songs else emptyList()
@@ -458,9 +443,7 @@ private fun LazyListScope.searchResults(
     val episodes = if (podcasts) data.episodes else emptyList()
     val sectioned = top
 
-    if (filter != SearchFilter.Profiles &&
-        songs.isEmpty() && artists.isEmpty() && albums.isEmpty() && playlists.isEmpty() && shows.isEmpty() && episodes.isEmpty()
-    ) {
+    if (songs.isEmpty() && artists.isEmpty() && albums.isEmpty() && playlists.isEmpty() && shows.isEmpty() && episodes.isEmpty()) {
         when {
             loading -> immersiveSongListSkeleton(keyPrefix = "skeleton:search")
             failed -> item(key = "search:failed") {
@@ -473,20 +456,6 @@ private fun LazyListScope.searchResults(
             else -> item(key = "search:empty") {
                 ImmersiveMessageState(stringResource(R.string.assisted_curation_search_empty_view_no_result_title, text.trim()))
             }
-        }
-        return
-    }
-
-    if (filter == SearchFilter.Profiles) {
-        items(profiles.size, key = { "profile:${profiles[it].uri}" }) { i ->
-            val card = profiles[i]
-            ImmersiveListRow(
-                title = card.title,
-                subtitle = stringResource(R.string.recently_played_user_profile),
-                imageUrl = card.images.firstOrNull()?.url,
-                round = true,
-                onClick = { onProfile(card) },
-            )
         }
         return
     }
@@ -569,14 +538,6 @@ private fun LazyListScope.searchResults(
             SongResultRow(ep, currentSongId, playing, onClick = { onSong(ep) }, onMore = { onSongMore(ep) })
             if (n < range.count() - 1) RowDivider()
         }
-    }
-    // What extensions add for this search (search.provide), under Spotify's results.
-    if (filter != SearchFilter.Profiles && text.isNotBlank()) item(key = "search:extensions") {
-        com.music.spotui.extensions.ExtensionBlocks(
-            app.myspoti.extensions.Hook.SEARCH, app.myspoti.extensions.Surface.SEARCH,
-            kotlinx.serialization.json.buildJsonObject { put("query", kotlinx.serialization.json.JsonPrimitive(text.trim())) }.toString(),
-            delayMs = 400,
-        )
     }
 }
 

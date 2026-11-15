@@ -12,8 +12,7 @@ import androidx.compose.runtime.setValue
  * Data saver (a switch in the profile menu): on mobile data or another metered network
  * (never on Wi-Fi) the app uses no data at all, as if offline. Every connection is
  * refused ([check], [interceptor], the WebView and Glide guards), the hidden Spotify
- * player is shut down, and only downloaded songs and Local Files play. Back on Wi-Fi,
- * the player is rebuilt.
+ * player is shut down, and only Local Files play. Back on Wi-Fi, the player is rebuilt.
  */
 object DataSaver {
     private const val PREFS = "myspoti_prefs"
@@ -67,15 +66,14 @@ object DataSaver {
                 override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
                     val was = metered
                     metered = !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
-                    if (was && !metered) com.music.spotui.data.offline.OfflineCollections.onUnmetered(app)
                     // Wi-Fi and mobile data each have their own streaming level.
-                    if (was != metered) { com.music.spotui.data.preferences.applyStreamingQuality(app); com.music.spotui.extensions.Extensions.networkChanged() }
+                    if (was != metered) com.music.spotui.data.preferences.applyStreamingQuality(app)
                     changed()
                 }
                 override fun onLost(network: Network) {
                     val was = metered
                     metered = cm.isActiveNetworkMetered
-                    if (was != metered) { com.music.spotui.data.preferences.applyStreamingQuality(app); com.music.spotui.extensions.Extensions.networkChanged() }
+                    if (was != metered) com.music.spotui.data.preferences.applyStreamingQuality(app)
                     changed()
                 }
             })

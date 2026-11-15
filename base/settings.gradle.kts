@@ -19,25 +19,15 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven("https://jitpack.io") {
-            content { includeGroupByRegex("com\\.github\\..*") }
-        }
     }
 }
 
-rootProject.name = "Myspoti"
+rootProject.name = "OrpheonKids"
 include(":app")
 include(":api")
-include(":catalog")
 include(":automix")
-include(":extensions")
-include(":extensions-cli")
 include(":api-spotify")
 include(":host-cdp")
 include(":host-android")
-include(":api-web")
-include(":api-ytmusic")
 include(":engine")
 include(":engine-android")
-include(":wear")
-include(":pass")

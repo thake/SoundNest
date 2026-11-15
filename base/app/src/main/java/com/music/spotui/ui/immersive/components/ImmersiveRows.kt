@@ -44,8 +44,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.myspoti.engine.R
 import com.music.spotui.data.entity.SongsModel
-import com.music.spotui.data.offline.OfflineStatus
-import com.music.spotui.ui.components.DownloadBadge
 import com.music.spotui.ui.immersive.Immersive
 
 /** The cover of a row, and the height that lines the rows up (4 dp above and below it make [Immersive.RowHeight]). */
@@ -80,7 +78,6 @@ private val RowTitle = Immersive.Body.copy(fontWeight = FontWeight.Medium)
  * @param showDuration the length at the end of the row.
  * @param showAlbum "artist · album" as the second line instead of just the artist.
  * @param liked the song is in Liked Songs: a small star before the more button, as the player marks it.
- * @param offline the song's download, as the Classic list shows it before the artist: nothing when it has none.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -95,7 +92,6 @@ fun ImmersiveSongRow(
     showDuration: Boolean = false,
     showAlbum: Boolean = false,
     liked: Boolean = false,
-    offline: OfflineStatus? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
     val titleColor by animateColorAsState(
@@ -140,10 +136,6 @@ fun ImmersiveSongRow(
         gapAfterLeading = if (trackNumber == null) 14.dp else Immersive.Gutter,
         trailingText = if (showDuration && song.durationMs > 0) formatDuration(song.durationMs) else null,
         onMore = onMore,
-        subtitleLeading = if (offline != null) ({
-            DownloadBadge(offline, size = 14.dp)
-            Spacer(Modifier.width(6.dp))
-        }) else null,
         trailing = if (liked) ({
             trailing?.invoke()
             Spacer(Modifier.width(8.dp))
@@ -164,7 +156,7 @@ fun ImmersiveSongRow(
  * @param imageUrl the cover; null/blank draws the placeholder glyph.
  * @param playing bars over the cover and the title in the accent (the playing context).
  * @param onMore opens the item's menu; null hides the button (and the long press).
- * @param trailing extra content before the more button (a pin, a download badge, a chevron).
+ * @param trailing extra content before the more button (a pin, a chevron).
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -222,7 +214,6 @@ private fun RowScaffold(
     gapAfterLeading: Dp,
     trailingText: String?,
     onMore: (() -> Unit)?,
-    subtitleLeading: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
     val haptics = LocalHapticFeedback.current
@@ -250,15 +241,12 @@ private fun RowScaffold(
             ImmersiveSongTitle(title = title, explicit = explicit, style = RowTitle, color = titleColor)
             if (subtitle.isNotBlank()) {
                 Spacer(Modifier.height(2.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    subtitleLeading?.invoke()
-                    Text(
-                        text = subtitle,
-                        style = Immersive.Subhead,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+                Text(
+                    text = subtitle,
+                    style = Immersive.Subhead,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
         trailing?.invoke()

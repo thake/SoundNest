@@ -132,28 +132,22 @@ fun activeDeviceIcon(): ImageVector {
 }
 
 /**
- * Where the sound comes from while Myspoti's own player plays a song (an extension's stream: its
- * name and the quality it announced; a download; Spotify's codec and bitrate), shown under the
- * output device; "" while a song is being asked for or on another device.
+ * Where the sound comes from (Spotify's codec and bitrate, a device local file, or Live Radio),
+ * shown under the output device; "" while a song is being asked for or on another device.
  */
 @Composable
 fun playingSourceLabel(): String {
     val uri = SongPlayer.nowPlaying.value.uri
-    val answers = com.music.spotui.extensions.ExtensionAudio.answers.intValue
-    val downloaded = stringResource(R.string.player_source_downloaded)
-    // A source picked in the quality sheet for this session: said, discreetly, at the line's end.
-    val temporary = com.music.spotui.extensions.Extensions.sessionSource.collectAsState().value?.let { stringResource(R.string.source_pick_tag) }
     if (SongPlayer.routing) return ""
-    val label = if (!com.music.spotui.di.LocalPlayer.active.value) spotifyQualityLabel(uri) else remember(uri, answers, downloaded) {
-        com.music.spotui.di.LocalPlayer.current()?.let { com.music.spotui.extensions.ExtensionAudio.sourceLabel(it, downloaded) }.orEmpty()
-    }
-    return if (temporary == null || label.isBlank() || uri.startsWith("spotify:episode:")) label else "$label · $temporary"
+    if (!com.music.spotui.di.LocalPlayer.active.value) return spotifyQualityLabel(uri)
+    val t = com.music.spotui.di.LocalPlayer.current() ?: return ""
+    return stringResource(if (t.isRadio) R.string.live_radio_title else R.string.nerd_source_file)
 }
 
 /**
  * What Spotify streams while its own player plays here: "Spotify · AAC · 160 kbit/s", read from the
  * page once the song has loaded (it reports the stream a moment after the start); "" on another
- * device or while it is not known. Same line, same tap (the quality sheet) as an extension's source.
+ * device or while it is not known.
  */
 /** How many times (every 2 s, about half a minute) the page is asked for the stream it plays. */
 private const val QUALITY_TRIES = 15
@@ -172,15 +166,6 @@ private fun spotifyQualityLabel(uri: String): String {
         }
     }
     return if (label.isBlank()) "" else stringResource(R.string.player_source_spotify, label)
-}
-
-/** The name of the extension streaming the song playing, for the mini player; null otherwise (see [playingSourceLabel]). */
-@Composable
-fun playingExtensionName(): String? {
-    val uri = SongPlayer.nowPlaying.value.uri
-    val answers = com.music.spotui.extensions.ExtensionAudio.answers.intValue
-    if (!com.music.spotui.di.LocalPlayer.active.value || SongPlayer.routing) return null
-    return remember(uri, answers) { com.music.spotui.di.LocalPlayer.current()?.let(com.music.spotui.extensions.ExtensionAudio::streamedBy) }
 }
 
 private fun deviceIcon(type: String): ImageVector = when (type.uppercase()) {
@@ -316,22 +301,20 @@ internal fun streamingLabel(q: com.music.spotui.data.preferences.StreamingQualit
     com.music.spotui.data.preferences.StreamingQuality.VERY_HIGH -> R.string.quality_streaming_very_high
 }
 
-/** The sound quality page: what plays now (codec and bitrate, the downloaded file, or what an extension announced), and the setting. */
+/** The sound quality page: what plays now (Spotify's codec and bitrate, a device local file, or Live Radio), and the setting. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QualitySheet(onDismiss: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val local = com.music.spotui.di.LocalPlayer.active.value
-    // Read again when another source plays the song (picked below, see SourcePicker).
-    val answers = com.music.spotui.extensions.ExtensionAudio.answers.intValue
-    val now by androidx.compose.runtime.produceState<String?>(null, local, answers) {
+    val now by androidx.compose.runtime.produceState<String?>(null, local) {
         value = if (local) {
             val t = com.music.spotui.di.LocalPlayer.current()
-            val file = t?.let { com.music.spotui.data.offline.OfflineStore.byLocalId(it.id) }
-            file?.let { "${it.file.substringAfterLast('.').uppercase()} · ${it.source}" }
-                // A stream an extension gives: the quality it announced, as it said it.
-                ?: t?.uri?.takeIf { it.scheme == com.music.spotui.extensions.ExtensionAudio.SCHEME }
-                    ?.let { com.music.spotui.extensions.ExtensionAudio.qualityOf(it.lastPathSegment.orEmpty()) }
-                ?: ""
+            val src = if (t != null) context.getString(if (t.isRadio) R.string.live_radio_title else R.string.nerd_source_file) else ""
+            val fmt = com.music.spotui.di.LocalPlayer.audioFormat()
+            val codec = fmt?.sampleMimeType?.let(::codecName).orEmpty()
+            val kbps = fmt?.bitrate?.takeIf { it > 0 }?.let { "${it / 1000} kbit/s" }.orEmpty()
+            listOf(src, codec, kbps).filter { it.isNotBlank() }.joinToString(" · ")
         } else {
             val (bitrate, mime) = app.myspoti.host.android.MyspotiRuntime.spotify.player.audioInfo()
             if (bitrate <= 0) "" else "${codecName(mime)} · ${bitrate / 1000} kbit/s"
@@ -350,17 +333,6 @@ fun QualitySheet(onDismiss: () -> Unit) {
                 },
                 color = Green, fontSize = 15.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
             )
-            // A song an extension gives: the sources asked for it, and why this one plays.
-            val extId = if (local) com.music.spotui.di.LocalPlayer.current()?.uri
-                ?.takeIf { it.scheme == com.music.spotui.extensions.ExtensionAudio.SCHEME }?.lastPathSegment else null
-            var why by remember { androidx.compose.runtime.mutableStateOf(false) }
-            if (extId != null) {
-                Text(stringResource(R.string.why_source_title), color = AppText, fontSize = 15.sp,
-                    modifier = Modifier.fillMaxWidth().clickable { why = true }.padding(horizontal = 20.dp, vertical = 12.dp))
-                if (why) WhySourceSheet(extId, detectedLabel(com.music.spotui.di.LocalPlayer.audioFormat())) { why = false }
-            }
-            // Another audio source for this song and the next ones, until the app restarts.
-            SourcePicker(Modifier.padding(top = 12.dp))
             // The level of the network in use now (Wi-Fi and mobile data each keep their own).
             if (!local) StreamingQualityPicker(Modifier.padding(top = 12.dp), cellular = com.music.spotui.data.DataSaver.metered,
                 title = if (com.music.spotui.data.DataSaver.metered) R.string.quality_streaming_cell_title else R.string.quality_streaming_wifi_title)

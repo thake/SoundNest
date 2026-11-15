@@ -14,7 +14,7 @@ object RadioFeaturePref {
     private const val PREF = "live_radio_prefs"
     private const val KEY = "live_radio_enabled"
 
-    /** The pinned Library row's sentinel id (parallel to Api.HomeCache.LOCAL_FILES_ID / DOWNLOADS_ID). */
+    /** The pinned Library row's sentinel id (parallel to Api.HomeCache.LOCAL_FILES_ID). */
     const val LIBRARY_ENTRY_ID = "live radio"
 
     private fun prefs(c: Context) = c.getSharedPreferences(PREF, Context.MODE_PRIVATE)

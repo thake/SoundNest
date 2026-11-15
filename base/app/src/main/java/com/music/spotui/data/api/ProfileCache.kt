@@ -51,9 +51,9 @@ object ProfileCache {
                     name = me.name
                     imageUrl = me.images.best(160)?.url
                     id = me.username
-                    // The accounts kept on the phone: this profile's name and picture, under the opaque key
-                    // of its downloads (no id, no e-mail). The same account in another profile is one account.
-                    val key = com.music.spotui.data.offline.OfflineAccounts.keyOf(me.username)
+                    // The accounts kept on the phone: this profile's name and picture, under an opaque key
+                    // (no id, no e-mail). The same account in another profile is one account.
+                    val key = com.music.spotui.data.accountKeyOf(me.username)
                     val host = MyspotiRuntime.host
                     val profile = host.profile
                     var duplicates = emptyList<String>()
@@ -61,9 +61,8 @@ object ProfileCache {
                         list.signedIn(profile, key, me.name, imageUrl, System.currentTimeMillis()).also { duplicates = it.second }.first
                     }
                     duplicates.forEach { host.removeProfile(it) }
-                    // Its listen history and its downloads are the ones shown (see OfflineAccounts).
+                    // Its listen history is the one shown.
                     com.music.spotui.data.local.ListenHistory.claim(key)
-                    com.music.spotui.data.offline.OfflineAccounts.claim(context.applicationContext, me.username)
                     return@launch
                 }
             } finally {

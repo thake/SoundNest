@@ -27,7 +27,6 @@ import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -215,22 +214,8 @@ fun MiniPlayer() {
     val outgoing = blend?.takeIf { it.outgoingWords }?.song
     val outgoingTint = remember(blend) { animatedTint }
 
-    // The Canvas of the song playing is looked up and loaded now, so the full player
-    // opens on it directly instead of showing the cover first.
-    val energy by app.myspoti.power.EnergySettings.state.collectAsStateWithLifecycle()
-    LaunchedEffect(np.uri, energy.policy.allowCanvas, com.music.spotui.data.DataSaver.active) {
-        val id = np.uri.removePrefix("spotify:track:").takeIf { np.uri.startsWith("spotify:track:") } ?: return@LaunchedEffect
-        if (!energy.policy.allowCanvas || com.music.spotui.data.DataSaver.active) return@LaunchedEffect
-        val url = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            runCatching { com.music.spotui.di.Graph.api.getCanvasUrl(id) }.getOrNull()
-        } ?: return@LaunchedEffect
-        CanvasPlayer.preload(context, url)
-    }
-
-    // The next song, made ready while this one plays, so a skip shows it whole at once: its big
-    // cover (on storage, not in memory), its colour, and its Canvas (the address always, the clip
-    // itself on storage over Wi-Fi only). After the current song's own loads.
-    LaunchedEffect(np.next?.spotifyTrackId, energy.policy.allowCanvas, com.music.spotui.data.DataSaver.active) {
+    // The next song's cover and colour, made ready while this one plays, so a skip shows it whole at once.
+    LaunchedEffect(np.next?.spotifyTrackId) {
         val next = np.next ?: return@LaunchedEffect
         kotlinx.coroutines.delay(2_500)
         if (next.coverUri.isNotBlank()) {
@@ -238,11 +223,6 @@ fun MiniPlayer() {
             Palette().extractFirstColorFromImageUrl(context, next.coverUri) { }
             Palette().extractSecondColorFromCoverUrl(context, next.coverUri) { }
         }
-        if (next.spotifyTrackId.isBlank() || !energy.policy.allowCanvas || com.music.spotui.data.DataSaver.active) return@LaunchedEffect
-        val url = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            runCatching { com.music.spotui.di.Graph.api.getCanvasUrl(next.spotifyTrackId) }.getOrNull()
-        } ?: return@LaunchedEffect
-        if (!com.music.spotui.data.DataSaver.metered) CanvasPlayer.warm(context, url)
     }
 
     // The thin bar moves ~2 px/s: 4 ticks a second look identical to 20.
@@ -328,14 +308,6 @@ fun MiniPlayer() {
                                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f, fill = false).titleMarquee(iterations = 1),
                                 )
-                                // The extension the sound comes from, discreet, as the output's name.
-                                playingExtensionName()?.let { name ->
-                                    Text(
-                                        text = " · $name", color = Color.White.copy(alpha = 0.55f), fontSize = 11.sp,
-                                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                        modifier = Modifier.widthIn(max = 110.dp),
-                                    )
-                                }
                                 if (routeLabel != null) {
                                     Icon(
                                         imageVector = if (route.kind == AudioRoute.Kind.BLUETOOTH) Icons.Filled.BluetoothAudio else Icons.Filled.Headphones,

@@ -27,7 +27,4 @@ class AppRepository constructor(private val api: Api = Graph.api) {
     suspend fun provideRecommendations(seedTrackIds: List<String>) = api.getRecommendations(seedTrackIds)
 
     suspend fun provideAccount() = api.getAccount()
-
-    suspend fun provideCanvasUrl(trackId: String) = api.getCanvasUrl(trackId)
-    fun knownCanvas(trackId: String) = api.knownCanvas(trackId)
 }

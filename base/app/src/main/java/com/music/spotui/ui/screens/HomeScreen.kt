@@ -55,9 +55,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Extension
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -205,8 +203,6 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel, facet: St
         items(carousels.size, key = { carouselKeys[it] }) { i ->
             HomeFeedSection(navController, carousels[i])
         }
-        // Sections from extensions (home.sections), after Spotify's own, each under its extension's name.
-        item { com.music.spotui.extensions.ExtensionBlocks(app.myspoti.extensions.Hook.HOME, app.myspoti.extensions.Surface.HOME, "{}") }
     }
 }
 
@@ -275,7 +271,7 @@ private fun HomeHeaderRow(navController: NavController, facet: String, onFacet: 
             modifier = Modifier
                 .weight(1f)
                 .horizontalScroll(androidx.compose.foundation.rememberScrollState())
-                .padding(start = 12.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
+                .padding(start = 12.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
         ) {
             // Spotify's home chips. Once one is picked, as in Spotify: a close chip, the picked one,
             // and joined to it the chips it opens (Following: only what the user follows).
@@ -314,11 +310,6 @@ private fun HomeHeaderRow(navController: NavController, facet: String, onFacet: 
                     }
                 }
             }
-        }
-        // Friend activity, out of the tab bar: at the end of the header, as Spotify has it.
-        IconButton(onClick = { navController.navigate(com.music.spotui.ui.navigation.Routes.Friends.route) }) {
-            Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_friends_big), contentDescription = stringResource(R.string.friends_title),
-                tint = AppText, modifier = Modifier.size(24.dp))
         }
     }
 }
@@ -506,21 +497,14 @@ private fun ProfileSheet(onOpen: (route: String) -> Unit = {}, onDismiss: () -> 
             modifier = Modifier.fillMaxWidth().then(Modifier.windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.navigationBars))
                 .verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(bottom = 16.dp),
         ) {
-            // Name and picture open your public profile, as in Spotify.
-            val myId = com.music.spotui.data.api.ProfileCache.id
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()
-                .clickable(enabled = myId != null) { myId?.let { onOpen(com.music.spotui.ui.navigation.profileRoute(it, name)) } }
                 .padding(horizontal = 20.dp, vertical = 8.dp)) {
                 com.music.spotui.ui.components.ProfileAvatar(url = avatar, name = name, size = 48.dp)
                 Text(name.ifBlank { stringResource(R.string.spotify_account) }, color = AppText, fontSize = 18.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(start = 14.dp))
-                if (com.music.spotui.data.api.SupportReminder.level != com.music.spotui.data.api.SupportReminder.Level.NONE)
-                    com.music.spotui.ui.components.SupporterBadge(Modifier.padding(start = 10.dp))
             }
-            if (myId != null) Text(stringResource(R.string.view_profile), color = AppMuted, fontSize = 13.sp,
-                modifier = Modifier.padding(start = 82.dp, bottom = 4.dp))
             androidx.compose.material3.HorizontalDivider(color = tone(0xFF3E3E3E), modifier = Modifier.padding(vertical = 8.dp))
-            // Sound quality, downloads, data, battery, display: one page.
+            // Sound quality, data, battery, display: one page.
             androidx.compose.foundation.layout.Column(
                 Modifier.fillMaxWidth().clickable { onOpen(com.music.spotui.ui.navigation.Routes.Settings.route) }
                     .padding(horizontal = 20.dp, vertical = 10.dp),
@@ -528,7 +512,7 @@ private fun ProfileSheet(onOpen: (route: String) -> Unit = {}, onDismiss: () -> 
                 Text(stringResource(R.string.settings_title), color = AppText, fontSize = 16.sp)
                 Text(stringResource(R.string.settings_detail), color = AppMuted, fontSize = 12.sp)
             }
-            // In-app recap: every listen on this phone, Spotify, downloads and local files.
+            // In-app recap: every listen on this phone, Spotify and local files.
             androidx.compose.foundation.layout.Column(
                 Modifier.fillMaxWidth().clickable { onOpen(com.music.spotui.ui.navigation.Routes.Recap.route) }
                     .padding(horizontal = 20.dp, vertical = 10.dp),
@@ -545,25 +529,6 @@ private fun ProfileSheet(onOpen: (route: String) -> Unit = {}, onDismiss: () -> 
                 Text(stringResource(R.string.recents_title), color = AppText, fontSize = 16.sp)
                 Text(stringResource(R.string.recents_detail), color = AppMuted, fontSize = 12.sp)
             }
-            // Third-party extensions (lyrics, audio, scripts): installed, enabled, repositories.
-            val extRegistry by com.music.spotui.extensions.Extensions.registry.collectAsState()
-            Row(
-                Modifier.fillMaxWidth().clickable { onOpen(com.music.spotui.ui.navigation.Routes.Extensions.route) }
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.extensions_title), color = AppText, fontSize = 16.sp)
-                    val installed = extRegistry.extensions
-                    Text(
-                        if (installed.isEmpty()) stringResource(R.string.extensions_row_detail)
-                        else stringResource(R.string.extensions_row_count, installed.size, installed.count { it.enabled }),
-                        color = AppMuted, fontSize = 12.sp,
-                    )
-                }
-                androidx.compose.material3.Icon(Icons.Filled.Extension, null, tint = AppMuted,
-                    modifier = Modifier.padding(start = 12.dp).size(22.dp))
-            }
             // The Spotify account page (plan, privacy, devices), in the app's signed-in browser.
             androidx.compose.foundation.layout.Column(
                 Modifier.fillMaxWidth().clickable {
@@ -574,18 +539,7 @@ private fun ProfileSheet(onOpen: (route: String) -> Unit = {}, onDismiss: () -> 
                 Text(stringResource(R.string.account_page_title), color = AppText, fontSize = 16.sp)
                 Text(stringResource(R.string.account_page_detail), color = AppMuted, fontSize = 12.sp)
             }
-            val ctx = androidx.compose.ui.platform.LocalContext.current
-            // Donations (Ko-fi or GitHub Sponsors): always here, never in the way.
-            var support by remember { androidx.compose.runtime.mutableStateOf(false) }
-            if (support) com.music.spotui.ui.components.SupportSheet(onDismiss = { support = false })
-            androidx.compose.foundation.layout.Column(
-                Modifier.fillMaxWidth().clickable { support = true }
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-            ) {
-                Text(stringResource(R.string.support_title), color = com.music.spotui.ui.theme.AppAccent, fontSize = 16.sp)
-                Text(stringResource(R.string.support_row_detail), color = AppMuted, fontSize = 12.sp)
-            }
-            // About: version, Discord, source code and Ko-fi.
+            // About: GPL-3.0 attribution and source code.
             var about by remember { androidx.compose.runtime.mutableStateOf(false) }
             if (about) com.music.spotui.ui.components.AboutSheet(onDismiss = { about = false })
             androidx.compose.foundation.layout.Column(
@@ -593,14 +547,6 @@ private fun ProfileSheet(onOpen: (route: String) -> Unit = {}, onDismiss: () -> 
             ) {
                 Text(stringResource(R.string.creator_biography_section_title), color = AppText, fontSize = 16.sp)
                 Text(stringResource(R.string.about_detail), color = AppMuted, fontSize = 12.sp)
-            }
-            var perks by remember { androidx.compose.runtime.mutableStateOf(false) }
-            if (perks) com.music.spotui.ui.components.SupporterSheet(onDismiss = { perks = false })
-            if (com.music.spotui.data.api.SupportReminder.PERKS_ENABLED) androidx.compose.foundation.layout.Column(
-                Modifier.fillMaxWidth().clickable { perks = true }.padding(horizontal = 20.dp, vertical = 10.dp),
-            ) {
-                Text(stringResource(R.string.supporter_perks_title), color = AppText, fontSize = 16.sp)
-                Text(stringResource(R.string.supporter_perks_detail), color = AppMuted, fontSize = 12.sp)
             }
             // The other Spotify accounts kept on the phone: switch, add, remove.
             var accounts by remember { androidx.compose.runtime.mutableStateOf(false) }

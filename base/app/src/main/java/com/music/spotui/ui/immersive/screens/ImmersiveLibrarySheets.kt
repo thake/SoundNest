@@ -31,13 +31,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import app.myspoti.engine.R
-import com.music.spotui.data.api.ProfileCache
 import com.music.spotui.data.entity.AccountModel
 import com.music.spotui.data.local.LibraryOrder
 import com.music.spotui.di.Graph
 import com.music.spotui.ui.immersive.Immersive
 import com.music.spotui.ui.navigation.Routes
-import com.music.spotui.ui.navigation.profileRoute
 import com.music.spotui.ui.screens.AccountBrowser
 
 /** The label of a library sort order. */
@@ -96,7 +94,7 @@ internal fun ImmersiveLibrarySortSheet(onDismiss: () -> Unit) {
     }
 }
 
-/** The account behind the avatar: who is signed in, the profile, settings and the account page. */
+/** The account behind the avatar: who is signed in, settings and the account page. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ImmersiveAccountSheet(
@@ -133,12 +131,6 @@ internal fun ImmersiveAccountSheet(
                 }
             }
             HorizontalDivider(color = Immersive.Separator)
-            ProfileCache.id?.let { myId ->
-                AccountRow(stringResource(R.string.view_profile)) {
-                    onDismiss()
-                    navController.navigate(profileRoute(myId, account.name))
-                }
-            }
             AccountRow(stringResource(R.string.settings_title)) {
                 onDismiss()
                 navController.navigate(Routes.Settings.route)

@@ -39,17 +39,11 @@ object EnergySettings {
         refresh()
     }
 
-    fun setCanvasEnabled(enabled: Boolean) {
-        preferences?.edit { putBoolean("canvas", enabled) }
-        refresh()
-    }
-
     private fun refresh() {
         if (app == null) return
         val next = EnergyState(
             manualSaver = preferences?.getBoolean("manual_saver", false) == true,
             blackPreference = preferences?.getBoolean("black_background", false) == true,
-            canvasEnabled = preferences?.getBoolean("canvas", true) != false,
         )
         mutableState.value = next
         oledBlack = next.policy.oledBlack

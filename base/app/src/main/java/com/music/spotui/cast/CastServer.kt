@@ -6,6 +6,7 @@ import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.DefaultDataSource
 import com.music.spotui.di.Graph
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
@@ -23,10 +24,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * The phone's small HTTP server a Cast device fetches the song from while it casts: device files,
- * downloaded songs (decrypted on the fly from the asked offset) and extension streams (read with
- * their headers, DASH answers as one file), all through the player's own data source
- * ([com.music.spotui.data.offline.OfflineCrypto.Factory]), so it reads exactly what the phone plays.
+ * The phone's small HTTP server a Cast device fetches the song from while it casts: device files
+ * read through the player's own data source ([DefaultDataSource.Factory]), so it reads what the phone plays.
  *
  * It listens only on the address the phone reaches the Cast device from, on a random port, and
  * answers only paths under a random token made for each cast session. GET and HEAD, one range
@@ -93,7 +92,7 @@ object CastServer {
 
     /**
      * Opens [uri] as the phone's player would and reads its first bytes: the audio type and the
-     * length the Cast device is told. Blocks (an extension may be asked for the stream).
+     * length the Cast device is told.
      */
     fun probe(uri: Uri, fallbackName: String): Entry {
         val head = ByteArray(CastFormats.HEAD)
@@ -120,7 +119,7 @@ object CastServer {
         return Entry(uri, mime ?: CastFormats.byName(fallbackName), length)
     }
 
-    private fun source(): DataSource = com.music.spotui.data.offline.OfflineCrypto.Factory(Graph.app).createDataSource()
+    private fun source(): DataSource = DefaultDataSource.Factory(Graph.app).createDataSource()
 
     private fun readFully(src: DataSource, into: ByteArray): Int {
         var got = 0

@@ -36,7 +36,7 @@ jobs:
       # testDebugUnitTest, the JVM modules (extensions, api-spotify, host-cdp) run test.
       # The live tests in host-cdp skip themselves without a browser to drive.
       - name: Unit tests
-        run: ./gradlew :app:testDebugUnitTest :host-android:testDebugUnitTest :extensions:test :api-spotify:test :host-cdp:test
+        run: ./gradlew :app:testDebugUnitTest :host-android:testDebugUnitTest :engine:jvmTest :api-spotify:test :host-cdp:test
 
       - name: Test reports
         if: ${{ failure() }}
@@ -115,8 +115,7 @@ jobs:
           # The app's update check picks this phone's one (UpdateChecker.apkAsset).
           ./gradlew assembleRelease :app:collectApks \
             -PappVersionName="$VERSION" \
-            -PappVersionCode="$((1000 + GITHUB_RUN_NUMBER))" \
-            -PupdateRepo="$GITHUB_REPOSITORY"
+            -PappVersionCode="$((1000 + GITHUB_RUN_NUMBER))"
 
       # This version's section of CHANGELOG.md becomes the release description.
       - name: Release notes
@@ -138,15 +137,4 @@ jobs:
           files: base/app/build/release-apks/*.apk
           body_path: base/release-notes.md
           generate_release_notes: true
-          # "v2.0.0-beta.1": a pre-release, offered only to beta builds.
           prerelease: ${{ contains(github.ref_name, '-') }}
-
-      # Announces the release on Discord (secret DISCORD_WEBHOOK_URL; nothing posted without it).
-      # A release created with GITHUB_TOKEN triggers no other workflow, hence this step here.
-      - name: Discord announcement
-        continue-on-error: true
-        working-directory: .
-        env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          GITHUB_TOKEN: ${{ github.token }}
-        run: python3 tools/discord_release.py "$GITHUB_REF_NAME"

@@ -95,7 +95,6 @@ fun PlaylistOptionsSheet(
     /** The name and description just saved, to show before Spotify has answered. */
     onEdited: (String, String) -> Unit,
     onDeleted: () -> Unit,
-    onProfile: (String) -> Unit,
     /** "Add to this playlist" (search and suggestions), on your own playlists. */
     onAddSongs: (() -> Unit)? = null,
 ) {
@@ -114,8 +113,6 @@ fun PlaylistOptionsSheet(
     var published by remember { mutableStateOf<Boolean?>(null) }
     var editing by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
-    var renamingBlend by remember { mutableStateOf(false) }
-    var leavingBlend by remember { mutableStateOf(false) }
     var leavingPlaylist by remember { mutableStateOf(false) }
     var stoppingCollab by remember { mutableStateOf(false) }
     var mergingInto by remember { mutableStateOf(false) }
@@ -168,19 +165,7 @@ fun PlaylistOptionsSheet(
             QueueListRows(page.uri, page, onDismiss)
             // Every song of this playlist into another one of yours (Web Player: "Add playlist to other playlist").
             if (page.uri.startsWith("spotify:playlist:")) OptionRow(Icons.Outlined.AddCircleOutline, stringResource(R.string.add_playlist_to_playlist)) { mergingInto = true }
-            if (page.isBlend) {
-                // A Blend is Spotify's: renamed, shared and left through its own service.
-                OptionRow(Icons.Outlined.Edit, stringResource(R.string.blend_rename)) { renamingBlend = true }
-                OptionRow(Icons.Outlined.Share, stringResource(R.string.blend_invite_more)) {
-                    scope.launch {
-                        val link = BlendInfo.recent[page.uri]?.group?.link
-                            ?: runCatching { MyspotiRuntime.api.blends.group(page.uri).link }.getOrNull()
-                        if (link == null) android.widget.Toast.makeText(context, R.string.blend_failed, android.widget.Toast.LENGTH_SHORT).show()
-                        else { BlendInfo.share(context, link); onDismiss() }
-                    }
-                }
-                OptionRow(Icons.AutoMirrored.Outlined.Logout, stringResource(R.string.blend_leave)) { leavingBlend = true }
-            } else if (mine) {
+            if (mine) {
                 onAddSongs?.let { add -> OptionRow(Icons.Outlined.AddCircleOutline, stringResource(R.string.add_songs_title)) { onDismiss(); add() } }
                 OptionRow(Icons.Outlined.Edit, stringResource(R.string.playlist_edit_details)) { editing = true }
                 // Collaborative is not enough: only those who open its invitation link can add songs
@@ -226,16 +211,6 @@ fun PlaylistOptionsSheet(
                 // The Web Player offers it only where canCancelMembership is true (a collaborator, not the owner).
                 if (page.canLeave) OptionRow(Icons.AutoMirrored.Outlined.Logout, stringResource(R.string.playlist_leave)) { leavingPlaylist = true }
             }
-            if (!mine && !page.isBlend && page.ownerUri.startsWith("spotify:user:")) {
-                OptionRow(Icons.Outlined.Person, stringResource(R.string.go_to_profile)) {
-                    onDismiss(); onProfile(page.ownerUri.substringAfterLast(':'))
-                }
-            }
-            // Entries from extensions (menu.items), after the app's own.
-            com.music.spotui.extensions.ExtensionMenuEntries(
-                if (page.type == "album") app.myspoti.extensions.Surface.ALBUM_MENU else app.myspoti.extensions.Surface.PLAYLIST_MENU,
-                page.uri, page.name, page.ownerName, onDone = onDismiss,
-            )
         }
     }
 
@@ -261,35 +236,6 @@ fun PlaylistOptionsSheet(
             if (!ok || cover != CoverChange.Keep) onChanged()
         })
     }
-
-    if (renamingBlend) com.music.spotui.ui.screens.NameDialog(stringResource(R.string.blend_rename), page.name,
-        stringResource(R.string.local_rename), onDismiss = { renamingBlend = false }) { name ->
-        renamingBlend = false
-        onDismiss()
-        if (name == page.name) return@NameDialog
-        onEdited(name, page.description)
-        com.music.spotui.data.api.LibraryEdits.run(context, com.music.spotui.data.api.LibraryEdits.Rename(page.uri, name),
-            write = { MyspotiRuntime.api.blends.rename(page.uri, name) },
-            onDone = { ok -> if (!ok) onChanged() })
-    }
-
-    if (leavingBlend) LookAlertDialog(
-        onDismissRequest = { leavingBlend = false },
-        containerColor = tone(0xFF282828),
-        title = { Text(stringResource(R.string.blend_leave), color = AppText) },
-        text = { Text(stringResource(R.string.blend_leave_confirm, page.name), color = AppMuted) },
-        confirmButton = {
-            TextButton(onClick = {
-                leavingBlend = false
-                // The Blend leaves the library and the page closes now; a refusal brings it back.
-                BlendInfo.recent.remove(page.uri)
-                com.music.spotui.data.api.LibraryEdits.run(context, com.music.spotui.data.api.LibraryEdits.Remove(page.uri),
-                    write = { MyspotiRuntime.api.blends.leave(page.uri) })
-                onDismiss(); onDeleted()
-            }) { Text(stringResource(R.string.blend_leave_button), color = AppDestructive) }
-        },
-        dismissButton = { TextButton(onClick = { leavingBlend = false }) { Text(stringResource(R.string.cancel), color = AppText) } },
-    )
 
     if (stoppingCollab) {
         // Public (listed on the profile): collaborators are removed; private: they become listeners.

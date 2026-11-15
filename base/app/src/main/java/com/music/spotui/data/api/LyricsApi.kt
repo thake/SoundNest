@@ -50,12 +50,9 @@ object LyricsApi {
     // "not found" is often just a timeout, not a fact.
     private class Miss(val at: Long = System.currentTimeMillis())
     private const val MISS_RETRY_MS = 120_000L
-    // The lyrics found while an extension had still not answered (cut short behind its other calls):
-    // shown, not stored, and the song asked again after MISS_RETRY_MS, when it may answer.
-    private class Partial(val lyrics: Lyrics, val at: Long = System.currentTimeMillis())
     // Newest MEMORY_MAX tracks only; the older ones are on storage (LyricsDisk) or asked for again.
     private const val MEMORY_MAX = 100
-    private val cache: MutableMap<String, Any> = java.util.Collections.synchronizedMap( // Lyrics | Partial | Miss
+    private val cache: MutableMap<String, Any> = java.util.Collections.synchronizedMap( // Lyrics | Miss
         object : LinkedHashMap<String, Any>(128, 0.75f, true) {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Any>) = size > MEMORY_MAX
         }
@@ -72,7 +69,7 @@ object LyricsApi {
 
     /**
      * Set by the settings: the user turned the extra sources off by hand. Until then Genius is still
-     * asked as the last resort, when no other source (extensions included) has any lyrics.
+     * asked as the last resort, when no other source has any lyrics.
      */
     @Volatile var extraSourcesOff: Boolean = false
 
@@ -95,25 +92,20 @@ object LyricsApi {
     /** What [track] can show while its lyrics are still looked for, or null. */
     fun earlyFor(track: Track): Lyrics? = earlyByKey[track.key]
 
-    /** Lyrics of song [key] that got romanizations from an extension after they were shown: [before] became [after]. */
+    /** Lyrics of song [key] updated with romanizations: [before] became [after]. */
     data class Romanized(val key: String, val before: Lyrics, val after: Lyrics)
 
     /** The last [Romanized]: an open lyrics view still showing [Romanized.before] swaps it for [Romanized.after]. */
     val romanized = kotlinx.coroutines.flow.MutableStateFlow<Romanized?>(null)
-
 
     private fun showEarly(track: Track, lyrics: Lyrics) {
         earlyByKey[track.key] = lyrics
         early.value = track.key to lyrics
     }
 
-    fun cached(track: Track): Lyrics? = when (val c = cache[track.key]) {
-        is Lyrics -> c
-        is Partial -> c.lyrics
-        else -> null
-    }
+    fun cached(track: Track): Lyrics? = cache[track.key] as? Lyrics
 
-    /** Whether [track]'s lyrics were found with every source's answer: nothing better is to come. */
+    /** Whether [track]'s lyrics were found: nothing better is to come. */
     fun settled(track: Track): Boolean = cache[track.key] is Lyrics
 
     private fun wanted(track: Track): Boolean {
@@ -121,7 +113,6 @@ object LyricsApi {
         return when (val c = cache[track.key]) {
             is Lyrics -> false
             is Miss -> System.currentTimeMillis() - c.at >= MISS_RETRY_MS
-            is Partial -> System.currentTimeMillis() - c.at >= MISS_RETRY_MS
             else -> true
         }
     }
@@ -131,8 +122,7 @@ object LyricsApi {
 
     /**
      * Warm the cache in the background: [track] (the current one), then [then] (the next one) once
-     * [track]'s are found. An extension answers one call at a time: the next song's asked together
-     * with the playing one's went first at times, and the playing one's were cut short.
+     * [track]'s are found.
      */
     fun prefetch(track: Track, then: Track? = null) {
         if (!wanted(track)) { after.remove(track.key); then?.let { prefetch(it) }; return }
@@ -146,26 +136,13 @@ object LyricsApi {
     /** A setting changed what is looked for: every song is read again when next shown. */
     fun forgetAll() { cache.clear(); health.forgetAll(); scope.launch { LyricsDisk.clear() } }
 
-    /** Bumped when the lyrics extensions changed and the cache was dropped: an open lyrics view reads its song again. */
+    /** Bumped when the lyrics sources changed and the cache was dropped: an open lyrics view reads its song again. */
     val sourcesTick = kotlinx.coroutines.flow.MutableStateFlow(0L)
-
-    /**
-     * The lyrics extensions changed (one installed, turned on or off, updated, removed): the songs
-     * not found are asked again, and, but for [keepFound] (the ones on at launch just loaded), the
-     * lyrics found too, from memory and storage, so the new set of sources answers. Off the main thread.
-     */
-    fun sourcesChanged(keepFound: Boolean) {
-        if (keepFound) synchronized(cache) { cache.values.removeAll { it is Miss || it is Partial } }
-        else { cache.clear(); LyricsDisk.clear() }
-        health.forgetAll()
-        sourcesTick.value++
-    }
 
     /** What is already here for [track], from memory or storage, whole: asks no one. */
     fun known(track: Track): Lyrics? {
         val found = when (val c = cache[track.key]) {
             is Lyrics -> c
-            is Partial -> null
             is Miss -> null
             else -> LyricsDisk.read(track.key)
         }
@@ -175,18 +152,12 @@ object LyricsApi {
     suspend fun fetch(track: Track): Lyrics? {
         when (val c = cache[track.key]) {
             is Lyrics -> return c
-            is Partial -> if (System.currentTimeMillis() - c.at < MISS_RETRY_MS) return c.lyrics
             is Miss -> if (System.currentTimeMillis() - c.at < MISS_RETRY_MS) return null
         }
         // One request per track even when the card and the full screen ask together.
         val job = synchronized(inFlight) {
             inFlight[track.key] ?: scope.async(start = kotlinx.coroutines.CoroutineStart.LAZY) {
-                // Read on an earlier run: from storage, not asked for again. A downloaded song's own
-                // (see [keepForOffline]) when there is no connection, or when nothing else had any.
-                (LyricsDisk.read(track.key)?.also { cache[track.key] = it }
-                    ?: (if (online()) null else kept(track))
-                    ?: resolve(track)
-                    ?: kept(track))?.also { romanizeLater(track, it) }
+                LyricsDisk.read(track.key)?.also { cache[track.key] = it } ?: resolve(track)
             }.also { created ->
                 inFlight[track.key] = created
                 created.invokeOnCompletion {
@@ -211,7 +182,7 @@ object LyricsApi {
 
     private val WORD_SOURCES = setOf("amll", "lyricsplus", "lrcred", "netease", "kugou")
 
-    /** The providers that can be tried for [track], in the order the resolver prefers them; the extensions giving lyrics come last (`ext:<id>`). */
+    /** The providers that can be tried for [track], in the order the resolver prefers them. */
     fun sources(track: Track): List<Source> = buildList {
         if (track.trackId.isNotBlank()) add(Source("spotify", "Spotify", words = true))
         if (track.trackId.isNotBlank()) add(Source("amll", "AMLL TTML DB", true, allSetAside("amll")))
@@ -221,11 +192,9 @@ object LyricsApi {
         add(Source("lrclib", "LRCLIB", false, allSetAside("lrclib")))
         add(Source("netease", "NetEase", true, allSetAside("netease")))
         if (geniusOn) add(Source("genius", "Genius", false, allSetAside("genius")))
-        runCatching { com.music.spotui.extensions.Extensions.lyricsSources() }.getOrDefault(emptyList())
-            .forEach { (id, name) -> add(Source("ext:$id", name)) }
     }
 
-    /** The [Source.id] the shown [lyrics] came from, or null when it cannot tell (an extension's own provider name). */
+    /** The [Source.id] the shown [lyrics] came from, or null when unknown. */
     fun sourceOf(lyrics: Lyrics): String? {
         val p = lyrics.provider.orEmpty().lowercase()
         return when {
@@ -255,21 +224,19 @@ object LyricsApi {
         fun <T> byHand(block: () -> T): T { bypass.set(true); try { return block() } finally { bypass.remove() } }
         val spotify = if (sourceId in WORD_SOURCES) runCatching { fromSpotify(track) }.getOrNull() else null
         val found = try {
-            when {
-                sourceId == "spotify" -> fromSpotify(track)
-                sourceId.startsWith("ext:") -> com.music.spotui.extensions.Extensions.lyricsFromExtension(
-                    sourceId.removePrefix("ext:"), track.trackId, track.title, track.artist, track.album, durationMs, track.coverUrl)
-                sourceId == "amll" -> byHand { fromAmll(track.trackId) }
-                sourceId == "lyricsplus" -> byHand { fromLyricsPlus(asked, title, artist, durationMs) }
-                sourceId == "lrcred" -> byHand { fromLrcRed(asked, title, artist, durationMs) }
-                sourceId == "kugou" -> byHand { fromKugou(title, artist, durationMs) }
-                sourceId == "lrclib" -> byHand {
+            when (sourceId) {
+                "spotify" -> fromSpotify(track)
+                "amll" -> byHand { fromAmll(track.trackId) }
+                "lyricsplus" -> byHand { fromLyricsPlus(asked, title, artist, durationMs) }
+                "lrcred" -> byHand { fromLrcRed(asked, title, artist, durationMs) }
+                "kugou" -> byHand { fromKugou(title, artist, durationMs) }
+                "lrclib" -> byHand {
                     lrclibGet(title, artist, track.album, durationSec)
                         ?: lrclibSearch("$LRCLIB/search?track_name=${enc(title)}&artist_name=${enc(artist)}", title, artist, durationSec)
                         ?: lrclibSearch("$LRCLIB/search?track_name=${enc(title)}", title, artist, durationSec)
                 }
-                sourceId == "netease" -> byHand { fromNetEaseWords(title, artist, durationMs) ?: fromNetEase(title, artist, durationSec) }
-                sourceId == "genius" -> byHand { fromGenius(title, artist) }
+                "netease" -> byHand { fromNetEaseWords(title, artist, durationMs) ?: fromNetEase(title, artist, durationSec) }
+                "genius" -> byHand { fromGenius(title, artist) }
                 else -> null
             }
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { Log.d("LyricsApi", "$sourceId by hand: ${e.javaClass.simpleName}"); null }
@@ -279,68 +246,17 @@ object LyricsApi {
         cache[track.key] = chosen
         LyricsDisk.write(track.key, chosen)
         Log.d("LyricsApi", "${track.title}: ${chosen.lines.size} lines from ${chosen.provider} (chosen: $sourceId)")
-        romanizeLater(track, chosen)
         chosen
     }
 
-    /**
-     * Asks the romanizing extensions, off the caller's path, for the lines of [lyrics] (just found
-     * or read from storage) that their source left in another script than Latin without a
-     * romanization: the lyrics show at once and the romanizations follow ([romanized]). They are
-     * kept, in memory and storage, only while [lyrics] are still the song's.
-     */
-    private fun romanizeLater(track: Track, lyrics: Lyrics) {
-        val wanted = LyricsRomanize.wanted(lyrics)
-        if (wanted.isEmpty() || !runCatching { com.music.spotui.extensions.Extensions.hasRomanizer() }.getOrDefault(false)) return
-        scope.launch {
-            val found = runCatching {
-                com.music.spotui.extensions.Extensions.romanizeFor(
-                    track.trackId, track.title, track.artist, track.album, track.durationMs, track.coverUrl, lyrics.language, wanted)
-            }.getOrDefault(emptyMap())
-            val updated = LyricsRomanize.apply(lyrics, found)
-            if (updated === lyrics) return@launch
-            // Another source picked or the song forgotten meanwhile: these were for lyrics no longer shown.
-            if (!cache.replace(track.key, lyrics, updated)) return@launch
-            LyricsDisk.write(track.key, updated)
-            romanized.value = Romanized(track.key, lyrics, updated)
-        }
-    }
-
     private suspend fun resolve(track: Track): Lyrics? = try { coroutineScope {
-        // Extensions that provide lyrics are asked at the same time as the app's own sources
-        // (each within its time limit); the better answer is kept (LyricsMerge), Spotify's own
-        // complete lyrics first at the same level. Only when those have backing vocals too are
-        // the extensions not waited for. A failure: they did not answer in time (null: none had lyrics).
-        val ext = if (extensionsAsked()) async {
-            runCatching {
-                com.music.spotui.extensions.Extensions.lyricsFor(track.trackId, track.title, track.artist, track.album, track.durationMs, track.coverUrl)
-            }
-        } else null
-        val own = if (wordSync) wordFirst(track) else fromSpotify(track) ?: lineFallbacks(track)
-        val answer = when {
-            ext == null -> null
-            own != null && com.music.spotui.extensions.LyricsMerge.level(own) == 3 && com.music.spotui.extensions.LyricsMerge.isSpotifyComplete(own) &&
-                LyricsExtras.hasBacks(own) -> { ext.cancel(); null }
-            else -> {
-                // An extension's time counts from when its call runs, which can be a while behind its
-                // other calls: the app's own lines are shown meanwhile (reported: lyrics only after a refresh).
-                own?.let { showEarly(track, it) }
-                ext.await()
-            }
-        }
-        var result = com.music.spotui.extensions.LyricsMerge.choose(own, answer?.getOrNull())
+        var result = if (wordSync) wordFirst(track) else fromSpotify(track) ?: lineFallbacks(track)
         // Nothing anywhere: Genius's plain text, unless the user turned the extra sources off.
         if (result == null && !extraSources && !extraSourcesOff && geniusOn)
             result = asking("genius", track) { fromGenius(cleanTitle(track.title), track.artist.substringBefore(",").trim()) }
-        val pending = answer?.isFailure == true
-        cache[track.key] = when {
-            result == null -> Miss()
-            pending -> Partial(result)
-            else -> result
-        }
-        if (!pending) result?.let { LyricsDisk.write(track.key, it); keepIfDownloaded(track, it) }
-        Log.d("LyricsApi", "${track.title}: ${result?.let { "${it.lines.size} lines from ${it.provider}, synced=${it.synced}, words=${it.wordSynced}" } ?: "none"}" +
-            if (pending) " (the extensions did not answer in time)" else "")
+        cache[track.key] = result ?: Miss()
+        result?.let { LyricsDisk.write(track.key, it) }
+        Log.d("LyricsApi", "${track.title}: ${result?.let { "${it.lines.size} lines from ${it.provider}, synced=${it.synced}, words=${it.wordSynced}" } ?: "none"}")
         result
     } } finally {
         earlyByKey.remove(track.key)
@@ -436,62 +352,6 @@ object LyricsApi {
                 translationLanguage = o.optString("trl").takeIf { it.isNotEmpty() && it != "null" })
         }
     }
-
-    /**
-     * The lyrics kept with a downloaded song (OfflineStore.lyricsFile), for as long as the song is:
-     * read when there is no connection or no source had any, and written again when found anew.
-     * Shown as a [Partial]: the song is looked up again a while later, when there may be a connection.
-     */
-    private fun kept(track: Track): Lyrics? = runCatching {
-        val f = com.music.spotui.data.offline.OfflineStore.lyricsFile(track.trackId)?.takeIf { it.isFile } ?: return null
-        LyricsDisk.decode(JSONObject(f.readText()))
-    }.getOrNull()?.takeUnless { it.isEmpty }?.also {
-        cache[track.key] = Partial(it)
-        Log.d("LyricsApi", "${track.title}: ${it.lines.size} lines kept with the download")
-    }
-
-    /** What can be kept with a download: lyrics with lines, not a Free account's cut-short preview. */
-    internal fun keepable(lyrics: Lyrics): Boolean = !lyrics.isEmpty && lyrics.uncapped
-
-    private fun keep(track: Track, lyrics: Lyrics) {
-        if (!keepable(lyrics)) return
-        runCatching {
-            val f = com.music.spotui.data.offline.OfflineStore.lyricsFile(track.trackId) ?: return
-            f.parentFile?.mkdirs()
-            com.music.spotui.data.writeTextSafely(f, LyricsDisk.encode(lyrics).toString(), sync = false)
-        }.onFailure { Log.w("LyricsApi", "could not keep lyrics with the download: ${it.javaClass.simpleName}") }
-    }
-
-    /** Lyrics found for a downloaded song replace the ones kept with it (the setting on). */
-    private fun keepIfDownloaded(track: Track, lyrics: Lyrics) {
-        if (!runCatching { com.music.spotui.data.preferences.LyricsOfflinePref.on &&
-                com.music.spotui.data.offline.OfflineStore.isDownloaded(track.trackId) }.getOrDefault(false)) return
-        keep(track, lyrics)
-    }
-
-    // Downloads ask for their lyrics one song at a time, behind what is shown: an extension answers one call at a time.
-    private val keeping = kotlinx.coroutines.sync.Mutex()
-
-    /**
-     * A song was just downloaded ("Download lyrics with songs" on): its lyrics are looked up the usual
-     * way ([fetch], the lyrics extensions included) and kept with the download, for playing offline.
-     */
-    fun keepForOffline(track: Track) {
-        if (track.trackId.isBlank()) return
-        scope.launch {
-            keeping.lock()
-            try {
-                val lyrics = runCatching { fetch(track) }.getOrNull() ?: return@launch
-                keep(track, lyrics)
-            } finally { keeping.unlock() }
-        }
-    }
-
-    private fun online(): Boolean =
-        runCatching { com.music.spotui.data.offline.OfflineStore.isOnline(com.music.spotui.di.Graph.app) }.getOrDefault(true)
-
-    /** Whether lyrics extensions are installed and running (false in unit tests: no app). */
-    private fun extensionsAsked(): Boolean = runCatching { com.music.spotui.extensions.Extensions.hasLyrics() }.getOrDefault(false)
 
     /**
      * [block] (blocking requests) waited for [ms] at most: a request going on past it is left to end

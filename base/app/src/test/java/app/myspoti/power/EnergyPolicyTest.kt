@@ -14,33 +14,32 @@ class EnergyPolicyTest {
             assertEquals(if (manual) 20 else 30, p.progressFps)
         }
     }
-    @Test fun defaultRequestsAStableDisplayBudgetAndPreservesCanvas() {
+    @Test fun defaultRequestsAStableDisplayBudget() {
         val p = EnergyPolicy.resolve(false, false)
-        assertTrue(p.allowCanvas); assertTrue(p.allowBackgroundLookups)
+        assertTrue(p.allowBackgroundLookups)
         assertFalse(p.oledBlack); assertEquals(0f, p.displayRefreshCap, 0f)
         assertEquals(30, p.progressFps)
     }
     @Test fun androidSaverIsNotFollowed() {
         // Nothing in the app's state comes from Android's battery saver.
         assertFalse(EnergyState().policy.saverEnabled)
-        assertTrue(EnergyState().policy.allowCanvas)
+        assertTrue(EnergyState().policy.allowBackgroundLookups)
     }
     @Test fun saverRestrictsVisualWork() {
         val p = EnergyPolicy.resolve(true, false)
-        assertTrue(p.saverEnabled); assertFalse(p.allowCanvas); assertFalse(p.oledBlack)
+        assertTrue(p.saverEnabled); assertFalse(p.oledBlack)
         assertEquals(480, p.videoMaxHeight); assertEquals(20, p.progressFps)
         assertEquals(60f, p.displayRefreshCap, 0f); assertFalse(p.allowBackgroundLookups)
     }
-    @Test fun blackOptionDoesNotDisableMotionOrCanvas() {
+    @Test fun blackOptionDoesNotDisableMotion() {
         val p = EnergyPolicy.resolve(false, true)
-        assertTrue(p.oledBlack); assertTrue(p.allowCanvas); assertFalse(p.saverEnabled)
+        assertTrue(p.oledBlack); assertFalse(p.saverEnabled)
     }
     @Test fun amoledPreferenceControlsBlackWithEverySaverCombination() {
         for (manual in listOf(false, true)) for (black in listOf(false, true)) {
             val p = EnergyPolicy.resolve(manual, black)
             assertEquals(black, p.oledBlack)
             assertEquals(manual, p.saverEnabled)
-            assertEquals(!manual, p.allowCanvas)
             assertEquals(!manual, p.allowBackgroundLookups)
             assertEquals(if (manual) 480 else 1080, p.videoMaxHeight)
             assertEquals(if (manual) 20 else 30, p.progressFps)
@@ -58,13 +57,6 @@ class EnergyPolicyTest {
         val p = EnergyPolicy.resolve(false, false)
         assertEquals(1080, p.videoMaxHeight); assertEquals(30, p.progressFps)
         assertEquals(0f, p.displayRefreshCap, 0f)
-        assertTrue(p.allowCanvas)
-    }
-    @Test fun canvasSwitchOnlyDisablesCanvas() {
-        val p = EnergyPolicy.resolve(false, false, canvasEnabled = false)
-        assertFalse(p.allowCanvas); assertFalse(p.saverEnabled); assertFalse(p.oledBlack)
-        assertEquals(1080, p.videoMaxHeight); assertTrue(p.allowBackgroundLookups)
-        assertFalse(EnergyState(canvasEnabled = false).policy.allowCanvas)
-        assertTrue(EnergyState().policy.allowCanvas)
+        assertTrue(p.allowBackgroundLookups)
     }
 }

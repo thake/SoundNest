@@ -15,8 +15,6 @@ data class ContextPageModel(
     val explicit: Boolean = false,
     val tracks: List<SongsModel> = emptyList(),
     val complete: Boolean = true,
-    /** A Spotify Blend: its page shows the members and the taste match. */
-    val isBlend: Boolean = false,
     /** A member who is not the owner and may leave (`canCancelMembership`). */
     val canLeave: Boolean = false,
     /** Under an album's songs: its full release date, then its label and copyright lines, as Spotify shows them. */

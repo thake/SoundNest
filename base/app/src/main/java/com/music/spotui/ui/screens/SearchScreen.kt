@@ -167,13 +167,6 @@ fun SumUpSearchScreen(
     // One relevance-mixed list (songs, artists, albums interleaved) instead of
     // separate type sections — matches how most music apps present search.
     val mixed = remember(results, filter) { filterSearchResults(results, filter) }
-    // Profiles are searched only when their chip is on (Spotify keeps them out of Top).
-    val profiles by androidx.compose.runtime.produceState(emptyList<app.myspoti.api.MediaCard>(), text, filter) {
-        value = emptyList()
-        if (filter != SearchFilter.Profiles || text.isBlank()) return@produceState
-        kotlinx.coroutines.delay(250)
-        value = runCatching { app.myspoti.host.android.MyspotiRuntime.api.search.users(text.trim(), limit = 30).items }.getOrDefault(emptyList())
-    }
     val suggestions by androidx.compose.runtime.produceState(emptyList<String>(), text) {
         value = emptyList()
         if (text.isBlank()) return@produceState
@@ -302,17 +295,8 @@ fun SumUpSearchScreen(
             }
             item { SearchFilterChips(filter) { searchViewModel.filter = it } }
             // Loading, nothing found and a failure each say what they are (never an empty page).
-            if (filter != SearchFilter.Profiles && mixed.isEmpty() && results.shows.isEmpty() && results.episodes.isEmpty()) item {
+            if (mixed.isEmpty() && results.shows.isEmpty() && results.episodes.isEmpty()) item {
                 SearchStatus(text, loading, failed) { searchViewModel.retry() }
-            }
-            if (filter == SearchFilter.Profiles) {
-                items(profiles.size) { i ->
-                    val u = profiles[i]
-                    SearchProfileRow(u.title, u.images.firstOrNull()?.url) {
-                        dismissKeyboard()
-                        navController.navigate(com.music.spotui.ui.navigation.profileRoute(u.uri.substringAfterLast(':'), u.title))
-                    }
-                }
             }
             items(mixed.size) { i ->
                 when (val row = mixed[i]) {
@@ -379,14 +363,6 @@ fun SumUpSearchScreen(
                     }, onLongClick = { menuSong = ep })
                 }
             }
-            // What extensions add for this search (search.provide), under Spotify's results.
-            if (filter != SearchFilter.Profiles) item {
-                com.music.spotui.extensions.ExtensionBlocks(
-                    app.myspoti.extensions.Hook.SEARCH, app.myspoti.extensions.Surface.SEARCH,
-                    kotlinx.serialization.json.buildJsonObject { put("query", kotlinx.serialization.json.JsonPrimitive(text.trim())) }.toString(),
-                    delayMs = 400,
-                )
-            }
             }
         }
 
@@ -422,7 +398,6 @@ enum class SearchFilter(@androidx.annotation.StringRes val label: Int) {
     Albums(R.string.assisted_curation_search_filter_albums),
     Playlists(R.string.assisted_curation_search_filter_playlists),
     Podcasts(R.string.assisted_curation_search_filter_podcasts),
-    Profiles(R.string.search_filter_profiles),
 }
 
 private fun filterSearchResults(results: SearchResults, filter: SearchFilter): List<SearchRow> = when (filter) {
@@ -431,7 +406,7 @@ private fun filterSearchResults(results: SearchResults, filter: SearchFilter): L
     SearchFilter.Artists -> results.artists.map { SearchRow.Artist(it) }
     SearchFilter.Albums -> results.albums.map { SearchRow.Album(it) }
     SearchFilter.Playlists -> results.playlists.map { SearchRow.Playlist(it) }
-    SearchFilter.Podcasts, SearchFilter.Profiles -> emptyList()
+    SearchFilter.Podcasts -> emptyList()
 }
 
 @Composable
@@ -923,28 +898,6 @@ fun SearchStickyBar(
                 tint = AppText,
                 modifier = Modifier.size(24.dp),
             )
-        }
-    }
-}
-
-
-/** A user found by the Profiles chip: round picture, name, "Profile". */
-@OptIn(ExperimentalGlideComposeApi::class)
-@Composable
-private fun SearchProfileRow(name: String, image: String?, onClick: () -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().pressable(0.98f, onClick = onClick).padding(16.dp, 8.dp),
-    ) {
-        com.bumptech.glide.integration.compose.GlideImage(
-            model = image, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-            failure = com.bumptech.glide.integration.compose.placeholder(R.drawable.placeholder),
-            modifier = Modifier.size(52.dp).clip(androidx.compose.foundation.shape.CircleShape),
-        )
-        Spacer(Modifier.width(12.dp))
-        Column {
-            Text(name, color = AppText, fontSize = 15.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-            Text(stringResource(R.string.recently_played_user_profile), color = AppMuted, fontSize = 13.sp)
         }
     }
 }

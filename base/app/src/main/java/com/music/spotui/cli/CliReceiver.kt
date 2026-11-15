@@ -4,14 +4,11 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import app.myspoti.extensions.ExtensionPackage
 import app.myspoti.host.android.MyspotiRuntime
 import com.music.spotui.data.api.Response
 import com.music.spotui.data.entity.ContextPageModel
 import com.music.spotui.di.Graph
 import com.music.spotui.di.SongPlayer
-import com.music.spotui.extensions.Extensions
-import com.music.spotui.extensions.Grants
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -20,7 +17,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -33,7 +29,7 @@ import java.io.File
 /**
  * The command line's door (`adb shell am broadcast -a <package>.CLI -p <package> --es cmd … --es args64 …
  * --es req <id>`), see docs/cli.md and tools/myspoti-cli. Only the adb shell may send it (DUMP), the
- * manifest turns it on in debug and beta builds only, and it answers nothing elsewhere. The reply goes
+ * manifest turns it on in debug builds only, and it answers nothing elsewhere. The reply goes
  * to `<external files>/cli/<req>.json` and, cut, to logcat under [TAG].
  */
 class CliReceiver : BroadcastReceiver() {
@@ -68,7 +64,6 @@ class CliReceiver : BroadcastReceiver() {
 
     private suspend fun run(ctx: Context, c: CliCommand): JsonElement = when (c) {
         CliCommand.Status -> {
-          // What the page streams now (bitrate, codec): one bridge call, for the mirror's quality check.
           val audio = withContext(Dispatchers.Main) { if (MyspotiRuntime.isStarted) MyspotiRuntime.spotify.player.audioInfo() else 0 to "" }
           onMain {
             val np = SongPlayer.nowPlaying.value
@@ -77,135 +72,37 @@ class CliReceiver : BroadcastReceiver() {
                 put("version", app.myspoti.engine.BuildConfig.VERSION_NAME)
                 put("versionCode", app.myspoti.engine.BuildConfig.VERSION_CODE)
                 put("debug", app.myspoti.engine.BuildConfig.DEBUG)
-                put("beta", com.music.spotui.data.api.UpdateChecker.isBeta)
                 put("signedIn", ctx.getSharedPreferences("myspoti_prefs", Context.MODE_PRIVATE).getBoolean("LoggedIn", false))
                 put("playing", SongPlayer.isPlaying())
                 put("uri", np.uri)
                 put("context", np.contextUri)
                 put("positionMs", SongPlayer.getCurrentPosition())
                 put("durationMs", SongPlayer.getDuration())
-                // Who plays: the app's own player (an extension's stream, a download, a file) or the account's (Spotify's Web Player).
-                val local = com.music.spotui.di.LocalPlayer.active.value && !SongPlayer.routing
+                val local = com.music.spotui.di.LocalPlayer.active.value
                 put("player", if (local) "local" else "account")
-                put("routing", SongPlayer.routing)
-                // The local player's own view: asked to play, and idle (stopped by an error), buffering, ready or ended.
-                if (com.music.spotui.di.LocalPlayer.active.value) {
+                if (local) {
                     put("playWhenReady", com.music.spotui.di.LocalPlayer.playWhenReady())
                     put("playbackState", com.music.spotui.di.LocalPlayer.playbackState())
-                }
-                if (local) com.music.spotui.di.LocalPlayer.current()?.let { t ->
-                    val streamed = t.uri.scheme == com.music.spotui.extensions.ExtensionAudio.SCHEME
-                    put("source", if (streamed) "audio-source" else if (com.music.spotui.data.offline.OfflineStore.byLocalId(t.id) != null) "download" else "file")
-                    if (streamed) com.music.spotui.extensions.ExtensionAudio.providerOf(t.uri.lastPathSegment.orEmpty())?.let { put("extension", it) }
-                }
-                put("extensions", if (Extensions.isReady) Extensions.registry.value.extensions.size else 0)
-                put("ui", nav.subscriptionCount.value > 0)
-                // The listen sync of the account provider and the page under it (Spotify's, when it runs).
-                put("mirror", buildJsonObject {
-                    val m = com.music.spotui.di.AccountSync.listen.status()
-                    put("provider", m.provider)
-                    put("on", m.on); put("running", m.running); put("handedAway", m.handedAway); put("landed", m.landed)
-                    m.uri?.let { put("uri", it) }; m.paused?.let { put("paused", it) }
-                    m.remotePositionMs?.let { put("webPositionMs", it) }; m.failedUri?.let { put("failedUri", it) }
-                    put("remoteControl", m.remoteControl); m.note?.let { put("note", it) }
-                    if (MyspotiRuntime.isStarted) {
-                        val page = MyspotiRuntime.spotify.player
-                        val s = page.state.value
-                        put("pageUri", s?.item?.uri ?: "")
-                        put("pagePaused", s?.isPaused ?: true)
-                        put("pagePositionMs", s?.positionAt(System.currentTimeMillis()) ?: 0L)
-                        put("unheard", page.localMute)
-                        put("quality", page.streamingLevel)
-                        put("bitrate", audio.first); put("codec", audio.second)
-                        put("playsElsewhere", page.playsElsewhere.value)
+                    com.music.spotui.di.LocalPlayer.current()?.let { t ->
+                        put("source", if (t.isRadio) "radio" else "file")
                     }
-                    SongPlayer.activeDevice.value?.let { put("activeDevice", it.name) }
-                })
+                }
+                put("ui", nav.subscriptionCount.value > 0)
+                if (MyspotiRuntime.isStarted) {
+                    val page = MyspotiRuntime.spotify.player
+                    val s = page.state.value
+                    put("pageUri", s?.item?.uri ?: "")
+                    put("pagePaused", s?.isPaused ?: true)
+                    put("pagePositionMs", s?.positionAt(System.currentTimeMillis()) ?: 0L)
+                    put("quality", page.streamingLevel)
+                    put("bitrate", audio.first); put("codec", audio.second)
+                    put("playsElsewhere", page.playsElsewhere.value)
+                }
+                SongPlayer.activeDevice.value?.let { put("activeDevice", it.name) }
             }
           }
         }
-        CliCommand.ExtList -> JsonArray(ready().registry.value.extensions.map { e ->
-            val m = Extensions.manifest(e.id)
-            buildJsonObject {
-                put("id", e.id); put("name", e.name); put("version", e.version)
-                put("enabled", e.enabled); put("running", Extensions.isRunning(e.id)); put("source", e.source)
-                e.disabledReason?.let { put("disabledReason", it) }
-                Extensions.errors.value[e.id]?.let { put("error", CliMask.text(it, secrets(e.id))) }
-                // Its last status probe: live, inactive (skipped for audio and downloads) or unknown (no answer, still used).
-                val st = Extensions.statusOf(e.id)
-                put("inactive", st?.state == "inactive")
-                put("status", st?.state ?: "not probed")
-                st?.detail?.let { put("statusDetail", CliMask.text(it, secrets(e.id))) }
-                put("actions", JsonArray(m?.actionSet()?.map { JsonPrimitive(it.key) }.orEmpty()))
-                put("settings", CliMask.settings(m?.settings.orEmpty(), Extensions.settingValues(e.id)))
-            }
-        })
-        is CliCommand.ExtInstall -> {
-            val f = File(c.path)
-            if (!f.isFile) throw CliError("ext.install: no file at ${c.path} (push it under the app's external files folder)")
-            val zip = withContext(Dispatchers.IO) { f.readBytes() }
-            val p = runCatching { ExtensionPackage.read(zip) }.getOrElse { throw CliError("ext.install: not an extension package: ${it.message}") }
-            val m = p.manifest
-            val plan = ready().plan(p)
-            Extensions.install(zip, p, Grants.keys(m), "file", Extensions.clashes(m), { true }, noticeAccepted = true)
-            buildJsonObject {
-                put("id", m.id); put("version", m.version); put("plan", plan::class.simpleName)
-                put("running", Extensions.isRunning(m.id))
-                Extensions.errors.value[m.id]?.let { put("error", CliMask.text(it, secrets(m.id))) }
-            }
-        }
-        is CliCommand.ExtUninstall -> { installed(c.id); Extensions.uninstall(c.id); JsonNull }
-        is CliCommand.ExtEnable -> {
-            installed(c.id)
-            val m = Extensions.manifest(c.id)
-            Extensions.setEnabled(c.id, c.on, if (c.on && m != null) Extensions.clashes(m) else emptyList()).join()
-            buildJsonObject { put("enabled", Extensions.registry.value.find(c.id)?.enabled); put("running", Extensions.isRunning(c.id)) }
-        }
-        is CliCommand.ExtSetting -> {
-            val s = setting(c.id, c.key)
-            if (s.type == "button") throw CliError("ext.setting: ${c.key} is a button, use ext.press")
-            Extensions.setSetting(c.id, c.key, c.json)
-            JsonPrimitive(if (c.json == null) "reset" else "set")
-        }
-        is CliCommand.ExtPress -> {
-            if (setting(c.id, c.key).type != "button") throw CliError("ext.press: ${c.key} is not a button")
-            Extensions.pressSetting(c.id, c.key)
-            JsonPrimitive("pressed")
-        }
-        is CliCommand.ExtCall -> {
-            installed(c.id)
-            val answer = runCatching { Extensions.callHook(c.id, c.hook, c.input) }.getOrElse { throw CliError("ext.call: ${it.message ?: it}") }
-            answer?.let { CliMask.json(runCatching { Json.parseToJsonElement(it) }.getOrElse { _ -> JsonPrimitive(it) }, secrets(c.id)) } ?: JsonNull
-        }
-        is CliCommand.ExtLog -> {
-            installed(c.id)
-            val known = secrets(c.id)
-            JsonArray(Extensions.logLines(c.id).takeLast(c.lines).map { JsonPrimitive(CliMask.text(it, known)) })
-        }
-        is CliCommand.ExtWhy -> {
-            // Debug builds only: a beta's receiver answers that it is off here (the CLI's exit code 5).
-            if (!app.myspoti.engine.BuildConfig.DEBUG) throw CliError(DISABLED)
-            // The song playing now: what the decoder reports, read on the player's thread.
-            onMain {
-                val t = com.music.spotui.di.LocalPlayer.current()?.uri?.takeIf { it.scheme == com.music.spotui.extensions.ExtensionAudio.SCHEME }
-                val detected = com.music.spotui.ui.components.detectedLabel(com.music.spotui.di.LocalPlayer.audioFormat())
-                if (t != null && detected != null) Extensions.noteAttempt(t.lastPathSegment) { it.copy(detected = detected) }
-            }
-            val known = Extensions.registry.value.extensions.flatMap { secrets(it.id) }
-            CliMask.json(Extensions.attempts.toJson(c.n), known)
-        }
-        is CliCommand.ExtStorage -> {
-            installed(c.id)
-            val values = Extensions.storageValues(c.id)
-            buildJsonObject {
-                put("keys", JsonArray(values.keys.sorted().map(::JsonPrimitive)))
-                put("bytes", values.entries.sumOf { it.key.length + it.value.length })
-            }
-        }
         is CliCommand.Play -> {
-            // With a context, its songs too, as Android Auto and the phone give them: an audio-source
-            // extension plays the list on from the song, under its name. `songs` says how many were
-            // handed over (0: none, or a list without the song, which then plays alone as before).
             val page = c.context?.let { pageOf(it) }
             val songs = page?.tracks?.takeIf { it.isNotEmpty() }
             onMain {
@@ -226,7 +123,6 @@ class CliReceiver : BroadcastReceiver() {
         is CliCommand.JamJoin -> jamJson(MyspotiRuntime.api.jam.join(c.token))
         CliCommand.JamStatus -> { MyspotiRuntime.api.jam.refresh(); jamJson(MyspotiRuntime.api.jam.session.value) }
         CliCommand.JamLeave -> { MyspotiRuntime.api.jam.leave(); JsonNull }
-        CliCommand.CatalogStatus -> com.music.spotui.data.catalog.CatalogRuntime.status()
         is CliCommand.Search -> {
             val t0 = android.os.SystemClock.elapsedRealtime()
             val pageReady = MyspotiRuntime.isStarted && MyspotiRuntime.spotify.ready.value
@@ -247,19 +143,6 @@ class CliReceiver : BroadcastReceiver() {
                 put("steps", kotlinx.serialization.json.JsonArray(steps.map { kotlinx.serialization.json.JsonPrimitive(it) }))
                 put("httpFellBack", MyspotiRuntime.spotify.httpGql.fellBack.get())
             }
-        }
-        CliCommand.CatalogUpdate -> {
-            val r = com.music.spotui.data.catalog.CatalogRuntime.update()
-            buildJsonObject {
-                put("result", r.toString())
-                put("status", com.music.spotui.data.catalog.CatalogRuntime.status())
-            }
-        }
-        is CliCommand.CatalogSource -> {
-            // Debug builds only: a beta always fetches the published scripts.
-            if (!app.myspoti.engine.BuildConfig.DEBUG) throw CliError(DISABLED)
-            if (!com.music.spotui.data.catalog.CatalogRuntime.setBaseUrlOverride(c.url)) throw CliError("catalog.source: refused")
-            com.music.spotui.data.catalog.CatalogRuntime.status()
         }
         CliCommand.AutoMixStatus -> onMain {
             buildJsonObject {
@@ -311,7 +194,6 @@ class CliReceiver : BroadcastReceiver() {
             ).json()
         }
         CliCommand.AutoMixNext -> onMain {
-            if (SongPlayer.routing) throw CliError("automix.next: account playback is routing")
             if (!com.music.spotui.di.LocalPlayer.active.value) throw CliError("automix.next: the local player is not active")
             if (!com.music.spotui.automix.AutoMix.on) throw CliError("automix.next: AutoMix is off")
             if (!com.music.spotui.automix.AutoMix.mixOnNext) throw CliError("automix.next: on-next is set to cut")
@@ -351,19 +233,6 @@ class CliReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun ready(): Extensions = Extensions.also { if (!it.isReady) throw CliError("extensions are not loaded yet") }
-
-    private fun installed(id: String) { if (ready().registry.value.find(id) == null) throw CliError("$id is not installed") }
-
-    private fun setting(id: String, key: String) = installed(id).let {
-        Extensions.manifest(id)?.settings?.firstOrNull { it.key == key } ?: throw CliError("$id has no setting '$key'")
-    }
-
-    private fun secrets(id: String): List<String> {
-        val m = Extensions.manifest(id)
-        return CliMask.knownSecrets(m?.settings.orEmpty(), Extensions.settingValues(id), Extensions.storageValues(id))
-    }
-
     /**
      * The playlist, album or Liked Songs [uri], read to its last song (or what came within
      * [READ_MS]); null when it cannot be read. Seen in review: stopped at its first answer, a big
@@ -399,8 +268,8 @@ class CliReceiver : BroadcastReceiver() {
         /** How long `play` waits for its context's songs (Android Auto's own wait), within the CLI's 40 s. */
         private const val READ_MS = 15_000L
 
-        /** Debug and beta builds; the manifest leaves the receiver off in the others too. */
-        val enabled: Boolean get() = app.myspoti.engine.BuildConfig.DEBUG || com.music.spotui.data.api.UpdateChecker.isBeta
+        /** Debug builds only; the manifest leaves the receiver off in the others too. */
+        val enabled: Boolean get() = app.myspoti.engine.BuildConfig.DEBUG
 
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 

@@ -22,20 +22,20 @@ class SettingsSearchTest {
     }
 
     @Test fun everyPlaceIsReachable() {
-        val pages = setOf("Root", "Playback", "Sources", "Lyrics", "StreamingWifi", "StreamingCell", "Crossfade", "Downloads", "DownloadQuality",
+        val pages = setOf("Root", "Playback", "Lyrics", "StreamingWifi", "StreamingCell", "Crossfade",
             "Storage", "Data", "Display", "Look", "Rotation", "Language", "LyricsLanguage", "App", "Accounts", "Library")
         assertTrue(SettingsSearch.immersive.all { it.place in pages })
-        assertTrue(SettingsSearch.classic.all { it.place == "transitions" || it.place.toIntOrNull() in 0..7 })
+        assertTrue(SettingsSearch.classic.all { it.place == "transitions" || it.place.toIntOrNull() in 0..6 })
     }
 
-    /** The listen sync and the passing to another device sit with the music account, the library rows on their own. */
+    /** Accounts, storage, and library rows sit on their own pages/tabs. */
     @Test fun rowsSitWithWhatTheyAreAbout() {
         fun place(list: List<SettingsEntry>, title: Int) = list.first { it.title == title }.place
-        assertEquals("Accounts", place(SettingsSearch.immersive, app.myspoti.engine.R.string.settings_connect_mirror_title))
-        assertEquals("Accounts", place(SettingsSearch.immersive, app.myspoti.engine.R.string.pass_send))
+        assertEquals("Accounts", place(SettingsSearch.immersive, app.myspoti.engine.R.string.accounts_title))
+        assertEquals("Storage", place(SettingsSearch.immersive, app.myspoti.engine.R.string.settings_storage_clear_cache))
         assertEquals("Library", place(SettingsSearch.immersive, app.myspoti.engine.R.string.hidden_songs_title))
-        assertEquals("6", place(SettingsSearch.classic, app.myspoti.engine.R.string.settings_connect_mirror_title))
-        assertEquals("6", place(SettingsSearch.classic, app.myspoti.engine.R.string.pass_receive))
-        assertEquals("7", place(SettingsSearch.classic, app.myspoti.engine.R.string.live_radio_settings_title))
+        assertEquals("5", place(SettingsSearch.classic, app.myspoti.engine.R.string.accounts_title))
+        assertEquals("2", place(SettingsSearch.classic, app.myspoti.engine.R.string.settings_storage_clear_cache))
+        assertEquals("6", place(SettingsSearch.classic, app.myspoti.engine.R.string.live_radio_settings_title))
     }
 }
