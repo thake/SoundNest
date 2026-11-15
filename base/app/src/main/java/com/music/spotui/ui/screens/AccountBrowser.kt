@@ -94,9 +94,16 @@ class AccountBrowser : ComponentActivity() {
         private const val EXTRA_URL = "url"
 
         fun open(context: Context, url: String) {
-            context.startActivity(Intent(context, AccountBrowser::class.java)
-                .putExtra(EXTRA_URL, url)
-                .apply { if (context !is Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+            com.music.spotui.parental.ParentSecurityManager.runProtected(
+                context,
+                com.music.spotui.parental.AppSurface.ACCOUNTS_AND_LOGOUT,
+            ) {
+                context.startActivity(
+                    Intent(context, AccountBrowser::class.java)
+                        .putExtra(EXTRA_URL, url)
+                        .apply { if (context !is Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) },
+                )
+            }
         }
     }
 }

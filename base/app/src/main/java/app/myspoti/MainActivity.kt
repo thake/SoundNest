@@ -131,8 +131,12 @@ class MainActivity : AppCompatActivity() {
                                 runCatching { com.music.spotui.di.SongPlayer.pause("premium-gate") }
                             }
                         }
+                        val securityTick by com.music.spotui.parental.ParentSecurityManager.sessionTick.collectAsState()
+                        val pinConfigured = androidx.compose.runtime.remember(securityTick) {
+                            com.music.spotui.parental.ParentSecurityManager.isPinConfigured(this@MainActivity)
+                        }
                         val entry = com.music.spotui.ui.screens.Onboarding.entry(
-                            signedIn, setupNeeded, connecting, premiumDecision,
+                            signedIn, setupNeeded, connecting, premiumDecision, pinConfigured,
                         )
                         when {
                             showLook -> com.music.spotui.ui.look.LookStep(onNext = {
@@ -147,6 +151,11 @@ class MainActivity : AppCompatActivity() {
                                         app.myspoti.spotify.AccountPlan.set(null)
                                         MyspotiRuntime.refreshAccountPlanNow()
                                     },
+                                )
+                            entry == com.music.spotui.ui.screens.Entry.PARENT_SETUP ->
+                                com.music.spotui.parental.ParentPinSetupScreen(
+                                    onPinConfigured = { setupNeeded = com.music.spotui.ui.screens.Setup.needed(this@MainActivity) },
+                                    onSwitchOrLogout = { com.music.spotui.di.SessionActions.logout(this@MainActivity) },
                                 )
                             entry == com.music.spotui.ui.screens.Entry.SETUP -> com.music.spotui.ui.screens.SetupScreen(
                                 onDone = { setupNeeded = false },

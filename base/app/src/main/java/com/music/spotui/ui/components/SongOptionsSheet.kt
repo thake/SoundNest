@@ -221,12 +221,17 @@ fun SongOptionsSheet(
                 playerViewModel.goToArtist(song.spotifyTrackId, song.singer) { route -> navController.navigate(route) }
             }
             MenuRow(Icons.Outlined.Info, stringResource(R.string.track_credits), enabled = hasId) { showCredits = true }
-            // "Not interested": kept on this phone only; the song leaves the queue and lists skip it.
+            // "Not interested": kept on this phone only; Parent PIN required to change hidden songs.
             if (hasId && !song.url.startsWith("episode:")) {
                 val hidden = com.music.spotui.data.preferences.HiddenSongs.isHidden(song.spotifyTrackId)
                 MenuRow(Icons.Outlined.ThumbDownOffAlt, stringResource(if (hidden) R.string.show_song_again else R.string.hide_song)) {
-                    if (hidden) com.music.spotui.data.preferences.HiddenSongs.show(context, song.spotifyTrackId) else SongPlayer.hideSong(song)
                     onDismiss()
+                    com.music.spotui.parental.ParentSecurityManager.runProtected(
+                        context,
+                        com.music.spotui.parental.AppSurface.HIDDEN_SONGS_AND_BANS,
+                    ) {
+                        if (hidden) com.music.spotui.data.preferences.HiddenSongs.show(context, song.spotifyTrackId) else SongPlayer.hideSong(song)
+                    }
                 }
             }
             // Taste profile: the server says whether the track is excluded (the page's own cache can lag).
@@ -242,7 +247,7 @@ fun SongOptionsSheet(
                 com.music.spotui.di.Haptics.confirm()
                 onDismiss()
             }
-            // "Don't play this artist": the track's first artist, kept out of radios and mixes.
+            // "Don't play this artist": Parent PIN required so kids cannot unban artists.
             val artistBan by androidx.compose.runtime.produceState<Pair<String, Boolean>?>(null, trackUri) {
                 if (!hasId) return@produceState
                 val api = app.myspoti.host.android.MyspotiRuntime.api
@@ -254,12 +259,17 @@ fun SongOptionsSheet(
             MenuRow(Icons.Outlined.Block, stringResource(if (artistBan?.second == true) R.string.artist_unban else R.string.artist_ban),
                 enabled = artistBan != null) {
                 val (artist, banned) = artistBan ?: return@MenuRow
-                app.myspoti.host.android.MyspotiRuntime.scope.launch {
-                    runCatching { app.myspoti.host.android.MyspotiRuntime.api.extras.setArtistBanned(artist, !banned) }
-                }
-                toast(context.getString(if (banned) R.string.artist_unbanned else R.string.artist_banned, song.singer.substringBefore(",").trim()))
-                com.music.spotui.di.Haptics.confirm()
                 onDismiss()
+                com.music.spotui.parental.ParentSecurityManager.runProtected(
+                    context,
+                    com.music.spotui.parental.AppSurface.HIDDEN_SONGS_AND_BANS,
+                ) {
+                    app.myspoti.host.android.MyspotiRuntime.scope.launch {
+                        runCatching { app.myspoti.host.android.MyspotiRuntime.api.extras.setArtistBanned(artist, !banned) }
+                    }
+                    toast(context.getString(if (banned) R.string.artist_unbanned else R.string.artist_banned, song.singer.substringBefore(",").trim()))
+                    com.music.spotui.di.Haptics.confirm()
+                }
             }
             // An episode: in or out of Your Episodes.
             if (song.url.startsWith("episode:")) {

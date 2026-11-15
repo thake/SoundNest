@@ -112,7 +112,16 @@ fun SettingsScreen(navController: NavController) {
                         Column(
                             Modifier.fillMaxWidth().clickable {
                                 query = null
-                                if (h.place == SUB_TRANSITIONS) sub = SUB_TRANSITIONS else tab = h.place.toInt()
+                                if (h.place == SUB_TRANSITIONS) sub = SUB_TRANSITIONS
+                                else {
+                                    val target = h.place.toInt()
+                                    if (target == TAB_ACCOUNT) {
+                                        com.music.spotui.parental.ParentSecurityManager.runProtected(
+                                            ctx,
+                                            com.music.spotui.parental.AppSurface.ACCOUNTS_AND_LOGOUT,
+                                        ) { tab = TAB_ACCOUNT }
+                                    } else tab = target
+                                }
                             }.padding(horizontal = 20.dp, vertical = 10.dp),
                         ) {
                             Text(stringResource(h.title), color = AppText, fontSize = 16.sp)
@@ -130,7 +139,7 @@ fun SettingsScreen(navController: NavController) {
             }
             return@Column
         }
-        // One tab per group, shown in [TAB_ORDER]: the music account first, then how music is listened to, then the app.
+        // Kid-accessible tabs first; Accounts tab is PIN-protected.
         val tabs = listOf(
             R.string.settings_section_playback,
             R.string.settings_section_lyrics,
@@ -150,13 +159,25 @@ fun SettingsScreen(navController: NavController) {
         ) {
             TAB_ORDER.forEach { i ->
                 androidx.compose.material3.Tab(
-                    selected = tab == i, onClick = { tab = i },
+                    selected = tab == i,
+                    onClick = {
+                        if (i == TAB_ACCOUNT) {
+                            com.music.spotui.parental.ParentSecurityManager.runProtected(
+                                ctx,
+                                com.music.spotui.parental.AppSurface.ACCOUNTS_AND_LOGOUT,
+                            ) { tab = TAB_ACCOUNT }
+                        } else {
+                            tab = i
+                        }
+                    },
                     text = { Text(stringResource(tabs[i]), fontSize = 14.sp, fontWeight = if (tab == i) FontWeight.Bold else FontWeight.Normal) },
                     selectedContentColor = AppText, unselectedContentColor = AppMuted,
                 )
             }
         }
         Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).navigationBarsPadding()) {
+            com.music.spotui.parental.ParentSecurityControlsSection()
+            HorizontalDivider(color = tone(0xFF2A2A2A))
             if (tab == 0) {
             Section(R.string.settings_section_playback)
             StreamingQualityPicker(title = R.string.quality_streaming_wifi_title)
@@ -264,10 +285,14 @@ fun SettingsScreen(navController: NavController) {
                 checked = com.music.spotui.radio.RadioFeaturePref.on,
                 onChecked = { com.music.spotui.radio.RadioFeaturePref.set(ctx, it) },
             )
-            // Songs marked "Not interested": skipped by lists, listed here to be shown again.
+            // Songs marked "Not interested": Parent PIN required so kids cannot unhide songs.
             Column(
-                Modifier.fillMaxWidth().clickable { navController.navigate(com.music.spotui.ui.navigation.Routes.HiddenSongs.route) }
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                Modifier.fillMaxWidth().clickable {
+                    com.music.spotui.parental.ParentSecurityManager.runProtected(
+                        ctx,
+                        com.music.spotui.parental.AppSurface.HIDDEN_SONGS_AND_BANS,
+                    ) { navController.navigate(com.music.spotui.ui.navigation.Routes.HiddenSongs.route) }
+                }.padding(horizontal = 20.dp, vertical = 10.dp),
             ) {
                 Text(stringResource(R.string.hidden_songs_title), color = AppText, fontSize = 16.sp)
                 Text(stringResource(R.string.hidden_songs_detail), color = AppMuted, fontSize = 12.sp)
@@ -397,9 +422,14 @@ fun SettingsScreen(navController: NavController) {
             // adb logcat, which the person reporting the bug cannot run.
             Column(
                 Modifier.fillMaxWidth().clickable {
-                    val file = runCatching { app.myspoti.host.android.Logbook.export(ctx) }.getOrNull()
-                    if (file != null) shareDiagnosticReport(ctx, file)
-                    else android.widget.Toast.makeText(ctx, ctx.getString(R.string.diagnostic_export_failed), android.widget.Toast.LENGTH_SHORT).show()
+                    com.music.spotui.parental.ParentSecurityManager.runProtected(
+                        ctx,
+                        com.music.spotui.parental.AppSurface.DIAGNOSTIC_EXPORT,
+                    ) {
+                        val file = runCatching { app.myspoti.host.android.Logbook.export(ctx) }.getOrNull()
+                        if (file != null) shareDiagnosticReport(ctx, file)
+                        else android.widget.Toast.makeText(ctx, ctx.getString(R.string.diagnostic_export_failed), android.widget.Toast.LENGTH_SHORT).show()
+                    }
                 }.padding(horizontal = 20.dp, vertical = 10.dp),
             ) {
                 Text(stringResource(R.string.diagnostic_export_title), color = AppText, fontSize = 16.sp)
@@ -407,14 +437,22 @@ fun SettingsScreen(navController: NavController) {
             }
             }
             if (tab == TAB_ACCOUNT) {
-            // The Spotify accounts kept on the phone: switch, add, remove; and signing this one out.
-            Section(R.string.accounts_title)
-            com.music.spotui.ui.components.AccountsList()
-            Text(
-                stringResource(R.string.connect_device_menu_logout), color = AppText, fontSize = 16.sp,
-                modifier = Modifier.fillMaxWidth().clickable { com.music.spotui.di.SessionActions.logout(com.music.spotui.di.Graph.app) }
-                    .padding(horizontal = 20.dp, vertical = 14.dp),
-            )
+            val secTick by com.music.spotui.parental.ParentSecurityManager.sessionTick.collectAsStateWithLifecycle()
+            if (!com.music.spotui.parental.ParentSecurityManager.canAccessWithoutPrompt(ctx, com.music.spotui.parental.AppSurface.ACCOUNTS_AND_LOGOUT) && secTick >= 0L) {
+                androidx.compose.runtime.LaunchedEffect(secTick) { tab = 0 }
+            } else {
+                Section(R.string.accounts_title)
+                com.music.spotui.ui.components.AccountsList()
+                Text(
+                    stringResource(R.string.connect_device_menu_logout), color = AppText, fontSize = 16.sp,
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        com.music.spotui.parental.ParentSecurityManager.runProtected(
+                            ctx,
+                            com.music.spotui.parental.AppSurface.ACCOUNTS_AND_LOGOUT,
+                        ) { com.music.spotui.di.SessionActions.logout(com.music.spotui.di.Graph.app) }
+                    }.padding(horizontal = 20.dp, vertical = 14.dp),
+                )
+            }
             }
             // Clear of the mini player and the navigation bar, as every other page (96 dp left the
             // last rows, "Restart the player" among them, under the mini player).
@@ -496,8 +534,8 @@ private const val TAB_LOOK = 3
 private const val TAB_ABOUT = 4
 private const val TAB_ACCOUNT = 5
 private const val TAB_LIBRARY = 6
-/** The tabs as shown, by their index: the music account, playback, library, lyrics, storage, appearance, about. */
-private val TAB_ORDER = listOf(TAB_ACCOUNT, 0, TAB_LIBRARY, TAB_LYRICS, TAB_STORAGE, TAB_LOOK, TAB_ABOUT)
+/** Kid-accessible tabs first (playback, appearance, library, lyrics, storage, about), PIN-locked accounts last. */
+private val TAB_ORDER = listOf(0, TAB_LOOK, TAB_LIBRARY, TAB_LYRICS, TAB_STORAGE, TAB_ABOUT, TAB_ACCOUNT)
 
 /** Transitions in the Playback tab: what is on, one line; its choices and AutoMix's options on their own page. */
 @Composable

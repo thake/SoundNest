@@ -28,6 +28,8 @@ import androidx.navigation.NavGraphBuilder
 import com.music.spotui.ui.theme.AppBackground
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -104,7 +106,26 @@ fun MyNavHost(
         }
 
         page(Routes.HiddenSongs.route) {
-            if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveHiddenSongsScreen(navHostController) else com.music.spotui.ui.screens.HiddenSongsScreen(navHostController)
+            val tick by com.music.spotui.parental.ParentSecurityManager.sessionTick.collectAsState()
+            val unlocked = androidx.compose.runtime.remember(tick) {
+                com.music.spotui.parental.ParentSecurityManager.canAccessWithoutPrompt(
+                    context,
+                    com.music.spotui.parental.AppSurface.HIDDEN_SONGS_AND_BANS,
+                )
+            }
+            LaunchedEffect(unlocked) {
+                if (!unlocked) {
+                    navHostController.popBackStack()
+                    com.music.spotui.parental.ParentSecurityManager.runProtected(
+                        context,
+                        com.music.spotui.parental.AppSurface.HIDDEN_SONGS_AND_BANS,
+                    ) { navHostController.navigate(Routes.HiddenSongs.route) }
+                }
+            }
+            if (unlocked) {
+                if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveHiddenSongsScreen(navHostController)
+                else com.music.spotui.ui.screens.HiddenSongsScreen(navHostController)
+            }
         }
 
         // The local player's equalizer, speed and silence skipping (Settings > Playback, the player's menu).

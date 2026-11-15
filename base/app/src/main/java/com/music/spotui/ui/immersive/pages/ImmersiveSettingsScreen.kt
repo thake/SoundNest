@@ -173,7 +173,16 @@ private fun SettingsRoot(open: (SettingsPage) -> Unit, back: () -> Unit) {
                         row {
                             ImmersiveGroupRow(
                                 stringResource(h.title), detail = if (h.detail != 0) stringResource(h.detail) else null, chevron = true,
-                                onClick = { query = null; open(SettingsPage.valueOf(h.place)) },
+                                onClick = {
+                                    query = null
+                                    val target = SettingsPage.valueOf(h.place)
+                                    if (target == SettingsPage.Accounts) {
+                                        com.music.spotui.parental.ParentSecurityManager.runProtected(
+                                            ctx,
+                                            com.music.spotui.parental.AppSurface.ACCOUNTS_AND_LOGOUT,
+                                        ) { open(SettingsPage.Accounts) }
+                                    } else open(target)
+                                },
                             )
                         }
                     }
@@ -181,17 +190,11 @@ private fun SettingsRoot(open: (SettingsPage) -> Unit, back: () -> Unit) {
                 return@ImmersivePage
             }
         }
-        // Where the music comes from, first: the music account (the library, the recommendations);
-        // then how it is listened to; then the app itself.
-        immersiveGroup("music") {
-            row {
-                ImmersiveGroupRow(
-                    stringResource(R.string.accounts_title), detail = com.music.spotui.ui.components.switchAccountDetail(),
-                    icon = Icons.Rounded.Person, chevron = true, onClick = { open(SettingsPage.Accounts) },
-                )
-            }
+        immersiveGroup("parental") {
+            row { com.music.spotui.parental.ParentSecurityControlsSection() }
         }
         immersiveGroup("root") {
+            row { ImmersiveGroupRow(stringResource(R.string.settings_section_display), icon = Icons.Rounded.Palette, chevron = true, onClick = { open(SettingsPage.Display) }) }
             row { ImmersiveGroupRow(stringResource(R.string.settings_section_playback), icon = Icons.Rounded.PlayArrow, chevron = true, onClick = { open(SettingsPage.Playback) }) }
             row {
                 ImmersiveGroupRow(
@@ -203,10 +206,21 @@ private fun SettingsRoot(open: (SettingsPage) -> Unit, back: () -> Unit) {
             row { ImmersiveGroupRow(stringResource(R.string.settings_section_lyrics), icon = Icons.Rounded.Lyrics, chevron = true, onClick = { open(SettingsPage.Lyrics) }) }
         }
         immersiveGroup("more") {
-            row { ImmersiveGroupRow(stringResource(R.string.settings_section_display), icon = Icons.Rounded.Palette, chevron = true, onClick = { open(SettingsPage.Display) }) }
             row { ImmersiveGroupRow(stringResource(R.string.settings_section_data), icon = Icons.Rounded.SignalCellularAlt, chevron = true, onClick = { open(SettingsPage.Data) }) }
             row { ImmersiveGroupRow(stringResource(R.string.settings_section_storage), icon = Icons.Rounded.Storage, chevron = true, onClick = { open(SettingsPage.Storage) }) }
             row { ImmersiveGroupRow(stringResource(R.string.settings_section_app), icon = Icons.Rounded.Info, chevron = true, onClick = { open(SettingsPage.App) }) }
+            row {
+                ImmersiveGroupRow(
+                    stringResource(R.string.accounts_title), detail = com.music.spotui.ui.components.switchAccountDetail(),
+                    icon = Icons.Rounded.Person, chevron = true,
+                    onClick = {
+                        com.music.spotui.parental.ParentSecurityManager.runProtected(
+                            ctx,
+                            com.music.spotui.parental.AppSurface.ACCOUNTS_AND_LOGOUT,
+                        ) { open(SettingsPage.Accounts) }
+                    },
+                )
+            }
         }
     }
 }
@@ -327,11 +341,17 @@ private fun LibraryPage(navController: NavController, back: () -> Unit) {
                     detail = stringResource(R.string.live_radio_settings_detail),
                 )
             }
-            // Songs marked "Not interested": skipped by lists, listed here to be shown again.
+            // Songs marked "Not interested": Parent PIN required so kids cannot unhide songs.
             row {
                 ImmersiveGroupRow(
                     stringResource(R.string.hidden_songs_title), detail = stringResource(R.string.hidden_songs_detail),
-                    chevron = true, onClick = { navController.navigate(Routes.HiddenSongs.route) },
+                    chevron = true,
+                    onClick = {
+                        com.music.spotui.parental.ParentSecurityManager.runProtected(
+                            ctx,
+                            com.music.spotui.parental.AppSurface.HIDDEN_SONGS_AND_BANS,
+                        ) { navController.navigate(Routes.HiddenSongs.route) }
+                    },
                 )
             }
         }
@@ -921,9 +941,14 @@ private fun AppPage(back: () -> Unit) {
                 ImmersiveGroupRow(
                     stringResource(R.string.diagnostic_export_title), detail = stringResource(R.string.diagnostic_export_detail),
                     onClick = {
-                        val file = runCatching { app.myspoti.host.android.Logbook.export(ctx) }.getOrNull()
-                        if (file != null) shareDiagnosticReport(ctx, file)
-                        else android.widget.Toast.makeText(ctx, ctx.getString(R.string.diagnostic_export_failed), android.widget.Toast.LENGTH_SHORT).show()
+                        com.music.spotui.parental.ParentSecurityManager.runProtected(
+                            ctx,
+                            com.music.spotui.parental.AppSurface.DIAGNOSTIC_EXPORT,
+                        ) {
+                            val file = runCatching { app.myspoti.host.android.Logbook.export(ctx) }.getOrNull()
+                            if (file != null) shareDiagnosticReport(ctx, file)
+                            else android.widget.Toast.makeText(ctx, ctx.getString(R.string.diagnostic_export_failed), android.widget.Toast.LENGTH_SHORT).show()
+                        }
                     },
                 )
             }
@@ -936,6 +961,12 @@ private fun AppPage(back: () -> Unit) {
 /** The Spotify accounts kept on the phone ([com.music.spotui.ui.components.AccountsList]), and signing this one out. */
 @Composable
 private fun AccountsPage(back: () -> Unit) {
+    val ctx = LocalContext.current
+    val secTick by com.music.spotui.parental.ParentSecurityManager.sessionTick.collectAsStateWithLifecycle()
+    if (!com.music.spotui.parental.ParentSecurityManager.canAccessWithoutPrompt(ctx, com.music.spotui.parental.AppSurface.ACCOUNTS_AND_LOGOUT) && secTick >= 0L) {
+        androidx.compose.runtime.LaunchedEffect(secTick) { back() }
+        return
+    }
     ImmersivePage(title = stringResource(R.string.accounts_title), onBack = back) {
         immersiveGroup("accounts") {
             row { com.music.spotui.ui.components.AccountsList() }
@@ -944,7 +975,12 @@ private fun AccountsPage(back: () -> Unit) {
             row {
                 ImmersiveGroupRow(
                     stringResource(R.string.connect_device_menu_logout), destructive = true,
-                    onClick = { com.music.spotui.di.SessionActions.logout(com.music.spotui.di.Graph.app) },
+                    onClick = {
+                        com.music.spotui.parental.ParentSecurityManager.runProtected(
+                            ctx,
+                            com.music.spotui.parental.AppSurface.ACCOUNTS_AND_LOGOUT,
+                        ) { com.music.spotui.di.SessionActions.logout(com.music.spotui.di.Graph.app) }
+                    },
                 )
             }
         }

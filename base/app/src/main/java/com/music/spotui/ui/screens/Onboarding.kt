@@ -7,6 +7,8 @@ import app.myspoti.spotify.PremiumGateDecision
 enum class Entry {
     /** Signed-in account is on Spotify Free / ad-supported tier: blocked in Orpheon Kids. */
     PREMIUM_REQUIRED,
+    /** Fail-closed mandatory Parent PIN setup before any child setup or app access. */
+    PARENT_SETUP,
     /** The one-time steps after the Spotify account is in place ([SetupScreen]). */
     SETUP,
     /** The app's pages. */
@@ -18,7 +20,7 @@ enum class Entry {
 }
 
 /**
- * Spotify-only onboarding flow for Orpheon Kids, gated by [PremiumGateDecision].
+ * Spotify-only onboarding flow for Orpheon Kids, gated by [PremiumGateDecision] and [parentPinConfigured].
  */
 object Onboarding {
     fun entry(
@@ -26,9 +28,11 @@ object Onboarding {
         setupNeeded: Boolean,
         connecting: Boolean,
         premiumDecision: PremiumGateDecision = PremiumGateDecision.Allowed,
+        parentPinConfigured: Boolean = true,
     ): Entry = when {
         spotifySignedIn && premiumDecision == PremiumGateDecision.PremiumRequired -> Entry.PREMIUM_REQUIRED
         spotifySignedIn && premiumDecision == PremiumGateDecision.Checking -> Entry.CONNECTING
+        spotifySignedIn && !parentPinConfigured -> Entry.PARENT_SETUP
         spotifySignedIn && setupNeeded -> Entry.SETUP
         spotifySignedIn -> Entry.APP
         connecting -> Entry.CONNECTING

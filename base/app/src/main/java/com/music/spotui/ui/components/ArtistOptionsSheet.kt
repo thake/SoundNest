@@ -83,16 +83,21 @@ fun ArtistOptionsSheet(artistId: String, artistName: String, artistImage: String
             ) {
                 // The button shows the action it will do, so the flip is derived from the state.
                 val keepOut = banned != true
-                app.myspoti.host.android.MyspotiRuntime.scope.launch {
-                    runCatching { app.myspoti.host.android.MyspotiRuntime.api.extras.setArtistBanned(uri, keepOut) }
-                }
-                Toast.makeText(
-                    context,
-                    context.getString(if (keepOut) R.string.artist_banned else R.string.artist_unbanned, artistName),
-                    Toast.LENGTH_SHORT,
-                ).show()
-                com.music.spotui.di.Haptics.confirm()
                 onDismiss()
+                com.music.spotui.parental.ParentSecurityManager.runProtected(
+                    context,
+                    com.music.spotui.parental.AppSurface.HIDDEN_SONGS_AND_BANS,
+                ) {
+                    app.myspoti.host.android.MyspotiRuntime.scope.launch {
+                        runCatching { app.myspoti.host.android.MyspotiRuntime.api.extras.setArtistBanned(uri, keepOut) }
+                    }
+                    Toast.makeText(
+                        context,
+                        context.getString(if (keepOut) R.string.artist_banned else R.string.artist_unbanned, artistName),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                    com.music.spotui.di.Haptics.confirm()
+                }
             }
             Spacer(Modifier.height(12.dp))
         }

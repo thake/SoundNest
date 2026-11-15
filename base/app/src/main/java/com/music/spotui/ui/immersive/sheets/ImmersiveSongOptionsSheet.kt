@@ -215,12 +215,17 @@ fun ImmersiveSongOptionsSheet(
             }
         }
 
-        // "Not interested": kept on this phone only; the song leaves the queue and lists skip it.
+        // "Not interested": Parent PIN required to change hidden songs.
         if (hasId && !song.url.startsWith("episode:")) {
             val hidden = com.music.spotui.data.preferences.HiddenSongs.isHidden(song.spotifyTrackId)
             ImmersiveSheetRow(Icons.Rounded.ThumbDownOffAlt, stringResource(if (hidden) R.string.show_song_again else R.string.hide_song)) {
-                if (hidden) com.music.spotui.data.preferences.HiddenSongs.show(context, song.spotifyTrackId) else SongPlayer.hideSong(song)
                 onDismiss()
+                com.music.spotui.parental.ParentSecurityManager.runProtected(
+                    context,
+                    com.music.spotui.parental.AppSurface.HIDDEN_SONGS_AND_BANS,
+                ) {
+                    if (hidden) com.music.spotui.data.preferences.HiddenSongs.show(context, song.spotifyTrackId) else SongPlayer.hideSong(song)
+                }
             }
         }
 
@@ -246,12 +251,17 @@ fun ImmersiveSongOptionsSheet(
         }
         ImmersiveSheetRow(Icons.Rounded.Block, stringResource(if (artistBan?.second == true) R.string.artist_unban else R.string.artist_ban), enabled = artistBan != null) {
             val (artist, banned) = artistBan ?: return@ImmersiveSheetRow
-            app.myspoti.host.android.MyspotiRuntime.scope.launch {
-                runCatching { app.myspoti.host.android.MyspotiRuntime.api.extras.setArtistBanned(artist, !banned) }
-            }
-            toast(context.getString(if (banned) R.string.artist_unbanned else R.string.artist_banned, song.singer.substringBefore(",").trim()))
-            Haptics.confirm()
             onDismiss()
+            com.music.spotui.parental.ParentSecurityManager.runProtected(
+                context,
+                com.music.spotui.parental.AppSurface.HIDDEN_SONGS_AND_BANS,
+            ) {
+                app.myspoti.host.android.MyspotiRuntime.scope.launch {
+                    runCatching { app.myspoti.host.android.MyspotiRuntime.api.extras.setArtistBanned(artist, !banned) }
+                }
+                toast(context.getString(if (banned) R.string.artist_unbanned else R.string.artist_banned, song.singer.substringBefore(",").trim()))
+                Haptics.confirm()
+            }
         }
         if (song.url.startsWith("episode:")) {
             val episodeUri = "spotify:episode:" + song.url.removePrefix("episode:")

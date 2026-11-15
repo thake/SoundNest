@@ -96,6 +96,7 @@ fun App() {
             if (immersive) ImmersiveShell(navController)
             else com.music.spotui.ui.navigation.PlayerOverlay(navController)
             com.music.spotui.ui.components.HiddenSongUndo()
+            com.music.spotui.parental.ParentPinPromptHost()
         }
     }
 }

@@ -158,15 +158,21 @@ internal fun ImmersiveProfileSheet(onOpen: (route: String) -> Unit, onDismiss: (
             SheetRow(stringResource(R.string.creator_biography_section_title), stringResource(R.string.about_detail)) {
                 about = true
             }
-            // The other Spotify accounts kept on the phone: switch, add, remove.
+            // The other Spotify accounts kept on the phone: switch, add, remove (Parent PIN required).
             var accounts by remember { mutableStateOf(false) }
             if (accounts) com.music.spotui.ui.components.AccountsSheet(onDismiss = { accounts = false }, onLeave = { accounts = false; onDismiss() })
             SheetRow(stringResource(R.string.accounts_switch_row), com.music.spotui.ui.components.switchAccountDetail()) {
-                accounts = true
+                com.music.spotui.parental.ParentSecurityManager.runProtected(
+                    Graph.app,
+                    com.music.spotui.parental.AppSurface.ACCOUNTS_AND_LOGOUT,
+                ) { accounts = true }
             }
             SheetRow(stringResource(R.string.connect_device_menu_logout), null) {
                 onDismiss()
-                SessionActions.logout(Graph.app)
+                com.music.spotui.parental.ParentSecurityManager.runProtected(
+                    Graph.app,
+                    com.music.spotui.parental.AppSurface.ACCOUNTS_AND_LOGOUT,
+                ) { SessionActions.logout(Graph.app) }
             }
         }
     }

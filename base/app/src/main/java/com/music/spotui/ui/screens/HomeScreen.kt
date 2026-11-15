@@ -548,11 +548,16 @@ private fun ProfileSheet(onOpen: (route: String) -> Unit = {}, onDismiss: () -> 
                 Text(stringResource(R.string.creator_biography_section_title), color = AppText, fontSize = 16.sp)
                 Text(stringResource(R.string.about_detail), color = AppMuted, fontSize = 12.sp)
             }
-            // The other Spotify accounts kept on the phone: switch, add, remove.
+            // The other Spotify accounts kept on the phone: switch, add, remove (Parent PIN required).
             var accounts by remember { androidx.compose.runtime.mutableStateOf(false) }
             if (accounts) com.music.spotui.ui.components.AccountsSheet(onDismiss = { accounts = false }, onLeave = { accounts = false; onDismiss() })
             androidx.compose.foundation.layout.Column(
-                Modifier.fillMaxWidth().clickable { accounts = true }.padding(horizontal = 20.dp, vertical = 10.dp),
+                Modifier.fillMaxWidth().clickable {
+                    com.music.spotui.parental.ParentSecurityManager.runProtected(
+                        com.music.spotui.di.Graph.app,
+                        com.music.spotui.parental.AppSurface.ACCOUNTS_AND_LOGOUT,
+                    ) { accounts = true }
+                }.padding(horizontal = 20.dp, vertical = 10.dp),
             ) {
                 Text(stringResource(R.string.accounts_switch_row), color = AppText, fontSize = 16.sp)
                 Text(com.music.spotui.ui.components.switchAccountDetail(), color = AppMuted, fontSize = 12.sp)
@@ -564,7 +569,10 @@ private fun ProfileSheet(onOpen: (route: String) -> Unit = {}, onDismiss: () -> 
                     .fillMaxWidth()
                     .clickable {
                         onDismiss()
-                        com.music.spotui.di.SessionActions.logout(com.music.spotui.di.Graph.app)
+                        com.music.spotui.parental.ParentSecurityManager.runProtected(
+                            com.music.spotui.di.Graph.app,
+                            com.music.spotui.parental.AppSurface.ACCOUNTS_AND_LOGOUT,
+                        ) { com.music.spotui.di.SessionActions.logout(com.music.spotui.di.Graph.app) }
                     }
                     .padding(horizontal = 20.dp, vertical = 14.dp),
             )
