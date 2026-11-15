@@ -697,17 +697,6 @@
     <string name="settings_lyrics_keep_awake_title">Не гасить экран с текстом песни</string>
     <string name="settings_lyrics_keep_awake_detail">Пока открыт текст песни, экран не гаснет сам в течение 10 минут после последнего касания или пока телефон заряжается.</string>
     <string name="settings_section_podcasts">Подкасты</string>
-    <string name="sponsorblock_detail">Пропускает спонсорские вставки и другие части выпусков подкастов, отмеченные сообществом SponsorBlock. Запрашивает у sponsor.ajay.app данные о текущем выпуске (и у YouTube, чтобы при необходимости найти его загрузку); ничего о вас и вашем аккаунте не отправляется.</string>
-    <string name="sponsorblock_skip_header">Что пропускать</string>
-    <string name="sponsorblock_cat_sponsor">Спонсоры</string>
-    <string name="sponsorblock_cat_sponsor_detail">Платная реклама и рекламные вставки</string>
-    <string name="sponsorblock_cat_selfpromo">Самореклама</string>
-    <string name="sponsorblock_cat_selfpromo_detail">Мерч шоу, Patreon, другие шоу</string>
-    <string name="sponsorblock_cat_intro_outro">Вступление и концовка</string>
-    <string name="sponsorblock_cat_intro_outro_detail">Музыка в начале и в конце, титры</string>
-    <string name="sponsorblock_cat_interaction">Напоминания</string>
-    <string name="sponsorblock_cat_interaction_detail">Просьбы подписаться, оценить или отслеживать</string>
-    <string name="sponsorblock_skipped">Пропущено: %1$s</string>
     <string name="spatial_title">Пространственный звук</string>
     <string name="spatial_enable">Расширить стерео</string>
     <string name="spatial_detail">Обработка mid/side: то, что звучит по бокам, выходит вперёд, то, что в центре, остаётся на месте. Только песни из расширений, загрузки и локальные файлы: собственные потоки Spotify не обрабатываются. Моно-песни, а в выключенном состоянии и всё остальное, проходят нетронутыми.</string>
@@ -824,5 +813,4 @@
     <string name="settings_ytm_sign_in_title">Войти в YouTube Music</string>
     <string name="settings_ytm_sync_note">Прослушивания учитывает сам веб-плеер YouTube Music, без звука. Приложения YouTube Music не могут им управлять.</string>
     <string name="settings_sign_in_close">Закрыть</string>
-    <string name="connect_after_ad">Перейдёт на %1$s после рекламы</string>
 </resources>

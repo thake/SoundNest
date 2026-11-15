@@ -1,7 +1,6 @@
 package app.myspoti.spotify
 
 import app.myspoti.api.Repeat
-import app.myspoti.spotify.bridge.AdSchedule
 import app.myspoti.spotify.bridge.Bridge
 import app.myspoti.spotify.bridge.BridgeHost
 import kotlinx.coroutines.CoroutineScope
@@ -45,7 +44,6 @@ class PlaybackFollowUpTest {
     private lateinit var bridge: Bridge
 
     @BeforeEach fun up() {
-        AdSchedule.clear()
         scope = time.scope
         host = FakeHost()
         bridge = Bridge(host, scope, time::now)
@@ -53,7 +51,6 @@ class PlaybackFollowUpTest {
     }
 
     @AfterEach fun down() {
-        AdSchedule.clear()
         scope.cancel()
     }
 

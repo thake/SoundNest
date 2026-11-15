@@ -46,7 +46,7 @@ class SmTrack(
     @SerialName("track_type") val trackType: String? = null,
     /** Played time after which the Web Player sends `played_threshold_reached` (30000 measured). */
     @SerialName("ms_played_until_update") val msPlayedUntilUpdate: Long = 30_000,
-    /** `TRACK`, `EPISODE`, or `AD` for a server-inserted ad (ADS.md). */
+    /** `TRACK`, `EPISODE`, or `AD` for a server-inserted ad. */
     @SerialName("content_type") val contentType: String? = null,
 )
 

@@ -315,8 +315,6 @@ object SongPlayer {
             }
         }
         scope.launch { MyspotiRuntime.spotify.player.stalled.collect { on -> onSoundStalled(on) } }
-        // Ads on a Connect device the music was sent to are muted there (#153).
-        com.music.spotui.connect.RemoteAdMute.start()
         // Smart shuffle plays a mixed order as the list and leaves Spotify's own shuffle off, so
         // turning it off sends no shuffle command at all (the button finds shuffle already off):
         // the list's own order comes back here.
@@ -330,9 +328,7 @@ object SongPlayer {
         }
         scope.launch { api.library.changes.collect { refreshCurrentLiked() } }
         // T4: the player keeps the ad out of [api.player.state] on purpose (the last song stays
-        // there, buffering); its own flag is collected here so the UI can say an ad is on. Only an
-        // ad that is still on after AD_SHOW_AFTER_MS is shown: a blocked ad is gone within a second
-        // (its audio is refused, the page moves on), and showing it only made the screens blink.
+        // there, buffering); its own flag is collected here so the UI can say an ad is on.
         scope.launch {
             // The local player plays (an extension's or a downloaded song): the ad is on the unheard page
             // that mirrors it, not what is heard. Shown, the song on screen became the ad and left the
@@ -2638,8 +2634,7 @@ object SongPlayer {
             val active = api.devices.devices.value.firstOrNull { it.active }
             _activeDevice.value = active?.takeIf { !it.local }?.let { ConnectDevice(it.id, it.name, it.type, false, true) }
             // A negative volume is a device with a fixed one (Web Player: disable_volume): not 0 %.
-            // Nor the 0 of a device muted for an ad (RemoteAdMute): the bar keeps the user's level.
-            active?.volume?.takeIf { it >= 0 }?.let { if (SystemClock.elapsedRealtime() > volumeHoldUntil && !com.music.spotui.connect.RemoteAdMute.muting) { _remoteVolume.intValue = (it * 100).toInt().coerceIn(0, 100); remoteVolumeOf = active.id } }
+            active?.volume?.takeIf { it >= 0 }?.let { if (SystemClock.elapsedRealtime() > volumeHoldUntil) { _remoteVolume.intValue = (it * 100).toInt().coerceIn(0, 100); remoteVolumeOf = active.id } }
             PlaybackService.setPlaybackDevice(_activeDevice.value != null, remoteVolume)
         }
     }
@@ -2684,8 +2679,6 @@ object SongPlayer {
     @Volatile private var chosenLoaded = false
     private fun chosenPrefs() = Graph.app.getSharedPreferences("myspoti_connect_choice", Context.MODE_PRIVATE)
     private const val CHOSEN_KEEP_MS = 24 * 3600_000L
-    /** [chosenRemote], read by RemoteAdMute (only that device's ads are muted). */
-    val chosenRemoteId: String? get() = chosenRemote
 
     /**
      * Another device took playback without being picked here (the Spotify app opened on the
@@ -2758,21 +2751,10 @@ object SongPlayer {
         }
     }
 
-    /** A transfer asked during an ad waits for its end (the page refuses commands meanwhile). */
-    private val transferAfterAd by lazy {
-        app.myspoti.spotify.TransferAfterAd(scope, MyspotiRuntime.spotify.player.adPlaying, log = { app.myspoti.host.android.Logbook.log("connect: $it") })
-    }
-
-    /**
-     * Move playback to [device] (Spotify Connect transfer). During an ad, once it is over: with the
-     * song and the place that play then ([transferNow] reads them when it runs).
-     */
+    /** Move playback to [device] (Spotify Connect transfer). */
     fun transferTo(device: ConnectDevice) {
         Haptics.confirm()
-        if (!MyspotiRuntime.isStarted) { transferNow(device); return }
-        if (transferAfterAd.run(device.name) { transferNow(device) }) main.post {
-            android.widget.Toast.makeText(Graph.app, Graph.app.getString(app.myspoti.engine.R.string.connect_after_ad, device.name), android.widget.Toast.LENGTH_SHORT).show()
-        }
+        transferNow(device)
     }
 
     private fun transferNow(device: ConnectDevice) {
@@ -2831,9 +2813,6 @@ object SongPlayer {
      */
     @Volatile private var remoteVolumeOf: String? = null
 
-    /** [remoteVolume] when it is [deviceId]'s own level, else null (RemoteAdMute never restores a guess). */
-    fun knownRemoteVolume(deviceId: String): Int? = remoteVolume.takeIf { remoteVolumeOf == deviceId }
-
     /**
      * The newest volume asked for, sent one at a time by [volumeSender]. A drag on the player's
      * volume bar asks for dozens of levels a second: sent each in its own command they could
@@ -2860,12 +2839,6 @@ object SongPlayer {
         remoteVolumeOf = _activeDevice.value?.id
         volumeHoldUntil = SystemClock.elapsedRealtime() + 1500
         volumeSender
-        // A device muted for an ad is at 0 whatever the bar says: the same level as the last one sent
-        // would not go out through [volumeToSend], so it is sent here.
-        if (com.music.spotui.connect.RemoteAdMute.userSetVolume()) {
-            val v = remoteVolume
-            scope.launch { runCatching { api.player.setVolume(v / 100.0) } }
-        }
         volumeToSend.value = remoteVolume
         PlaybackService.setPlaybackDevice(_activeDevice.value != null, remoteVolume)
     }

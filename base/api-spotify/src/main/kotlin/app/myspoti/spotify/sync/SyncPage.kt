@@ -19,8 +19,6 @@ interface SyncPage {
     val ready: StateFlow<Boolean>
     /** An ad is on (the page plays Spotify's ad to its end and refuses commands meanwhile). */
     val adPlaying: StateFlow<Boolean>
-    /** The page's song an ad is due at the end of, as Spotify's queue says (see AdSchedule), or null. */
-    fun adDueAfter(): String?
     /** The page's device has joined Spotify Connect since the page last loaded. */
     val joined: StateFlow<Boolean>
     /** The host reports joins (so [joined] can be waited for). */
@@ -80,7 +78,6 @@ class SpotifyApiPage(
     private val player get() = api().player
     override val ready get() = api().ready
     override val adPlaying get() = player.adPlaying
-    override fun adDueAfter() = app.myspoti.spotify.bridge.AdSchedule.due.value?.songUri
     override val joined get() = PageDevice.joined
     override val joinReported get() = PageDevice.reported
     override val playsElsewhere get() = player.playsElsewhere

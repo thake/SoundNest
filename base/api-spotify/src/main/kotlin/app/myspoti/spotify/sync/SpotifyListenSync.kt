@@ -102,12 +102,6 @@ class SpotifyListenSync(
     private var takeoverGraceUntil = 0L
     /** The page went into an ad while the sync ran: its end puts the local player's song back at once. */
     private var heldForAd = false
-    /**
-     * Until then ([clock]) an ad is on its way: the sync's play of the local player's next song met the
-     * ad Spotify had due after the page's song (see [AD_EXPECT_MS]); what the page shows meanwhile is
-     * not judged.
-     */
-    private var adExpectedUntil = 0L
     /** Playback went to another device while synced: it comes back through the extensions. */
     private var handedAway = false
     /** The sync's first play of this run is still to be sent: playback is pulled here first when elsewhere. */
@@ -148,7 +142,7 @@ class SpotifyListenSync(
         // song is sent then (or after JOIN_WAIT_MS without a join).
         scope.launch {
             combine(page.ready, page.adPlaying, page.joined) { ready, ad, joined ->
-                if (ad && running && !heldForAd) { heldForAd = true; adExpectedUntil = 0L; log("an ad plays on the page: held until its end") }
+                if (ad && running && !heldForAd) { heldForAd = true; log("an ad plays on the page: held until its end") }
                 if (!ready) { joinWaitedOut = false; joinWait.cancel() }
                 else if (!ad && !joined && page.joinReported && !joinWaitedOut) joinWait.schedule(ListenSyncRules.JOIN_WAIT_MS)
                 pageUsable()
@@ -260,8 +254,6 @@ class SpotifyListenSync(
             if (gapFrom == null) gapFrom = lastWeb?.takeIf { it.item?.uri == w.uri }?.positionAt(nowMs)
             return
         }
-        // The ad our play met is on its way: the page still shows the song before it, or nothing.
-        if (item.uri != w.uri && clock() < adExpectedUntil) return
         val web = ListenSyncRules.Remote(item.uri, s.isPaused, s.positionAt(nowMs))
         val before = lastWeb?.takeIf { it.item?.uri == w.uri }
         val predicted = before?.takeIf { item.uri == w.uri }?.positionAt(nowMs)
@@ -388,7 +380,7 @@ class SpotifyListenSync(
      */
     private fun pageBack() {
         val afterAd = heldForAd
-        heldForAd = false; adExpectedUntil = 0L
+        heldForAd = false
         val w = want?.takeIf { running } ?: return
         log(if (afterAd) "the ad is over: ${w.uri} played there again, where the local player is" else "the page is back (reloaded): ${w.uri} played there again")
         landed = false; retries = 0; resends = 0; lastWeb = null; gapFrom = null
@@ -477,12 +469,6 @@ class SpotifyListenSync(
             val s = page.state.value
             val queued = page.queue.value?.queued.orEmpty()
             val way = if (newSong) QueueSyncRules.way(uri, s?.item?.uri, s?.isPaused == false, queued.map { it.uri }) else QueueSyncRules.Way.Play
-            // Spotify has an ad due at the end of the page's song: a play or a skip to another song
-            // starts that ad first, and the page shows it a moment later.
-            if (s?.item?.uri != null && s.item?.uri != uri && s.item?.uri == page.adDueAfter()) {
-                log("an ad is due after ${s.item?.uri} on Spotify: $uri plays there after it")
-                adExpectedUntil = clock() + AD_EXPECT_MS
-            }
             when (way) {
                 QueueSyncRules.Way.Already -> {
                     log("the page plays $uri already (gone on to its queued copy): kept in step")
@@ -512,7 +498,7 @@ class SpotifyListenSync(
         generation++
         val heard = pauseRemote && want?.paused == false && !page.playsElsewhere.value
         want = null; previousUri = null; lastWeb = null; gapFrom = null; landed = false; stalled = false
-        heldForAd = false; adExpectedUntil = 0L
+        heldForAd = false
         recheck.cancel()
         sendPlay.cancel(); pendingContext = null; recentPlays.clear()
         stallCheck.cancel()
@@ -736,12 +722,10 @@ class SpotifyListenSync(
         /** Songs the local player starts closer than this are sent to the page as one play (fast skips). */
         const val START_COALESCE_MS = 300L
         /**
-         * After an ad or a reload, the player's own recovery plays songs too (the pick before the ad, the
-         * song "ahead" of the next ad): for that long, another song on the page is never a remote command.
+         * After an ad or a reload, the player's own recovery plays songs too (the pick before the ad):
+         * for that long, another song on the page is never a remote command.
          */
         const val RECOVER_MS = 10_000L
-        /** A play that met an ad due shows the ad within that (else the page is judged as usual). */
-        const val AD_EXPECT_MS = 8_000L
         /** At most that many lists remembered as putting the page on another song. */
         const val MAX_MISSED = 32
         /** The device list's read before a play or a followed move is not waited for longer. */

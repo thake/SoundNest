@@ -682,17 +682,6 @@
     <string name="settings_lyrics_keep_awake_title">Schermo acceso con i testi</string>
     <string name="settings_lyrics_keep_awake_detail">Finché il testo è aperto, lo schermo non si spegne da solo per 10 minuti dall\'ultimo tocco, o finché il telefono è in carica.</string>
     <string name="settings_section_podcasts">Podcast</string>
-    <string name="sponsorblock_detail">Salta le letture sponsorizzate e altre parti degli episodi podcast segnalate dalla community di SponsorBlock. Chiede a sponsor.ajay.app dell\'episodio in riproduzione (e a YouTube, per trovarne il caricamento se serve); non viene inviato nulla su di te o sul tuo account.</string>
-    <string name="sponsorblock_skip_header">Parti da saltare</string>
-    <string name="sponsorblock_cat_sponsor">Sponsor</string>
-    <string name="sponsorblock_cat_sponsor_detail">Promozioni a pagamento e letture pubblicitarie</string>
-    <string name="sponsorblock_cat_selfpromo">Autopromozione</string>
-    <string name="sponsorblock_cat_selfpromo_detail">Merch del programma, Patreon, altri programmi</string>
-    <string name="sponsorblock_cat_intro_outro">Intro e outro</string>
-    <string name="sponsorblock_cat_intro_outro_detail">Musica di apertura e chiusura, titoli di coda</string>
-    <string name="sponsorblock_cat_interaction">Promemoria</string>
-    <string name="sponsorblock_cat_interaction_detail">Inviti a seguire, valutare o iscriversi</string>
-    <string name="sponsorblock_skipped">Saltato: %1$s</string>
     <string name="spatial_title">Audio spaziale</string>
     <string name="spatial_enable">Allarga lo stereo</string>
     <string name="spatial_detail">Elaborazione mid/side: ciò che sta ai lati viene messo in risalto, ciò che sta al centro resta dov\'è. Solo brani da estensioni, download e file locali: gli stream di Spotify non vengono elaborati. I brani mono, e tutto quando è disattivato, passano intatti.</string>
@@ -809,5 +798,4 @@
     <string name="settings_ytm_sign_in_title">Accedi a YouTube Music</string>
     <string name="settings_ytm_sync_note">Gli ascolti sono contati dal player web di YouTube Music, senza audio. Le app di YouTube Music non possono controllarlo.</string>
     <string name="settings_sign_in_close">Chiudi</string>
-    <string name="connect_after_ad">Passa a %1$s al termine della pubblicità</string>
 </resources>

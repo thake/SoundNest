@@ -133,7 +133,7 @@ Two looks, switched in Settings, Display.
 
 ## Questions
 
-**Is it safe for my account?** Orpheon talks to Spotify the way its web player does, and you sign in on Spotify's own page. Ads play as Spotify sends them, except on a Spotify Connect device you send the music to from the app, where they are muted and their ad hosts refused; blocking ads is against Spotify's Terms of Use (see the disclaimer below).
+**Is it safe for my account?** Orpheon talks to Spotify the way its web player does, and you sign in on Spotify's own page. Ads play as Spotify sends them without any ad blocking or muting.
 
 **"Spotify refused to play this"?** Some new or free accounts get refused by Spotify. Settings → **Export a diagnostic report** and send it on [Discord](https://discord.gg/jXKnGVFnGS) or in an [issue](https://github.com/kota-zo/myspoti/issues): it holds the app's recent log (what Spotify answered) and your phone's model, never your password or your login tokens.
 
@@ -143,12 +143,9 @@ Two looks, switched in Settings, Display.
 
 ## Not included
 
-- No DRM circumvention, and no Spotify audio download: offline songs come from the download-source extension you install, and a song it has no file for is marked unavailable. Orpheon ships no download source of its own.
-- No ad is ever marked as heard.
+- No ad blocking, no DRM circumvention, and no Spotify audio download: offline songs come from the download-source extension you install, and a song it has no file for is marked unavailable. Orpheon ships no download source of its own.
 
 ## Disclaimer
-
-Blocking ads goes against Spotify's Terms of Use, and Spotify may suspend accounts that do it. Use this app at your own risk. If you can, support artists with Premium or by buying their music.
 
 Not affiliated with or endorsed by Spotify. Spotify is a trademark of Spotify AB.
 

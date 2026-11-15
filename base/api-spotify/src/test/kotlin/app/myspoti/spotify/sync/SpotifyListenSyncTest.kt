@@ -36,8 +36,6 @@ class SpotifyListenSyncTest {
         val calls = ArrayList<String>()
         override val ready = MutableStateFlow(true)
         override val adPlaying = MutableStateFlow(false)
-        var adDue: String? = null
-        override fun adDueAfter() = adDue
         override val joined = MutableStateFlow(true)
         override val joinReported = true
         override val playsElsewhere = MutableStateFlow(false)
@@ -344,23 +342,7 @@ class SpotifyListenSyncTest {
         assertTrue(r.page.calls.last().startsWith("play $list $a "), r.page.calls.toString())
     }
 
-    @Test fun `a play that meets the ad Spotify had due is not taken for one the page refused`() = runTest {
-        val r = started()
-        advanceTimeBy(SpotifyListenSync.PLAY_ECHO_MS + 1_000); runCurrent()
-        r.page.adDue = a
-        r.host.now = live(idB, at = 0)
-        r.sync.onLocal(r.host.now!!)
-        advanceTimeBy(SpotifyListenSync.START_COALESCE_MS + 1); runCurrent()
-        assertEquals(1, r.page.calls.count { it.startsWith("play $list $b") })
-        // The page still shows the song before the ad past the play's echo: no second play.
-        advanceTimeBy(SpotifyListenSync.PLAY_ECHO_MS + 500); runCurrent()
-        r.page.state.value = state(a, paused = false, at = 199_000, time = testScheduler.currentTime)
-        r.sync.onProviderState(r.page.state.value!!); runCurrent()
-        assertEquals(1, r.page.calls.count { it.startsWith("play ") && b in it }, r.page.calls.toString())
-        assertEquals(emptyList<String>(), r.host.calls)
-    }
-
-    @Test fun `without an ad due the same refusal is played again`() = runTest {
+    @Test fun `a refused play on the page is played again`() = runTest {
         val r = started()
         advanceTimeBy(SpotifyListenSync.PLAY_ECHO_MS + 1_000); runCurrent()
         r.host.now = live(idB, at = 0)

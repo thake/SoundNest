@@ -55,9 +55,7 @@ interface MirrorEngine {
  * What the page has and the engine does not: no join to wait for (its own registration is the
  * join), no licence limit seen, no queue kept in step ([keepsQueue] false). The device list is the
  * cluster connect-state pushes to the engine ([NativeEngine.cluster]); another device's takeover is
- * the engine's own `state_clear`, and that device's playback is then the cluster's. An ad the account inserts is neither
- * fetched nor played: the engine moves on to the next song, and commands are held a moment
- * ([AD_HOLD_MS]) before the mirror's song is sent again, as after an ad on the page.
+ * the engine's own `state_clear`, and that device's playback is then the cluster's.
  *
  * A dropped dealer (the engine's host drops the engine) while the mirror holds it: it is started
  * again with a growing wait, and the mirror sends its song again once it is ([ready] back to true).
@@ -82,7 +80,6 @@ class EngineSyncPage(
 
     override val ready: StateFlow<Boolean> get() = _ready
     override val adPlaying: StateFlow<Boolean> get() = _ad
-    override fun adDueAfter(): String? = null
     override val joined: StateFlow<Boolean> get() = _joined
     override val joinReported = false
     override val playsElsewhere: StateFlow<Boolean> =
@@ -135,9 +132,8 @@ class EngineSyncPage(
         }
     }
 
-    /** The engine's own skip past the ad lands on another song: held meanwhile, the mirror's song sent after. */
     private fun adBreak() {
-        log("an ad was due: the engine passes it, the mirror's song is sent again after")
+        log("ad break reported on engine: commands held briefly")
         _ad.value = true
         adHold?.cancel()
         adHold = scope.launch { delay(AD_HOLD_MS); _ad.value = false }

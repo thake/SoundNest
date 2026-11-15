@@ -682,17 +682,6 @@
     <string name="settings_lyrics_keep_awake_title">显示歌词时保持屏幕常亮</string>
     <string name="settings_lyrics_keep_awake_detail">歌词打开时，屏幕在最后一次触摸后 10 分钟内不会自动关闭；手机充电时不限时间。</string>
     <string name="settings_section_podcasts">播客</string>
-    <string name="sponsorblock_detail">跳过 SponsorBlock 社区标记的播客节目赞助口播及其他片段。会向 sponsor.ajay.app 查询正在播放的节目（必要时也会通过 YouTube 查找其上传版本）；不会发送任何关于你或你账号的信息。</string>
-    <string name="sponsorblock_skip_header">要跳过的部分</string>
-    <string name="sponsorblock_cat_sponsor">赞助</string>
-    <string name="sponsorblock_cat_sponsor_detail">付费推广和广告口播</string>
-    <string name="sponsorblock_cat_selfpromo">自我推广</string>
-    <string name="sponsorblock_cat_selfpromo_detail">节目周边、Patreon、其他节目</string>
-    <string name="sponsorblock_cat_intro_outro">片头和片尾</string>
-    <string name="sponsorblock_cat_intro_outro_detail">开场和结束音乐、致谢</string>
-    <string name="sponsorblock_cat_interaction">提醒</string>
-    <string name="sponsorblock_cat_interaction_detail">请求关注、评分或订阅</string>
-    <string name="sponsorblock_skipped">已跳过：%1$s</string>
     <string name="spatial_title">空间音频</string>
     <string name="spatial_enable">扩展立体声</string>
     <string name="spatial_detail">中/侧声道处理：两侧的声音更突出，中间的声音保持不动。仅适用于来自扩展、下载和本地文件的歌曲：Spotify 自己的音频流不会被处理。单声道歌曲，以及关闭时的所有声音，均原样通过。</string>
@@ -809,5 +798,4 @@
     <string name="settings_ytm_sign_in_title">登录 YouTube Music</string>
     <string name="settings_ytm_sync_note">播放由 YouTube Music 自己的网页播放器静音统计。YouTube Music 的应用无法控制它。</string>
     <string name="settings_sign_in_close">关闭</string>
-    <string name="connect_after_ad">广告结束后切换到 %1$s</string>
 </resources>

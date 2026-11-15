@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 package app.myspoti.spotify
 
-import app.myspoti.spotify.bridge.AdSchedule
 import app.myspoti.spotify.bridge.Bridge
 import app.myspoti.spotify.bridge.BridgeHost
 import kotlinx.coroutines.CoroutineScope
@@ -32,12 +31,10 @@ class RemoteSkipTest {
     private lateinit var scope: CoroutineScope
 
     @BeforeEach fun up() {
-        AdSchedule.clear()
         scope = time.scope
     }
 
     @AfterEach fun down() {
-        AdSchedule.clear()
         scope.cancel()
     }
 

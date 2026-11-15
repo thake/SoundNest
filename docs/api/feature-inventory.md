@@ -161,6 +161,6 @@ as a page service (`service: Name.method`, through the bridge) or an HTTP endpoi
 
 | Feature | Status | Operation / endpoint |
 |---|---|---|
-| Ads | out of scope | the host blocks ad audio (`AdBlock`); no API surface |
+| Ads | played untouched | no ad blocking or ad muting; played as delivered by Spotify |
 | Concert location settings | needs capture | `saveLocation`, `deleteLocation`, `concertLocationsByLatLon` (not wired) |
 | Promo codes | needs capture | `requestPromoCode` (not wired) |

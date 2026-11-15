@@ -695,18 +695,6 @@
     <string name="settings_lyrics_keep_awake_title">Keep the screen on with lyrics</string>
     <string name="settings_lyrics_keep_awake_detail">While the lyrics are open, the screen does not turn off by itself for 10 minutes after your last touch, or as long as the phone charges.</string>
     <string name="settings_section_podcasts">Podcasts</string>
-    <string name="sponsorblock_title" translatable="false">SponsorBlock</string>
-    <string name="sponsorblock_detail">Skips sponsor reads and other parts of podcast episodes marked by the SponsorBlock community. Asks sponsor.ajay.app about the episode playing (and YouTube, to find its upload when needed); nothing about you or your account is sent.</string>
-    <string name="sponsorblock_skip_header">Parts to skip</string>
-    <string name="sponsorblock_cat_sponsor">Sponsors</string>
-    <string name="sponsorblock_cat_sponsor_detail">Paid promotions and ad reads</string>
-    <string name="sponsorblock_cat_selfpromo">Self-promotion</string>
-    <string name="sponsorblock_cat_selfpromo_detail">The show\'s merch, Patreon, other shows</string>
-    <string name="sponsorblock_cat_intro_outro">Intro and outro</string>
-    <string name="sponsorblock_cat_intro_outro_detail">Opening and closing music, credits</string>
-    <string name="sponsorblock_cat_interaction">Reminders</string>
-    <string name="sponsorblock_cat_interaction_detail">Asking to follow, rate or subscribe</string>
-    <string name="sponsorblock_skipped">Skipped: %1$s</string>
     <string name="spatial_title">Spatial audio</string>
     <string name="spatial_enable">Widen the stereo</string>
     <string name="spatial_detail">Mid/side processing: what sits at the sides is brought out, what sits in the middle stays put. Songs from extensions, downloads and local files only: Spotify\'s own streams are not processed. Mono songs, and everything when off, pass untouched.</string>
@@ -841,7 +829,6 @@
     <string name="settings_ytm_sign_in_title">Sign in to YouTube Music</string>
     <string name="settings_ytm_sync_note">Plays are counted by YouTube Music\'s own web player, unheard. YouTube Music\'s apps cannot control it.</string>
     <string name="settings_sign_in_close">Close</string>
-    <string name="connect_after_ad">Moves to %1$s once the ad is over</string>
     <!-- Music videos -->
     <string name="av_switch_to_video">Switch to video</string>
     <string name="av_switch_to_audio">Switch to audio</string>

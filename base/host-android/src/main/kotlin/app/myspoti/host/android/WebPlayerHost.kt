@@ -16,7 +16,6 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebViewClient
-import app.myspoti.spotify.bridge.AdBlock
 import app.myspoti.spotify.bridge.BridgeHost
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.BufferOverflow
@@ -31,8 +30,7 @@ import java.io.ByteArrayInputStream
  *
  * - The WebView is built on the application context, so playback outlives activities.
  * - Desktop user agent: on a phone UA the Web Player only offers to open the app.
- * - Protected media (Widevine) is allowed; what [AdBlock] refuses is refused (its ad and tracker
- *   hosts, only while the music plays on a Spotify Connect device sent from the app).
+ * - Protected media (Widevine) is allowed.
  * - [loginRequired] turns true on Spotify's login pages: the UI then shows [view] so the
  *   user signs in on Spotify's own page.
  */
@@ -317,11 +315,6 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
         webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                 val url = request.url.toString()
-                if (AdBlock.isBlocked(url)) {
-                    Logbook.log("blocked request ${Logbook.noQuery(url).take(120)}")
-                    // Refused like a blocked request.
-                    return WebResourceResponse("text/plain", "utf-8", 403, "Blocked", emptyMap(), ByteArrayInputStream(ByteArray(0)))
-                }
                 // Spotify is limiting audio licences (429) and the app holds playback: the page still
                 // skips on by itself through every song it gets no licence for (measured in the 25/10
                 // logs: 20 to 25 more licence requests in the 4 s after the hold began, ~4 a second,

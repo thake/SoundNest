@@ -660,17 +660,6 @@
     <string name="settings_lyrics_keep_awake_title">Manter a tela ligada com a letra</string>
     <string name="settings_lyrics_keep_awake_detail">Enquanto a letra está aberta, a tela não se apaga sozinha por 10 minutos após o último toque, ou enquanto o celular estiver carregando.</string>
     <string name="settings_section_podcasts">Podcasts</string>
-    <string name="sponsorblock_detail">Pula as leituras de patrocínio e outras partes de episódios de podcast marcadas pela comunidade SponsorBlock. Consulta o sponsor.ajay.app sobre o episódio tocando (e o YouTube, para achar o envio dele quando preciso); nada sobre você ou sua conta é enviado.</string>
-    <string name="sponsorblock_skip_header">Partes para pular</string>
-    <string name="sponsorblock_cat_sponsor">Patrocinadores</string>
-    <string name="sponsorblock_cat_sponsor_detail">Promoções pagas e leituras de anúncio</string>
-    <string name="sponsorblock_cat_selfpromo">Autopromoção</string>
-    <string name="sponsorblock_cat_selfpromo_detail">Produtos do programa, Patreon, outros programas</string>
-    <string name="sponsorblock_cat_intro_outro">Intro e encerramento</string>
-    <string name="sponsorblock_cat_intro_outro_detail">Música de abertura e de encerramento, créditos</string>
-    <string name="sponsorblock_cat_interaction">Lembretes</string>
-    <string name="sponsorblock_cat_interaction_detail">Pedidos para seguir, avaliar ou se inscrever</string>
-    <string name="sponsorblock_skipped">Pulado: %1$s</string>
     <string name="spatial_title">Áudio espacial</string>
     <string name="spatial_enable">Ampliar o estéreo</string>
     <string name="spatial_detail">Processamento mid/side: o que está nas laterais ganha destaque, o que está no centro fica no lugar. Só músicas de extensões, downloads e arquivos locais: os streams do próprio Spotify não são processados. As músicas mono, e tudo quando está desligado, passam intactas.</string>
@@ -788,7 +777,6 @@
     <string name="settings_ytm_sign_in_title">Entrar no YouTube Music</string>
     <string name="settings_ytm_sync_note">As reproduções são contadas pelo próprio player web do YouTube Music, sem som. Os apps do YouTube Music não podem controlá-lo.</string>
     <string name="settings_sign_in_close">Fechar</string>
-    <string name="connect_after_ad">Vai para %1$s quando o anúncio acabar</string>
     <string name="lyrics_select_hint">Toque nas linhas para escolher o que compartilhar</string>
     <string name="lyrics_select_max">Você pode compartilhar até %d linhas</string>
     <string name="lyrics_other_source">Tentar outra fonte</string>

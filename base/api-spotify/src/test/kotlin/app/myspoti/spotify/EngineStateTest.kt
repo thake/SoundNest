@@ -2,7 +2,6 @@ package app.myspoti.spotify
 
 import app.myspoti.api.Repeat
 import app.myspoti.engine.NativeEngine
-import app.myspoti.spotify.bridge.AdSchedule
 import app.myspoti.spotify.bridge.Bridge
 import app.myspoti.spotify.bridge.BridgeHost
 import kotlinx.coroutines.CoroutineScope
@@ -55,7 +54,6 @@ class EngineStateTest {
     private lateinit var engine: FakeEngine
 
     @BeforeEach fun up() {
-        AdSchedule.clear()
         scope = time.scope
         host = FakeHost()
         player = SpotifyPlayer(Bridge(host, scope, time::now), scope)
@@ -63,7 +61,7 @@ class EngineStateTest {
         player.audio = engine
     }
 
-    @AfterEach fun down() { AdSchedule.clear(); scope.cancel() }
+    @AfterEach fun down() { scope.cancel() }
 
     private fun track(name: String) =
         """{"kind":"track","uri":"spotify:track:$name","uid":"u$name","name":"$name","artists":[{"uri":"spotify:artist:X","name":"Artist $name"}],"durationMs":200000}"""

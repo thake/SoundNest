@@ -1,6 +1,5 @@
 package app.myspoti.host.cdp
 
-import app.myspoti.spotify.bridge.AdBlock
 import app.myspoti.spotify.bridge.BridgeHost
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -31,9 +30,8 @@ import java.util.concurrent.atomic.AtomicInteger
 /**
  * [BridgeHost] on a desktop Chrome started with `--remote-debugging-port`.
  *
- * Attaches to the open.spotify.com tab (or opens one), relays bridge messages through a CDP
- * binding, and fails the requests [AdBlock] refuses with `BlockedByClient`, like the
- * Android host does in `shouldInterceptRequest`.
+ * Attaches to the open.spotify.com tab (or opens one) and relays bridge messages through a CDP
+ * binding.
  */
 class CdpHost private constructor(private val socket: WebSocket, private val listener: Listener) : BridgeHost {
 
@@ -95,14 +93,10 @@ class CdpHost private constructor(private val socket: WebSocket, private val lis
                     if (params["name"]?.jsonPrimitive?.content == BINDING) messages.tryEmit(params["payload"]!!.jsonPrimitive.content)
                 "Fetch.requestPaused" -> {
                     val requestId = params["requestId"]!!.jsonPrimitive.content
-                    val request = params["request"]!!.jsonObject
-                    val url = request["url"]!!.jsonPrimitive.content
-                    // The device registration goes through as the Web Player sends it (see
-                    // DeviceRegistration.withDeviceName): the desktop host keeps the browser's own name.
-                    val reply = if (AdBlock.isBlocked(url)) {
-                        buildJsonObject { put("id", ids.incrementAndGet()); put("method", "Fetch.failRequest"); putJsonObject("params") { put("requestId", requestId); put("errorReason", "BlockedByClient") } }
-                    } else {
-                        buildJsonObject { put("id", ids.incrementAndGet()); put("method", "Fetch.continueRequest"); putJsonObject("params") { put("requestId", requestId) } }
+                    val reply = buildJsonObject {
+                        put("id", ids.incrementAndGet())
+                        put("method", "Fetch.continueRequest")
+                        putJsonObject("params") { put("requestId", requestId) }
                     }
                     webSocket.send(reply.toString())
                 }
@@ -142,7 +136,6 @@ class CdpHost private constructor(private val socket: WebSocket, private val lis
             host.send("Runtime.addBinding", buildJsonObject { put("name", BINDING) })
             host.send("Fetch.enable", buildJsonObject {
                 put("patterns", buildJsonArray {
-                    AdBlock.hosts.forEach { h -> add(buildJsonObject { put("urlPattern", "*://$h/*") }) }
                     add(buildJsonObject { put("urlPattern", "*/track-playback/v1/devices") })
                 })
             })

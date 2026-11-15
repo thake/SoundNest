@@ -50,8 +50,6 @@ object Graph {
         // A watch linked before reaches this phone over the Wi-Fi too, while the app runs.
         com.music.spotui.wear.WatchLan.startIfLinked(application)
         com.music.spotui.radio.RadioFavoritesStore.init(application)
-        // SponsorBlock for podcasts: idle until turned on in the settings.
-        com.music.spotui.podcast.SponsorSkip.init()
     }
 
     val api: Api by lazy { Api(app) }

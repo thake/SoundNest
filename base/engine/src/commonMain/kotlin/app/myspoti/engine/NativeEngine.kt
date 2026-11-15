@@ -25,7 +25,7 @@ sealed class EngineEvent {
     data class TrackLoading(val uri: String, val stateId: String) : EngineEvent()
     data class StateReported(val debugSource: String, val position: Long?) : EngineEvent()
     data class Preloaded(val uri: String) : EngineEvent()
-    /** A server-inserted ad is current. The engine fetches and reports nothing for it (ADS.md). */
+    /** A server-inserted ad is current; the encrypted fMP4 engine stops without skipping it. */
     data class AdBreak(val uri: String, val durationMs: Long) : EngineEvent()
     object ContextEnded : EngineEvent()
     data class TokenRefreshed(val url: String) : EngineEvent()
@@ -386,12 +386,9 @@ class NativeEngine(
     /** [track] comes from the same state machine as [state]: a PUT answer in between may renumber tracks. */
     private suspend fun load(state: SmState, track: SmTrack, position: Long, paused: Boolean, reasonStart: String, previousPosition: Long?) {
         if (track.contentType == "AD") {
-            // No ad request is made and nothing is reported as played (decision of 2026-10-16).
             current = null
             player.stop()
             emit(EngineEvent.AdBreak(track.metadata.uri, track.metadata.duration))
-            // On to the next song (outside this handler: a command waits for the lock it holds).
-            scope.launch { runCatching { command("skip_next") }.onFailure { emit(EngineEvent.Failure("ad not passed: ${it.message}")) } }
             return
         }
         emit(EngineEvent.TrackLoading(track.metadata.uri, state.id))

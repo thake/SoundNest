@@ -694,17 +694,6 @@
     <string name="settings_lyrics_keep_awake_title">Garder l\'écran allumé avec les paroles</string>
     <string name="settings_lyrics_keep_awake_detail">Tant que les paroles sont ouvertes, l\'écran ne s\'éteint pas tout seul pendant 10 minutes après votre dernier toucher, ou tant que le téléphone charge.</string>
     <string name="settings_section_podcasts">Podcasts</string>
-    <string name="sponsorblock_detail">Saute les passages sponsorisés et autres parties d\'épisodes de podcast signalées par la communauté SponsorBlock. Interroge sponsor.ajay.app sur l\'épisode en cours (et YouTube, pour trouver sa mise en ligne si besoin) ; rien sur vous ni sur votre compte n\'est envoyé.</string>
-    <string name="sponsorblock_skip_header">Parties à sauter</string>
-    <string name="sponsorblock_cat_sponsor">Sponsors</string>
-    <string name="sponsorblock_cat_sponsor_detail">Promotions payées et lectures de pub</string>
-    <string name="sponsorblock_cat_selfpromo">Autopromotion</string>
-    <string name="sponsorblock_cat_selfpromo_detail">Produits de l\'émission, Patreon, autres émissions</string>
-    <string name="sponsorblock_cat_intro_outro">Intro et outro</string>
-    <string name="sponsorblock_cat_intro_outro_detail">Musique d\'ouverture et de fin, crédits</string>
-    <string name="sponsorblock_cat_interaction">Rappels</string>
-    <string name="sponsorblock_cat_interaction_detail">Demandes de s\'abonner, noter ou suivre</string>
-    <string name="sponsorblock_skipped">Passé : %1$s</string>
     <string name="spatial_title">Audio spatial</string>
     <string name="spatial_enable">Élargir la stéréo</string>
     <string name="spatial_detail">Traitement mid/side : ce qui est sur les côtés ressort, ce qui est au centre reste en place. Seulement les titres des extensions, les téléchargements et les fichiers locaux : les flux de Spotify lui-même ne sont pas traités. Les titres mono, et tout quand c\'est désactivé, passent sans être touchés.</string>
@@ -839,7 +828,6 @@
     <string name="settings_ytm_sign_in_title">Se connecter à YouTube Music</string>
     <string name="settings_ytm_sync_note">Les écoutes sont comptées par le lecteur web de YouTube Music, sans le son. Les applis YouTube Music ne peuvent pas le contrôler.</string>
     <string name="settings_sign_in_close">Fermer</string>
-    <string name="connect_after_ad">Passe sur %1$s à la fin de la pub</string>
     <!-- Music videos -->
     <string name="av_switch_to_video">Passer à la vidéo</string>
     <string name="av_switch_to_audio">Passer à l\'audio</string>

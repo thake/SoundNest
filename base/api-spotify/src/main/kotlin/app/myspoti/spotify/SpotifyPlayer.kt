@@ -37,8 +37,6 @@ import kotlinx.serialization.json.putJsonArray
  * muted, skipped or left out here). [adPlaying] says an ad is on; ads are never exposed in
  * [state] (the last song stays there, buffering), and what the user asks for meanwhile (the page
  * refuses every play and skip then, "ad_disallow") is held and played once the ad is over.
- * The ad blocker only acts on a Spotify Connect device this player sends the music to
- * ([app.myspoti.spotify.bridge.AdBlock]).
  *
  * Stalls: on some phones the page stops between two songs (stuck past the end, paused at
  * the end with a next song, buffering for ever). After [STUCK_MS] the next song is played;
@@ -301,8 +299,6 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
         scope.launch {
             bridge.ready.collect {
                 if (!it) {
-                    // The page's queue went with it, and the ad due in it.
-                    app.myspoti.spotify.bridge.AdSchedule.clear()
                     // The page went away (reloaded by Android, the WebView or the host): what
                     // played then is picked up again once the new page is there.
                     // A page that unloads reports "nothing plays" first: the song before that counts.
@@ -827,9 +823,8 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
                 // plays to its end; nothing is muted or skipped from here.
                 notStalled()
                 if (remoteActive) {
-                    // On another device of the account (Connect, Cast): the ad blocker for Connect
-                    // devices looks after it (AdBlock); a reload or a play of the next song from here
-                    // was refused by that device, or pulled playback back to the phone.
+                    // On another device of the account (Connect, Cast): a reload or a play of the next song
+                    // from here would be refused by that device or pull playback back to the phone.
                     if (!remoteAdLogged) bridge.logger?.invoke("ad on another device: nothing done from here")
                     remoteAdLogged = true
                 } else if (now - adStateAt > AD_STATE_RECHECK_MS) {

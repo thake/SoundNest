@@ -408,7 +408,7 @@ private fun PlaybackPage(navController: NavController, open: (SettingsPage) -> U
     }
 }
 
-/** The library: what it shows (local files, Live Radio, hidden songs), new releases, and podcasts' SponsorBlock. */
+/** The library: what it shows (local files, Live Radio, hidden songs) and new releases. */
 @Composable
 private fun LibraryPage(navController: NavController, back: () -> Unit) {
     val ctx = LocalContext.current
@@ -447,8 +447,6 @@ private fun LibraryPage(navController: NavController, back: () -> Unit) {
                 )
             }
         }
-        // Podcasts: SponsorBlock (SponsorBlockGroup.kt).
-        sponsorBlockGroup()
     }
 }
 

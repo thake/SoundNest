@@ -363,14 +363,9 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
                 }
             }
         if (debuggable && registration) Logbook.log("registration answered: ${text.take(500)}")
-        if (debuggable && AD_MARK.containsMatchIn(text)) keepAdSample(method, url, body, text)
         if (it.code in 200..299 && url.contains("/track-playback/")) {
             // The songs' media manifests, for extensions to read (spotify.media).
             app.myspoti.spotify.bridge.MediaManifests.record(text)
-            // Where the next ad comes (read only: the reply goes to the page as it came).
-            val before = app.myspoti.spotify.bridge.AdSchedule.due.value
-            app.myspoti.spotify.bridge.AdSchedule.record(text)
-            app.myspoti.spotify.bridge.AdSchedule.due.value?.takeIf { d -> d != before }?.let { d -> Logbook.log("ad due after this song (${d.songUri}), then ${d.nextUri ?: "a song not named"}") }
         }
         reply(id, doc, it.code, out.toString(), text)
     }
@@ -436,20 +431,11 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
     @Volatile private var matrixPage = false
     @Volatile private var matrixPageLine: String? = null
 
-    /** The ads mode, for the 402 report: what this app does to ads (no setting: the blocker acts on Connect devices only). */
-    private fun adsMode() = "played (blocker ${if (app.myspoti.spotify.bridge.AdBlock.active.value) "on: music sent to a Spotify Connect device" else "off"}, " +
-        "ad due=${app.myspoti.spotify.bridge.AdSchedule.due.value != null})"
+    /** The ads mode, for the 402 report: ads play untouched as delivered by Spotify. */
+    private fun adsMode() = "played"
     @Volatile private var commandHeaders: String? = null
 
     private val debuggable = view.context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
-
-    /** Debug builds: a playback response that carries an ad, kept in cache/ad-samples for study. */
-    private fun keepAdSample(method: String, url: String, sent: String?, received: String) = runCatching {
-        val dir = java.io.File(view.context.cacheDir, "ad-samples").apply { mkdirs() }
-        java.io.File(dir, "${System.currentTimeMillis()}.json").writeText(
-            JSONObject().put("method", method).put("url", url.substringBefore('?')).put("sent", sent ?: "").put("received", received).toString())
-        Logbook.log("relay: ad in $method ${shortPath(url)} (sample kept)")
-    }
 
     /** A Connect command's shape, without ids: endpoint, license, picked song, origin. */
     private fun commandSummary(body: String): String = runCatching {
@@ -784,8 +770,6 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
                 list.joinToString("; ", "[", "]") +
                 (if (restrictions.isNotEmpty()) " restrictions: $restrictions" else "")).take(700)
         }.getOrNull()
-
-        private val AD_MARK = Regex("\"is_advertisement\"\\s*:\\s*\"?true|spotify:ad:|\"ad_id\"")
 
         /** Wraps window.fetch; the same pattern as [RELAYED]. */
         private val SCRIPT = """

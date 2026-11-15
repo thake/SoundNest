@@ -697,17 +697,6 @@
     <string name="settings_lyrics_keep_awake_title">Nie wygaszaj ekranu przy tekście</string>
     <string name="settings_lyrics_keep_awake_detail">Gdy tekst jest otwarty, ekran nie wyłącza się sam przez 10 minut od ostatniego dotknięcia lub dopóki telefon się ładuje.</string>
     <string name="settings_section_podcasts">Podcasty</string>
-    <string name="sponsorblock_detail">Pomija lokowania sponsorów i inne fragmenty odcinków podcastów oznaczone przez społeczność SponsorBlock. Pyta sponsor.ajay.app o odtwarzany odcinek (i YouTube, by w razie potrzeby znaleźć jego wersję); nic o Tobie ani Twoim koncie nie jest wysyłane.</string>
-    <string name="sponsorblock_skip_header">Fragmenty do pominięcia</string>
-    <string name="sponsorblock_cat_sponsor">Sponsorzy</string>
-    <string name="sponsorblock_cat_sponsor_detail">Płatne promocje i czytane reklamy</string>
-    <string name="sponsorblock_cat_selfpromo">Autopromocja</string>
-    <string name="sponsorblock_cat_selfpromo_detail">Gadżety audycji, Patreon, inne audycje</string>
-    <string name="sponsorblock_cat_intro_outro">Intro i outro</string>
-    <string name="sponsorblock_cat_intro_outro_detail">Muzyka na początek i koniec, napisy</string>
-    <string name="sponsorblock_cat_interaction">Przypomnienia</string>
-    <string name="sponsorblock_cat_interaction_detail">Prośby o obserwowanie, ocenę lub subskrypcję</string>
-    <string name="sponsorblock_skipped">Pominięto: %1$s</string>
     <string name="spatial_title">Dźwięk przestrzenny</string>
     <string name="spatial_enable">Poszerz stereo</string>
     <string name="spatial_detail">Przetwarzanie mid/side: to, co po bokach, staje się wyraźniejsze, to, co w środku, zostaje na miejscu. Tylko utwory z rozszerzeń, pobrane i pliki lokalne: własne strumienie Spotify nie są przetwarzane. Utwory mono, a po wyłączeniu wszystko, przechodzą nietknięte.</string>
@@ -824,5 +813,4 @@
     <string name="settings_ytm_sign_in_title">Zaloguj się do YouTube Music</string>
     <string name="settings_ytm_sync_note">Odtworzenia liczy sam odtwarzacz webowy YouTube Music, bez dźwięku. Aplikacje YouTube Music nie mogą nim sterować.</string>
     <string name="settings_sign_in_close">Zamknij</string>
-    <string name="connect_after_ad">Przejdzie na %1$s po zakończeniu reklamy</string>
 </resources>

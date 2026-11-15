@@ -12,7 +12,7 @@ import kotlinx.serialization.json.jsonObject
  * Where the Web Player page runs: an Android WebView or desktop Chrome over CDP.
  *
  * A host loads open.spotify.com with the user's session, injects [BridgeScript] after each
- * page load, refuses what [AdBlock.isBlocked] says and relays the page's messages.
+ * page load, and relays the page's messages.
  */
 interface BridgeHost {
     /** Runs [script] in the page. Fire and forget: answers come back through [messages]. */

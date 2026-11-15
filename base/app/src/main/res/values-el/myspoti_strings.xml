@@ -682,17 +682,6 @@
     <string name="settings_lyrics_keep_awake_title">Οθόνη ανοιχτή με τους στίχους</string>
     <string name="settings_lyrics_keep_awake_detail">Όσο οι στίχοι είναι ανοιχτοί, η οθόνη δεν σβήνει μόνη της για 10 λεπτά μετά το τελευταίο άγγιγμα, ή όσο φορτίζει το τηλέφωνο.</string>
     <string name="settings_section_podcasts">Podcasts</string>
-    <string name="sponsorblock_detail">Παραλείπει χορηγικά μηνύματα και άλλα τμήματα επεισοδίων podcast που έχει σημειώσει η κοινότητα του SponsorBlock. Ρωτά το sponsor.ajay.app για το επεισόδιο που παίζει (και το YouTube, για να βρει τη μεταφόρτωσή του όταν χρειάζεται)· δεν στέλνεται τίποτα για εσάς ή τον λογαριασμό σας.</string>
-    <string name="sponsorblock_skip_header">Τμήματα για παράλειψη</string>
-    <string name="sponsorblock_cat_sponsor">Χορηγοί</string>
-    <string name="sponsorblock_cat_sponsor_detail">Πληρωμένες προωθήσεις και διαφημίσεις</string>
-    <string name="sponsorblock_cat_selfpromo">Αυτοπροβολή</string>
-    <string name="sponsorblock_cat_selfpromo_detail">Προϊόντα της εκπομπής, Patreon, άλλες εκπομπές</string>
-    <string name="sponsorblock_cat_intro_outro">Εισαγωγή και κλείσιμο</string>
-    <string name="sponsorblock_cat_intro_outro_detail">Μουσική αρχής και τέλους, τίτλοι</string>
-    <string name="sponsorblock_cat_interaction">Υπενθυμίσεις</string>
-    <string name="sponsorblock_cat_interaction_detail">Προτροπές για ακολούθηση, βαθμολογία ή εγγραφή</string>
-    <string name="sponsorblock_skipped">Παραλείφθηκε: %1$s</string>
     <string name="spatial_title">Χωρικός ήχος</string>
     <string name="spatial_enable">Διεύρυνση του στερεοφωνικού</string>
     <string name="spatial_detail">Επεξεργασία mid/side: ό,τι βρίσκεται στα πλάγια αναδεικνύεται, ό,τι βρίσκεται στη μέση μένει στη θέση του. Μόνο τραγούδια από επεκτάσεις, λήψεις και τοπικά αρχεία: οι ροές του ίδιου του Spotify δεν επεξεργάζονται. Τα μονοφωνικά τραγούδια, και όλα όταν είναι ανενεργό, περνούν ανέγγιχτα.</string>
@@ -809,5 +798,4 @@
     <string name="settings_ytm_sign_in_title">Σύνδεση στο YouTube Music</string>
     <string name="settings_ytm_sync_note">Τις αναπαραγωγές τις μετράει το ίδιο το πρόγραμμα αναπαραγωγής web του YouTube Music, χωρίς ήχο. Οι εφαρμογές του YouTube Music δεν μπορούν να το ελέγξουν.</string>
     <string name="settings_sign_in_close">Κλείσιμο</string>
-    <string name="connect_after_ad">Μεταφέρεται στο %1$s μόλις τελειώσει η διαφήμιση</string>
 </resources>

@@ -350,8 +350,8 @@ Timeline events: `{sn, ct, ms, ps, et, ...}`, `sn` from 0 per playback, `ct` wal
 
 ## 10. What the native engine leaves out
 
-- Ads: `ads/v2/config` and ad audio are never requested. A state whose track is `content_type:
-  AD` is not loaded and nothing is reported for it; the caller is told (`AdBreak`). ADS.md.
+- Ads: `ads/v2/config` and plain MP3 ad streams are not supported by the encrypted fMP4 resolver. A state whose track is `content_type:
+  AD` stops playback and notifies the caller (`AdBreak`).
 - Canvas and music video (`manifests/v9`, `video-fa.scdn.co`, the `overture` melody batches with
   `play_track: spotify:canvas:...`), `gabo-receiver-service` UI events, `client_event` debug
   logs, `remote-config-resolver`, `melody/v1/time` (server clock), CORS preflights.
@@ -380,7 +380,7 @@ storage-resolve, seektable or licence round trip. The Web Player itself resolved
 | Gap | Capture |
 |---|---|
 | End of context (`advance` null, autoplay off): what is PUT, what is pushed | same with a single-track context and autoplay off in the account settings |
-| `jssdk_playback_error` and `debug_source: "error"` bodies (load failure) | a long `capture --play --bodies 'track-playback\|melody'` with the ad audio host blocked (ADS.md test) |
+| `jssdk_playback_error` and `debug_source: "error"` bodies (load failure) | capture a media load failure with `--bodies 'track-playback\|melody'` |
 | 401 and 429 answers of spclient (body, `Retry-After`) | not observed in any capture; the engine assumes standard HTTP semantics |
 | Dealer frames in Firefox (ffcap records no WebSocket frames) | Chrome captures (real1, connect-2tabs) are used instead |
 | Keep-alive: `device_keep_alive_update_seconds` 21600 suggests a re-register or PUT every 6 h | a 6 h+ capture |

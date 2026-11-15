@@ -281,8 +281,6 @@ fun SettingsScreen(navController: NavController) {
                 Text(stringResource(R.string.hidden_songs_title), color = AppText, fontSize = 16.sp)
                 Text(stringResource(R.string.hidden_songs_detail), color = AppMuted, fontSize = 12.sp)
             }
-            // Podcasts: SponsorBlock (SponsorBlockSettings.kt).
-            SponsorBlockSettings()
             }
             if (tab == TAB_LYRICS) {
             // Lyrics: word by word (karaoke) first, or line by line with Spotify's first.
