@@ -2034,11 +2034,12 @@ object SongPlayer {
         // again. The answer is not known (no device test yet); bounded, and a page without it is fine.
         kotlinx.coroutines.withTimeoutOrNull(DISCOVERY_WAIT_MS) { runCatching { MyspotiRuntime.spotify.raw.service("ConnectDiscoveryAPI", "startActiveDiscovery") } }
         runCatching { api.devices.refresh() }
-        val list = api.devices.devices.value.map { toConnectDevice(it) }
+        val rawList = api.devices.devices.value.map { toConnectDevice(it) }
             .sortedWith(compareByDescending<ConnectDevice> { it.isSelf }.thenBy { it.name })
+        val list = com.music.spotui.parental.TrustedNetworkGate.filterConnectDevices(Graph.app, rawList)
         _activeDevice.value = list.firstOrNull { it.isActive && !it.isSelf }
         // Kinds only (no names or ids): a report that says "no speaker" shows whether Spotify listed one.
-        app.myspoti.host.android.Logbook.log("connect: picker lists ${list.size} devices (${list.joinToString { it.type.lowercase() }})")
+        app.myspoti.host.android.Logbook.log("connect: picker lists ${list.size}/${rawList.size} devices (${list.joinToString { it.type.lowercase() }})")
         return list
     }
 
@@ -2094,16 +2095,25 @@ object SongPlayer {
         kotlinx.coroutines.withTimeoutOrNull(DEVICES_WAIT_MS) { runCatching { api.devices.refresh() } }
         Log.i(TAG, "device list read in ${System.currentTimeMillis() - started} ms")
         val active = api.devices.devices.value.firstOrNull { it.active }
-        _activeDevice.value = active?.takeIf { !it.local }?.let { toConnectDevice(it, forceRemoteActive = true) }
-        val remote = _activeDevice.value ?: return
-        if (remote.id == chosenRemote) return
+        val allowedRemote = active?.takeIf {
+            !it.local && com.music.spotui.parental.TrustedNetworkGate.isDeviceAllowed(Graph.app, it.id, isSelf = false)
+        }
+        _activeDevice.value = allowedRemote?.let { toConnectDevice(it, forceRemoteActive = true) }
+        val remote = active?.takeIf { !it.local }?.let { toConnectDevice(it, forceRemoteActive = true) } ?: return
+        if (remote.id == chosenRemote) {
+            if (allowedRemote != null) return
+            // Child left the trusted Home Wi-Fi (or parent hid this speaker): forget chosenRemote and pull here.
+            chosenRemote = null
+        }
         // A Jam joined here: the music plays on the host's device and the commands go to it (Connect,
         // to the session's device): pulling it back took the host's playback away and broke the Jam.
         // (The Jam is read again first when none is known: after a restart the app has not read it yet.)
-        if (api.jam.session.value == null) kotlinx.coroutines.withTimeoutOrNull(1_500) { runCatching { api.jam.refresh() } }
-        if (remote.id.startsWith("social-connect") || api.jam.session.value?.isHost == false) {
-            Log.i(TAG, "playback on ${remote.name} in a Jam: left there")
-            return
+        if (com.music.spotui.parental.TrustedNetworkGate.isJamAllowed(Graph.app)) {
+            if (api.jam.session.value == null) kotlinx.coroutines.withTimeoutOrNull(1_500) { runCatching { api.jam.refresh() } }
+            if (remote.id.startsWith("social-connect") || api.jam.session.value?.isHost == false) {
+                Log.i(TAG, "playback on ${remote.name} in a Jam: left there")
+                return
+            }
         }
         Log.i(TAG, "playback taken by ${remote.name}: pulled back here")
         // A pull-back can land on this phone at 0:00 (reported: "sometimes on Connect the sound
@@ -2142,6 +2152,10 @@ object SongPlayer {
 
     /** Move playback to [device] (Spotify Connect transfer). */
     fun transferTo(device: ConnectDevice) {
+        if (!com.music.spotui.parental.TrustedNetworkGate.isDeviceAllowed(Graph.app, device.id, isSelf = device.isSelf)) {
+            app.myspoti.host.android.Logbook.log("connect: transfer refused by TrustedNetworkGate")
+            return
+        }
         Haptics.confirm()
         transferNow(device)
     }

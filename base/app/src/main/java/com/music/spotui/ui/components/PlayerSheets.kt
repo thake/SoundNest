@@ -247,23 +247,31 @@ fun DevicesSheet(onDismiss: () -> Unit) {
                 if (remote != null) self?.let { SongPlayer.transferTo(it) } else AudioRoute.pickOutput(context)
                 onDismiss()
             }
-            if (list == null) {
+            val lanTick = com.music.spotui.connect.LanDiscovery.devices.size
+            val visibleList = remember(list, lanTick) {
+                list?.let { com.music.spotui.parental.TrustedNetworkGate.filterConnectDevices(context, it) }
+            }
+            if (visibleList == null) {
                 Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Green, modifier = Modifier.size(28.dp))
                 }
             } else {
-                list.filter { !it.isSelf && !it.isActive }.forEach { d ->
+                visibleList.filter { !it.isSelf && !it.isActive }.forEach { d ->
                     DeviceRow(deviceIcon(d.type), d.name, null) { SongPlayer.transferTo(d); onDismiss() }
                 }
-                if (list.none { !it.isSelf } && !headphones && remote == null && com.music.spotui.cast.CastDiscovery.devices.isEmpty() &&
-                    com.music.spotui.connect.LanDiscovery.devices.isEmpty() && com.music.spotui.cast.CastPlayback.device.value == null)
+                val lanVisible = com.music.spotui.parental.TrustedNetworkGate.canProvisionLanDevices(context) &&
+                    com.music.spotui.connect.LanDiscovery.devices.isNotEmpty()
+                if (visibleList.none { !it.isSelf } && !headphones && remote == null && com.music.spotui.cast.CastDiscovery.devices.isEmpty() &&
+                    !lanVisible && com.music.spotui.cast.CastPlayback.device.value == null)
                     Text(stringResource(R.string.no_devices), color = AppText.copy(alpha = 0.7f), modifier = Modifier.padding(20.dp))
             }
             // Spotify Connect devices of the network that are not logged in to the account yet.
             com.music.spotui.connect.LanDeviceRows()
             // Cast devices, for Myspoti's own songs (Spotify's go through Spotify Connect above).
             com.music.spotui.cast.CastDeviceRows(onDismiss)
-            JamSection(onDismiss)
+            if (com.music.spotui.parental.TrustedNetworkGate.isJamAllowed(context)) {
+                JamSection(onDismiss)
+            }
             // Bluetooth: pair or pick headphones and speakers in the system settings.
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -417,6 +425,10 @@ private fun JamSection(onDismiss: () -> Unit) {
  * was shown as a failure. Only an answer Spotify refused (or a link that is not one) says so now.
  */
 private fun joinJam(context: android.content.Context, raw: String, onDismiss: () -> Unit) {
+    if (!com.music.spotui.parental.TrustedNetworkGate.isJamAllowed(context)) {
+        onDismiss()
+        return
+    }
     fun failed() = android.widget.Toast.makeText(context.applicationContext, context.getString(R.string.jam_failed), android.widget.Toast.LENGTH_SHORT).show()
     onDismiss()
     app.myspoti.host.android.MyspotiRuntime.scope.launch {

@@ -32,6 +32,16 @@ object LanLogin {
     /** Logs [d] in and moves the song to it (main thread). */
     fun start(d: LanDevice) {
         if (busy.value != null) return
+        if (!com.music.spotui.parental.TrustedNetworkGate.canProvisionLanDevices(Graph.app)) {
+            log("blocked by TrustedNetworkGate: untrusted network")
+            return
+        }
+        if (d.info.deviceId.isNotBlank() &&
+            !com.music.spotui.parental.TrustedNetworkGate.isDeviceAllowed(Graph.app, d.info.deviceId, isSelf = false)
+        ) {
+            log("blocked by TrustedNetworkGate: speaker disallowed")
+            return
+        }
         busy.value = d
         scope.launch {
             val device = runCatching { login(d) }
@@ -51,6 +61,9 @@ object LanLogin {
     }
 
     private suspend fun login(d: LanDevice): SongPlayer.ConnectDevice {
+        if (!com.music.spotui.parental.TrustedNetworkGate.canProvisionLanDevices(Graph.app)) {
+            throw IOException("Untrusted network")
+        }
         connectDevice(d)?.let { log("already a Spotify Connect device"); return it }
         val spotify = MyspotiRuntime.spotify
         val user = (spotify.raw.service("UserAPI", "getUser") as? JsonObject)?.get("username")?.jsonPrimitive?.contentOrNull.orEmpty()
