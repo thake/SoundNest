@@ -1992,7 +1992,26 @@ object SongPlayer {
     private const val ACCOUNT_WAIT_MS = 10_000L
 
     // ── Spotify Connect ──
-    data class ConnectDevice(val id: String, val name: String, val type: String, val isSelf: Boolean, val isActive: Boolean)
+    data class ConnectDevice(
+        val id: String,
+        val name: String,
+        val type: String,
+        val isSelf: Boolean,
+        val isActive: Boolean,
+        val rawName: String = name,
+    )
+
+    private fun toConnectDevice(d: app.myspoti.api.Device, forceRemoteActive: Boolean = false): ConnectDevice {
+        val display = if (d.local) d.name else com.music.spotui.connect.CustomSpeakerNames.resolve(Graph.app, d.id, d.name)
+        return ConnectDevice(
+            id = d.id,
+            name = display,
+            type = d.type,
+            isSelf = if (forceRemoteActive) false else d.local,
+            isActive = if (forceRemoteActive) true else d.active,
+            rawName = d.name,
+        )
+    }
 
     private val _activeDevice = mutableStateOf<ConnectDevice?>(null)
     /** The device currently playing, when known and not this one. */
@@ -2002,7 +2021,7 @@ object SongPlayer {
         scope.launch {
             runCatching { api.devices.refresh() }
             val active = api.devices.devices.value.firstOrNull { it.active }
-            _activeDevice.value = active?.takeIf { !it.local }?.let { ConnectDevice(it.id, it.name, it.type, false, true) }
+            _activeDevice.value = active?.takeIf { !it.local }?.let { toConnectDevice(it, forceRemoteActive = true) }
             // A negative volume is a device with a fixed one (Web Player: disable_volume): not 0 %.
             active?.volume?.takeIf { it >= 0 }?.let { if (SystemClock.elapsedRealtime() > volumeHoldUntil) { _remoteVolume.intValue = (it * 100).toInt().coerceIn(0, 100); remoteVolumeOf = active.id } }
             PlaybackService.setPlaybackDevice(_activeDevice.value != null, remoteVolume)
@@ -2015,7 +2034,7 @@ object SongPlayer {
         // again. The answer is not known (no device test yet); bounded, and a page without it is fine.
         kotlinx.coroutines.withTimeoutOrNull(DISCOVERY_WAIT_MS) { runCatching { MyspotiRuntime.spotify.raw.service("ConnectDiscoveryAPI", "startActiveDiscovery") } }
         runCatching { api.devices.refresh() }
-        val list = api.devices.devices.value.map { ConnectDevice(it.id, it.name, it.type, it.local, it.active) }
+        val list = api.devices.devices.value.map { toConnectDevice(it) }
             .sortedWith(compareByDescending<ConnectDevice> { it.isSelf }.thenBy { it.name })
         _activeDevice.value = list.firstOrNull { it.isActive && !it.isSelf }
         // Kinds only (no names or ids): a report that says "no speaker" shows whether Spotify listed one.
@@ -2075,7 +2094,7 @@ object SongPlayer {
         kotlinx.coroutines.withTimeoutOrNull(DEVICES_WAIT_MS) { runCatching { api.devices.refresh() } }
         Log.i(TAG, "device list read in ${System.currentTimeMillis() - started} ms")
         val active = api.devices.devices.value.firstOrNull { it.active }
-        _activeDevice.value = active?.takeIf { !it.local }?.let { ConnectDevice(it.id, it.name, it.type, false, true) }
+        _activeDevice.value = active?.takeIf { !it.local }?.let { toConnectDevice(it, forceRemoteActive = true) }
         val remote = _activeDevice.value ?: return
         if (remote.id == chosenRemote) return
         // A Jam joined here: the music plays on the host's device and the commands go to it (Connect,
@@ -2142,7 +2161,7 @@ object SongPlayer {
                 api.devices.transfer(device.id)
                 api.player.play(context, trackUri = track.takeIf { it != context }, positionMs = at)
                 if (!wasPlaying) api.player.pause()
-                else com.music.spotui.connect.SonosLocal.afterTransfer(device.id, device.name, true)
+                else com.music.spotui.connect.SonosLocal.afterTransfer(device.id, device.rawName, true)
             }
             return
         }
@@ -2151,7 +2170,7 @@ object SongPlayer {
             if (device.isSelf) api.devices.pullHere() else {
                 api.devices.transfer(device.id)
                 // A Sonos may take the song and stay paused: its own play is pressed then.
-                com.music.spotui.connect.SonosLocal.afterTransfer(device.id, device.name, wanted)
+                com.music.spotui.connect.SonosLocal.afterTransfer(device.id, device.rawName, wanted)
             }
         }
     }
@@ -2215,12 +2234,20 @@ object SongPlayer {
     val sleepEndsAt: State<Long?> get() = _sleepEndsAt
     private val sleepRunnable = Runnable {
         _sleepEndsAt.value = null
-        // The fade ends in the pause itself.
-        if (sleepFade?.isActive != true) pauseSilently()
+        // The fade ends in the pause itself; if not running, pause local or remote Connect speaker now.
+        if (sleepFade?.isActive != true) pauseForSleepTimer()
     }
     private val sleepFadeRunnable = Runnable { startSleepFade() }
     private var sleepFade: kotlinx.coroutines.Job? = null
     private var sleepTrackId: String? = null
+
+    private fun pauseForSleepTimer() {
+        val remoteId = _activeDevice.value?.id
+        pauseSilently(send = true)
+        if (!remoteId.isNullOrBlank()) {
+            scope.launch { runCatching { api.devices.pause(remoteId) } }
+        }
+    }
 
     /** [minutes] null = off, 0 = at the end of the current track. */
     fun setSleepTimer(minutes: Int?) {
@@ -2258,8 +2285,22 @@ object SongPlayer {
                 fadeLocalOut(SLEEP_FADE_MS)
                 return@launch
             }
-            runCatching { api.player.pauseSlowly(SLEEP_FADE_MS) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
-            if (playing) { _sleepEndsAt.value = null; pauseSilently(send = false) }
+            val remoteId = _activeDevice.value?.id
+            val ok = runCatching { api.player.pauseSlowly(SLEEP_FADE_MS) }
+                .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+                .isSuccess
+            if (playing) {
+                _sleepEndsAt.value = null
+                var sentFallback = false
+                com.music.spotui.connect.RemoteSleepPauseCoordinator.finishRemoteSleepFade(
+                    remoteDeviceId = remoteId,
+                    pauseSlowlySucceeded = ok,
+                    remoteStillPlaying = { api.player.state.value?.isPaused == false },
+                    sendPlayerPause = { sentFallback = true; pauseSilently(send = true) },
+                    sendDirectDevicePause = { id -> api.devices.pause(id) },
+                )
+                if (!sentFallback) pauseSilently(send = false)
+            }
         }
     }
 
@@ -2299,7 +2340,7 @@ object SongPlayer {
             if (moved || atEnd) {
                 sleepTrackId = null
                 _sleepEndsAt.value = null
-                pauseSilently()
+                pauseForSleepTimer()
                 return
             }
             main.postDelayed(this, 250)

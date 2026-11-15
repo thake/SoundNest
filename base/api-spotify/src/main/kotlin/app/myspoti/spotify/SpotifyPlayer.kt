@@ -1704,12 +1704,15 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
     /** The native engine plays the account's songs now (not the page's element). */
     private fun engineHolds(): Boolean = outside()?.holdsPlayback == true
 
-    /** [audio] when it plays the account's songs now: turned on, and the page not the unheard mirror. */
+    /** [audio] when it is enabled on this phone (and the page is not the unheard mirror). */
     private fun outside(): AccountAudio? = audio?.takeIf { it.on && !mirroring }
+
+    /** [audio] only while a song is actually loaded on it (not when a remote Connect/Alexa speaker holds playback). */
+    private fun activeOutside(): AccountAudio? = outside()?.takeIf { it.holdsPlayback }
 
     override suspend fun play(contextUri: Uri, trackUri: Uri?, index: Int?, positionMs: Long?, order: List<Uri>?) {
         userPlays()
-        outside()?.let { a ->
+        outside()?.takeIf { it.holdsPlayback || !remoteActive }?.let { a ->
             pausedByUser = false
             userMoveAt = clock()
             // It could not play (it did not start, the licence was refused): the page plays, as before it existed.
@@ -1826,7 +1829,16 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
     override suspend fun pauseSlowly(fadeMs: Long) = pauseOver(fadeMs)
 
     private suspend fun pauseOver(fadeMs: Long) {
-        outside()?.let { a -> pausedByUser = true; a.pause(); return }
+        activeOutside()?.let { a ->
+            if (fadeMs > PAUSE_MS) {
+                if (a.now?.value?.playing == false) return
+                delay(fadeMs)
+                if (!a.holdsPlayback || a.now?.value?.playing == false) return
+            }
+            pausedByUser = true
+            a.pause()
+            return
+        }
         // A long fade is still playing: the song is only marked paused once it is.
         if (fadeMs <= PAUSE_MS) pausedByUser = true
         endCrossfade(restore = true)
@@ -1834,7 +1846,11 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
         // orphan session a fresh page finds makes the page claim it with a transfer first —
         // refused with a 402 on some free accounts, and the page then hung ~13 s on it (tester
         // report, beta.9). An ad keeps the old song's state paused-looking: sent then.
-        val s = _state.value
+        var s = _state.value
+        if (!_adPlaying.value && (s == null || s.isPaused) && remoteActive) {
+            runCatching { refresh() }
+            s = _state.value
+        }
         if (!_adPlaying.value && (s == null || s.isPaused)) {
             bridge.logger?.invoke("pause: nothing plays, not sent")
             return
@@ -1885,7 +1901,7 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
 
     override suspend fun resume() {
         userPlays()
-        outside()?.let { a -> pausedByUser = false; a.resume(); return }
+        activeOutside()?.let { a -> pausedByUser = false; a.resume(); return }
         // The user's pick around an ad they paused during: played now, in one play (held by
         // [playAsked] if an ad or a reload is still on), not the song before the ad.
         val pick = pickAfterPause?.takeIf { pausedByUser }
@@ -1955,7 +1971,7 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
         }
     }
     override suspend fun seek(positionMs: Long) {
-        outside()?.let { a -> a.seek(positionMs); return }
+        activeOutside()?.let { a -> a.seek(positionMs); return }
         endCrossfade(restore = true); command("player.seek", buildJsonObject { put("positionMs", positionMs) })
     }
     override suspend fun next() {
@@ -1964,7 +1980,7 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
         pickAfterReload = null
         userMoveAt = clock()
         userPlays()
-        outside()?.let { a -> a.next(); return }
+        activeOutside()?.let { a -> a.next(); return }
         if (skipsHeld) { stepIntent(1); return }
         // Another device plays: a play by name pulls the sound back to the phone (reported), only the
         // plain skip reaches that device, however long it takes to report the next song.
@@ -2010,7 +2026,7 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
         pickAfterReload = null
         userMoveAt = clock()
         userPlays()
-        outside()?.let { a -> a.previous(); return }
+        activeOutside()?.let { a -> a.previous(); return }
         if (skipsHeld) { stepIntent(-1); return }
         intent = null
         withFade {

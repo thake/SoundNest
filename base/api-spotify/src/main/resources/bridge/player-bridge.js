@@ -559,6 +559,53 @@
       return toJson(await svc[a.method](...(a.args || [])));
     },
 
+    // ConnectDevicesAPI.getDevices() returns class instances where name, displayName, aliases,
+    // brandDisplayName, modelDisplayName and type live on prototype getters omitted by Object.keys().
+    'connect.devices': async () => {
+      const list = await need().resolve('ConnectDevicesAPI').getDevices();
+      if (!Array.isArray(list)) return [];
+      const readStr = v => (typeof v === 'string' && v.trim().length > 0 ? v.trim() : '');
+      const readAliases = raw => {
+        if (!raw || typeof raw !== 'object') return [];
+        const entries = raw instanceof Map ? [...raw.values()]
+          : Array.isArray(raw) ? raw
+          : Object.keys(raw).map(k => raw[k]);
+        const out = [];
+        for (const e of entries) {
+          const n = typeof e === 'string' ? readStr(e)
+            : (e && typeof e === 'object' ? readStr(e.name || e.displayName || e.display_name) : '');
+          if (n && !out.includes(n)) out.push(n);
+        }
+        return out;
+      };
+      return list.map(d => {
+        if (!d || typeof d !== 'object') return null;
+        const id = readStr(d.id || d.connectStateId || d.deviceId);
+        if (!id) return null;
+        const directName = readStr(d.name) || readStr(d.displayName);
+        const aliases = readAliases(d.aliases || d.deviceAliases || d.device_aliases);
+        const brand = readStr(d.brandDisplayName || d.brand);
+        const model = readStr(d.modelDisplayName || d.model);
+        const brandModel = !brand && !model ? ''
+          : !brand ? model
+          : !model ? brand
+          : model.toLowerCase().startsWith(brand.toLowerCase()) ? model
+          : `${brand} ${model}`;
+        return {
+          id,
+          name: directName || aliases[0] || brandModel || '',
+          displayName: readStr(d.displayName),
+          aliases,
+          brandDisplayName: brand,
+          modelDisplayName: model,
+          type: readStr(d.type || d.deviceType) || 'unknown',
+          isActive: !!d.isActive,
+          isLocal: !!d.isLocal,
+          volume: typeof d.volume === 'number' ? d.volume : null,
+        };
+      }).filter(Boolean);
+    },
+
     // A playlist's cover, as the page's "Edit details" sets it: the JPEG goes to the image
     // upload service, then its token to the playlist. No jpeg (null): the cover is removed.
     // {uri, jpeg: base64 | null}

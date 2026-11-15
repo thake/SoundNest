@@ -106,7 +106,15 @@ object LanLogin {
                         listed = device != null
                         // Logged in but not in the list the page reads (yet): the transfer goes to the
                         // id it announced, which is its Connect id; a refusal is said by the transfer.
-                        return device ?: SongPlayer.ConnectDevice(info.deviceId, info.name.ifBlank { d.service }, "Speaker", false, false)
+                        val fallbackRaw = info.name.ifBlank { d.service }
+                        return device ?: SongPlayer.ConnectDevice(
+                            id = info.deviceId,
+                            name = CustomSpeakerNames.resolve(com.music.spotui.di.Graph.app, info.deviceId, fallbackRaw),
+                            type = "Speaker",
+                            isSelf = false,
+                            isActive = false,
+                            rawName = fallbackRaw,
+                        )
                             .also { ConnectCode.log("login: accepted but not listed, moving the song to its id") }
                     }
                     Zeroconf.CodeAnswer.GROUPED -> throw ConnectCode.Failure("grouped speaker?", grouped = true)
@@ -176,7 +184,14 @@ object LanLogin {
         runCatching { api.refresh() }
         val all = api.devices.value.filter { !it.local }
         val x = all.firstOrNull { it.id == d.info.deviceId } ?: all.firstOrNull { d.info.name.isNotBlank() && it.name == d.info.name } ?: return null
-        return SongPlayer.ConnectDevice(x.id, x.name, x.type, false, x.active)
+        return SongPlayer.ConnectDevice(
+            id = x.id,
+            name = CustomSpeakerNames.resolve(com.music.spotui.di.Graph.app, x.id, x.name),
+            type = x.type,
+            isSelf = false,
+            isActive = x.active,
+            rawName = x.name,
+        )
     }
 
     /** A stable id for this phone as a controller: the MD5 of its name, as Spotify's own clients derive one. */

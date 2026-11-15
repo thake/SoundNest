@@ -303,6 +303,8 @@ interface Devices {
     suspend fun pullHere()
     /** Sets the volume of the Connect device [deviceId] ([level] 0 to 1); false when it could not be sent this way. */
     suspend fun setVolume(deviceId: String, level: Double): Boolean = false
+    /** Sends a direct Connect pause command to [deviceId]; false when it could not be sent this way. */
+    suspend fun pause(deviceId: String): Boolean = false
 }
 
 interface Jam {

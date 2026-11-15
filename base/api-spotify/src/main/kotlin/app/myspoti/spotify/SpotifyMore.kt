@@ -487,7 +487,47 @@ class SpotifyTrackExtras(private val gql: Gql, private val bridge: Bridge, priva
     }
 }
 
-class SpotifyDevices(private val bridge: Bridge, private val http: SpotifyHttp? = null) : Devices {
+internal object ConnectDeviceLabels {
+    suspend fun fetchDevicesJson(bridge: Bridge): JsonArray =
+        (runCatching { bridge.call("connect.devices") }.getOrNull() as? JsonArray)
+            ?: (bridge.service("ConnectDevicesAPI", "getDevices") as? JsonArray)
+            ?: JsonArray(emptyList())
+
+    fun resolveName(d: JsonElement, type: String): String {
+        val obj = d as? kotlinx.serialization.json.JsonObject ?: return app.myspoti.engine.Cluster.humanDeviceType(type)
+        for (key in listOf("name", "displayName", "display_name")) {
+            obj.str(key)?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+        }
+        extractAliases(obj).firstOrNull()?.let { return it }
+        val brand = (obj.str("brandDisplayName") ?: obj.str("brand_display_name") ?: obj.str("brand"))?.trim().orEmpty()
+        val model = (obj.str("modelDisplayName") ?: obj.str("model_display_name") ?: obj.str("model"))?.trim().orEmpty()
+        app.myspoti.engine.Cluster.combineBrandModel(brand, model)?.let { return it }
+        return app.myspoti.engine.Cluster.humanDeviceType(type)
+    }
+
+    fun extractAliases(obj: kotlinx.serialization.json.JsonObject): List<String> {
+        val raw = obj["aliases"] ?: obj["deviceAliases"] ?: obj["device_aliases"] ?: return emptyList()
+        val items: Iterable<JsonElement> = when (raw) {
+            is JsonArray -> raw
+            is kotlinx.serialization.json.JsonObject -> raw.values
+            else -> emptyList()
+        }
+        return items.mapNotNull { entry ->
+            when (entry) {
+                is JsonPrimitive -> entry.content.takeIf { entry.isString }?.trim()?.takeIf { it.isNotEmpty() }
+                is kotlinx.serialization.json.JsonObject -> (entry.str("name") ?: entry.str("displayName") ?: entry.str("display_name"))
+                    ?.trim()?.takeIf { it.isNotEmpty() }
+                else -> null
+            }
+        }.distinct()
+    }
+}
+
+class SpotifyDevices(
+    private val bridge: Bridge,
+    private val http: SpotifyHttp? = null,
+    private val sender: (suspend (method: String, url: String, body: String?) -> Pair<Int, String>)? = null,
+) : Devices {
     /** A device id that is this app too (the native engine's, see [AccountAudio.deviceId]); null: none. */
     @Volatile var ownDeviceId: () -> String? = { null }
     private val _devices = MutableStateFlow<List<Device>>(emptyList())
@@ -495,14 +535,17 @@ class SpotifyDevices(private val bridge: Bridge, private val http: SpotifyHttp? 
 
     override suspend fun refresh() {
         val own = ownDeviceId()
-        _devices.value = (bridge.service("ConnectDevicesAPI", "getDevices") as? JsonArray).orEmpty().mapNotNull { d ->
+        _devices.value = ConnectDeviceLabels.fetchDevicesJson(bridge).mapNotNull { d ->
+            val id = (d.str("id") ?: d.str("connectStateId") ?: d.str("deviceId"))?.trim()?.takeIf { it.isNotEmpty() }
+                ?: return@mapNotNull null
+            val type = (d.str("type") ?: d.str("deviceType"))?.trim()?.takeIf { it.isNotEmpty() } ?: "unknown"
             Device(
-                id = d.str("id") ?: return@mapNotNull null,
-                name = d.str("name") ?: "",
-                type = d.str("type") ?: "unknown",
+                id = id,
+                name = ConnectDeviceLabels.resolveName(d, type),
+                type = type,
                 active = d.bool("isActive") ?: false,
                 volume = d.double("volume"),
-                local = d.bool("isLocal") ?: false || (own != null && d.str("id") == own),
+                local = d.bool("isLocal") ?: false || (own != null && id == own),
             )
         }
     }
@@ -518,18 +561,37 @@ class SpotifyDevices(private val bridge: Bridge, private val http: SpotifyHttp? 
         refresh()
     }
 
+    private suspend fun sendHttp(method: String, url: String, body: String): Pair<Int, String>? {
+        sender?.let { return it(method, url, body) }
+        val h = http ?: return null
+        return h.send(method, url, body, contentType = "application/json")
+    }
+
+    private suspend fun resolveLocalConnectId(): String? =
+        ownDeviceId() ?: _devices.value.firstOrNull { it.local }?.id
+            ?: runCatching { refresh(); _devices.value.firstOrNull { it.local }?.id }.getOrNull()
+
     /**
      * The volume of another device, as the Web Player's own slider sets it while that device plays
      * (connect-state `volume`, 0 to 65535), sent from this app's device. The page's own volume call
      * changed only the page's player: the computer kept its volume (reported on Ko-fi).
      */
     override suspend fun setVolume(deviceId: String, level: Double): Boolean {
-        val http = http ?: return false
-        val from = ownDeviceId() ?: _devices.value.firstOrNull { it.local }?.id
-            ?: runCatching { refresh(); _devices.value.firstOrNull { it.local }?.id }.getOrNull() ?: return false
+        val from = resolveLocalConnectId() ?: return false
         if (from == deviceId) return false
         val v = (level.coerceIn(0.0, 1.0) * 65535).toInt()
-        val (code, _) = http.send("PUT", "https://spclient.wg.spotify.com/connect-state/v1/connect/volume/from/$from/to/$deviceId", """{"volume":$v}""")
+        val (code, _) = sendHttp("PUT", "https://spclient.wg.spotify.com/connect-state/v1/connect/volume/from/$from/to/$deviceId", """{"volume":$v}""") ?: return false
+        return code in 200..299
+    }
+
+    override suspend fun pause(deviceId: String): Boolean {
+        if (deviceId.isBlank()) return false
+        val from = resolveLocalConnectId() ?: return false
+        val (code, _) = sendHttp(
+            "POST",
+            "https://spclient.wg.spotify.com/connect-state/v1/player/command/from/$from/to/$deviceId",
+            """{"command":{"endpoint":"pause"}}""",
+        ) ?: return false
         return code in 200..299
     }
 }
@@ -628,8 +690,8 @@ class SpotifyJam(private val bridge: Bridge, private val http: SpotifyHttp) : Ja
 
     /** The page's own Connect device id, or null when the page does not say. */
     private suspend fun localDevice(): String? = runCatching {
-        (bridge.service("ConnectDevicesAPI", "getDevices") as? kotlinx.serialization.json.JsonArray)
-            ?.firstOrNull { it.bool("isLocal") == true }?.let { it.str("id") ?: it.str("connectStateId") }
+        ConnectDeviceLabels.fetchDevicesJson(bridge)
+            .firstOrNull { it.bool("isLocal") == true }?.let { it.str("id") ?: it.str("connectStateId") }
     }.getOrNull()
 
     /**
@@ -639,7 +701,7 @@ class SpotifyJam(private val bridge: Bridge, private val http: SpotifyHttp) : Ja
     private suspend fun awaitJamDevice() {
         val end = System.currentTimeMillis() + 6_000
         while (System.currentTimeMillis() < end) {
-            val devices = runCatching { bridge.service("ConnectDevicesAPI", "getDevices") as? kotlinx.serialization.json.JsonArray }.getOrNull()
+            val devices = runCatching { ConnectDeviceLabels.fetchDevicesJson(bridge) }.getOrNull()
             if (devices?.any { it.bool("isActive") == true && it.bool("isLocal") != true } == true) return
             kotlinx.coroutines.delay(400)
         }

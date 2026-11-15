@@ -18,7 +18,7 @@ object DiagnosticDigest {
     private val TIME = Regex("""^(\d\d:\d\d:\d\d\.\d{3}) (.*)$""", RegexOption.DOT_MATCHES_ALL)
     private val CALL = Regex("""^call #(\d+) (\S+)""")
     /** Look-ups and polling: their calls and their answers ("call #12 … ok in 8 ms") go. */
-    private val QUIET_CALLS = setOf("library.contains", "player.state", "player.queue", "volume.get", "token.get", "media.state")
+    private val QUIET_CALLS = setOf("library.contains", "player.state", "player.queue", "volume.get", "token.get", "media.state", "connect.devices")
     private val QUIET_SERVICES = Regex(""""service":"(ConnectDevicesAPI|RootlistAPI|UserAPI|PlaylistPermissionsAPI|LibraryAPI)"""")
     private val NOISE = listOf(
         Regex("""^console WARNING: The resource .* was preloaded"""),
