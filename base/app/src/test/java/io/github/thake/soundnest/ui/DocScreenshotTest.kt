@@ -13,10 +13,13 @@ import android.graphics.Shader
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyListState
@@ -32,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
@@ -111,13 +115,16 @@ import io.github.thake.soundnest.parental.AppSurface
 import io.github.thake.soundnest.parental.ChangeParentPinDialog
 import io.github.thake.soundnest.parental.FilterMode
 import io.github.thake.soundnest.parental.HomeSectionConfig
+import io.github.thake.soundnest.parental.ManageContentRulesSheet
 import io.github.thake.soundnest.parental.NetworkSnapshot
+import io.github.thake.soundnest.parental.ParentAdminSessionBanner
 import io.github.thake.soundnest.parental.ParentPinPromptHost
 import io.github.thake.soundnest.parental.ParentPinSetupScreen
 import io.github.thake.soundnest.parental.ParentSecurityManager
 import io.github.thake.soundnest.parental.ParentSettingsScreen
 import io.github.thake.soundnest.parental.ParentalPolicy
 import io.github.thake.soundnest.parental.ParentalPolicyStore
+import io.github.thake.soundnest.parental.RuleLabelStore
 import io.github.thake.soundnest.parental.TrustedNetworkGate
 import io.github.thake.soundnest.radio.RadioFavorite
 import io.github.thake.soundnest.radio.RadioFavoritesStore
@@ -417,6 +424,17 @@ class DocScreenshotTest {
         )
     }
 
+    private fun seedRuleLabels(app: Application) {
+        RuleLabelStore.record(app, "playlist", "ghibli", "Studio Ghibli Piano", "Playlist • Parent Picks")
+        RuleLabelStore.record(app, "playlist", "roadtrip", "Family Road Trip Sing-Along", "Playlist • Spotify")
+        RuleLabelStore.record(app, "playlist", "curious", "Classical for Curious Minds", "Playlist • Mozart, Holst & Debussy")
+        RuleLabelStore.record(app, "album", "planets", "The Planets, Op. 32", "Album • Gustav Holst")
+        RuleLabelStore.record(app, "album", "dragon", "How to Train Your Dragon", "Album • John Powell")
+        RuleLabelStore.record(app, "artist", "holst", "Gustav Holst", "Artist • Classical")
+        RuleLabelStore.record(app, "artist", "hisaishi", "Joe Hisaishi", "Artist • Film Scores")
+        RuleLabelStore.record(app, "track", "explicit1", "Late-Night Club Anthem", "Track • Blocked by Parent")
+    }
+
     private fun resetShotDefaults(app: Application, look: Look) {
         LookPref.set(app, look)
         setLibraryGridView(app, false)
@@ -425,11 +443,19 @@ class DocScreenshotTest {
         ParentSecurityManager.setupInitialPin(app, "246810")
         ParentSecurityManager.lockNow(app)
 
+        val homeLanFp = "lan-net:gw=192.168.1.1|sub=192.168.1.0/24|dns=192.168.1.1|dom=home.arpa"
+        val homeLanLabel = "Home LAN (192.168.1.1 · home.arpa)"
         TrustedNetworkGate.resetForTests(app)
         TrustedNetworkGate.snapshotOverride = {
-            NetworkSnapshot(onWifi = true, ssid = "FamilyHomeWiFi", bssid = "aa:bb:cc:dd:ee:01")
+            NetworkSnapshot(
+                onWifi = true,
+                lanNetworkFingerprint = homeLanFp,
+                lanNetworkLabel = homeLanLabel,
+                discoveredLanDeviceIds = setOf("living-room-sonos"),
+            )
         }
-        TrustedNetworkGate.addTrustedWifi(app, "FamilyHomeWiFi", "aa:bb:cc:dd:ee:01")
+        TrustedNetworkGate.addTrustedLanFingerprint(app, homeLanFp, homeLanLabel)
+        TrustedNetworkGate.addTrustedLanFingerprint(app, "living-room-sonos", "Speaker: Living Room Sonos")
 
         ParentalPolicyStore.replace(
             app,
@@ -439,6 +465,7 @@ class DocScreenshotTest {
                 allowedPlaylistIds = approvedPlaylists,
                 allowedAlbumIds = approvedAlbums,
                 allowedArtistIds = approvedArtists,
+                blockedTrackIds = setOf("explicit1"),
                 blockedKeywords = setOf("explicit remix"),
                 allowPodcasts = true,
                 allowAudiobooks = true,
@@ -456,6 +483,7 @@ class DocScreenshotTest {
                 ),
             ),
         )
+        seedRuleLabels(app)
 
         seedFeedAndLibraryCache()
         seedMusicNowPlaying()
@@ -510,6 +538,7 @@ class DocScreenshotTest {
                     allowedPlaylistIds = approvedPlaylists,
                     allowedAlbumIds = approvedAlbums,
                     allowedArtistIds = approvedArtists,
+                    blockedTrackIds = setOf("explicit1"),
                     allowPodcasts = false,
                     allowAudiobooks = false,
                     homeSections = HomeSectionConfig(
@@ -519,6 +548,7 @@ class DocScreenshotTest {
                     ),
                 ),
             )
+            seedRuleLabels(app)
             seedFeedAndLibraryCache()
         }
 
@@ -541,6 +571,7 @@ class DocScreenshotTest {
                     ),
                 ),
             )
+            seedRuleLabels(app)
             seedFeedAndLibraryCache()
         }
 
@@ -556,6 +587,7 @@ class DocScreenshotTest {
                     allowedPlaylistIds = approvedPlaylists,
                     allowedAlbumIds = approvedAlbums,
                     allowedArtistIds = approvedArtists,
+                    blockedTrackIds = setOf("explicit1"),
                     blockedKeywords = setOf("explicit remix"),
                     allowPodcasts = false,
                     allowAudiobooks = false,
@@ -568,6 +600,7 @@ class DocScreenshotTest {
                     ),
                 ),
             )
+            seedRuleLabels(app)
             seedFeedAndLibraryCache()
         }
 
@@ -586,7 +619,7 @@ class DocScreenshotTest {
         add("Hero Overview", "parent-dashboard.png", "Parental Controls Dashboard", "PIN-locked configuration for filter modes, allowlists, and feature gates.", Look.CLASSIC, parentAdminPrep) {
             ParentSettingsScreen(navController = rememberNavController())
         }
-        add("Hero Overview", "kid-settings.png", "Kid-Accessible Settings", "Audio, appearance, and locked Parental Controls card.", Look.CLASSIC) {
+        add("Hero Overview", "kid-settings.png", "Kid-Accessible Settings", "Audio, appearance, and compact Parent Controls header icon.", Look.CLASSIC) {
             ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav) }
         }
         add("Hero Overview", "immersive-player.png", "Immersive Full-Screen Player", "Full-screen artwork mesh backdrop, scrubber, sleep timer, and transport controls.", Look.IMMERSIVE, prepare = {
@@ -626,12 +659,12 @@ class DocScreenshotTest {
         }
 
         // ── 3. Parental Controls & Security Gates ──
-        add("Parental Controls & Security", "parental/01-pin-setup.png", "Initial Parent PIN / Password Setup", "Mandatory setup screen with 4+ character PIN or password and trusted Wi-Fi option.", Look.CLASSIC, prepare = { app ->
+        add("Parental Controls & Security", "parental/01-pin-setup.png", "Initial Parent PIN / Password Setup", "Mandatory setup screen with 4+ character PIN or password and zero-permission Home LAN trust option.", Look.CLASSIC, prepare = { app ->
             ParentSecurityManager.resetForTests(app)
         }) {
             ParentPinSetupScreen(onPinConfigured = {}, onSwitchOrLogout = {})
         }
-        add("Parental Controls & Security", "parental/02-pin-unlock-prompt.png", "Parent Unlock Prompt", "Modal PIN/password prompt when tapping Unlock Parental Controls.", Look.CLASSIC, prepare = { app ->
+        add("Parental Controls & Security", "parental/02-pin-unlock-prompt.png", "Parent Unlock Prompt", "Modal PIN/password prompt with Forgot PIN recovery guidance.", Look.CLASSIC, prepare = { app ->
             ParentSecurityManager.runProtected(app, AppSurface.PARENT_CONTROLS) {}
         }) {
             ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav) }
@@ -651,7 +684,7 @@ class DocScreenshotTest {
         add("Parental Controls & Security", "parental/05-dashboard-top.png", "Dashboard: Security & Filter Mode", "Admin session status, PIN change, Filter Mode selector, and explicit/keyword rules.", Look.CLASSIC, parentAdminPrep) {
             ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(0, 0))
         }
-        add("Parental Controls & Security", "parental/06-dashboard-allowlists.png", "Dashboard: Content Allowlists", "Approved playlists, albums, and artists pickers & chips.", Look.CLASSIC, parentAdminPrep) {
+        add("Parental Controls & Security", "parental/06-dashboard-allowlists.png", "Dashboard: Content Allowlists & Rule Counts", "Approved playlists, albums, artists, and summary rule manager rows.", Look.CLASSIC, parentAdminPrep) {
             ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(1, 520))
         }
         add("Parental Controls & Security", "parental/07-dashboard-home-sections.png", "Dashboard: Home Customization", "Minimal Home mode, Parent Picks shelf, and shelf visibility toggles.", Look.CLASSIC, parentAdminPrep) {
@@ -660,14 +693,18 @@ class DocScreenshotTest {
         add("Parental Controls & Security", "parental/08-dashboard-feature-gates.png", "Dashboard: Feature Gates", "Granular switches for podcasts, audiobooks, lyrics, radio, local files, and library edits.", Look.CLASSIC, parentAdminPrep) {
             ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(3, 0))
         }
-        add("Parental Controls & Security", "parental/09-dashboard-speakers-network.png", "Dashboard: Speakers & Trusted Wi-Fi", "Trusted home Wi-Fi SSIDs and Spotify Connect speaker visibility rules.", Look.CLASSIC, parentAdminPrep) {
+        add("Parental Controls & Security", "parental/09-dashboard-speakers-network.png", "Dashboard: Speakers & Trusted Home LAN", "Zero-permission Home LAN & mDNS speaker fingerprints and Spotify Connect visibility rules.", Look.CLASSIC, parentAdminPrep) {
             ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(4, 0))
         }
         add("Parental Controls & Security", "parental/10-dashboard-backup-restore.png", "Dashboard: Encrypted Config Backup", "Passphrase-encrypted parental policy export and import.", Look.CLASSIC, parentAdminPrep) {
             ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(5, 0))
         }
-        add("Parental Controls & Security", "parental/11-settings-admin-unlocked.png", "Settings (Admin Session Active)", "Parental Controls banner in Settings while the 5-minute Admin Session is unlocked.", Look.CLASSIC, parentAdminPrep) {
+        add("Parental Controls & Security", "parental/11-settings-admin-unlocked.png", "Settings (Admin Session Active)", "Floating global Parent Mode banner while the 5-minute Admin Session is unlocked.", Look.CLASSIC, parentAdminPrep) {
             ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav) }
+        }
+        add("Parental Controls & Security", "parental/12-manage-content-rules-sheet.png", "Manage Content Rules Sheet", "Searchable Approved & Blocked item rules manager with human-readable titles.", Look.CLASSIC, parentAdminPrep) {
+            ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(1, 520))
+            ManageContentRulesSheet(initialTabIsApproved = true, onDismiss = {})
         }
 
         // ── 4. Classic Look — Complete Screen & Settings Catalog ──
@@ -1920,23 +1957,28 @@ class DocScreenshotTest {
         val nav = rememberNavController()
         val large = windowSize().large
         val routes = listOf(Routes.Home.route, Routes.Search.route, Routes.Library.route, Routes.Category.route, Routes.NewReleases.route, "detail")
-        Row(Modifier.fillMaxSize()) {
-            if (windowSize().navigationRail) MainNavigationRail(nav)
-            Scaffold(modifier = Modifier.weight(1f), bottomBar = { MainBottomNavigation(nav) }) { _ ->
-                NavHost(nav, startDestination = if (route in routes) route else "detail") {
-                    routes.forEach { r ->
-                        composable(r) {
-                            CompositionLocalProvider(LocalViewModelStoreOwner provides hostActivity) {
-                                Box(Modifier.fillMaxSize().background(Color(0xFF121212))) {
-                                    Box(
-                                        Modifier.fillMaxHeight().then(
-                                            if (large && capped) {
-                                                Modifier.fillMaxWidth().wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = WindowSize.MaxPageWidth)
-                                            } else {
-                                                Modifier.fillMaxWidth()
-                                            },
-                                        ),
-                                    ) { page(nav) }
+        Column(Modifier.fillMaxSize()) {
+            ParentAdminSessionBanner(onOpenParentSettings = {})
+            Box(Modifier.weight(1f).fillMaxSize()) {
+                Row(Modifier.fillMaxSize()) {
+                    if (windowSize().navigationRail) MainNavigationRail(nav)
+                    Scaffold(modifier = Modifier.weight(1f), bottomBar = { MainBottomNavigation(nav) }) { _ ->
+                        NavHost(nav, startDestination = if (route in routes) route else "detail") {
+                            routes.forEach { r ->
+                                composable(r) {
+                                    CompositionLocalProvider(LocalViewModelStoreOwner provides hostActivity) {
+                                        Box(Modifier.fillMaxSize().background(Color(0xFF121212))) {
+                                            Box(
+                                                Modifier.fillMaxHeight().then(
+                                                    if (large && capped) {
+                                                        Modifier.fillMaxWidth().wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = WindowSize.MaxPageWidth)
+                                                    } else {
+                                                        Modifier.fillMaxWidth()
+                                                    },
+                                                ),
+                                            ) { page(nav) }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1953,31 +1995,34 @@ class DocScreenshotTest {
         val chrome = rememberImmersiveChromeState()
         val routes = listOf(Routes.Home.route, Routes.Search.route, Routes.Library.route, Routes.Category.route, Routes.NewReleases.route, Routes.Queue.route, "detail")
         CompositionLocalProvider(LocalImmersiveChrome provides chrome) {
-            Box(Modifier.fillMaxSize()) {
-                NavHost(nav, startDestination = if (route in routes) route else "detail") {
-                    routes.forEach { r ->
-                        composable(r) {
-                            CompositionLocalProvider(LocalViewModelStoreOwner provides hostActivity) {
-                                Box(Modifier.fillMaxSize().background(Color.Black)) {
-                                    Box(
-                                        Modifier.fillMaxHeight().then(
-                                            if (large && capped) {
-                                                Modifier.fillMaxWidth().wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = WindowSize.MaxPageWidth)
-                                            } else {
-                                                Modifier.fillMaxWidth()
-                                            },
-                                        ),
-                                    ) { page(nav) }
+            Column(Modifier.fillMaxSize()) {
+                ParentAdminSessionBanner(onOpenParentSettings = {})
+                Box(Modifier.weight(1f).fillMaxSize()) {
+                    NavHost(nav, startDestination = if (route in routes) route else "detail") {
+                        routes.forEach { r ->
+                            composable(r) {
+                                CompositionLocalProvider(LocalViewModelStoreOwner provides hostActivity) {
+                                    Box(Modifier.fillMaxSize().background(Color.Black)) {
+                                        Box(
+                                            Modifier.fillMaxHeight().then(
+                                                if (large && capped) {
+                                                    Modifier.fillMaxWidth().wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = WindowSize.MaxPageWidth)
+                                                } else {
+                                                    Modifier.fillMaxWidth()
+                                                },
+                                            ),
+                                        ) { page(nav) }
+                                    }
                                 }
                             }
                         }
                     }
+                    ImmersiveBottomChrome(
+                        nav,
+                        miniPlayer = { m -> ImmersiveMiniPlayer(m) },
+                        modifier = Modifier.align(Alignment.BottomCenter),
+                    )
                 }
-                ImmersiveBottomChrome(
-                    nav,
-                    miniPlayer = { m -> ImmersiveMiniPlayer(m) },
-                    modifier = Modifier.align(Alignment.BottomCenter),
-                )
             }
         }
     }

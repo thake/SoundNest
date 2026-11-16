@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -735,8 +736,9 @@ fun CompactParentalControlsRow(onOpenParentSettings: () -> Unit) {
 }
 
 /**
- * Global floating status pill shown across the main app whenever the 5-minute Parent Mode session
- * is active (outside `ParentSettingsScreen`), giving parents a live countdown and 1-tap Lock.
+ * Global top status strip shown across the main app whenever the 5-minute Parent Mode session
+ * is active (outside `ParentSettingsScreen`), giving parents a live countdown and 1-tap Lock
+ * without overlapping screen TopAppBar titles or actions.
  */
 @Composable
 fun ParentAdminSessionBanner(
@@ -771,42 +773,57 @@ fun ParentAdminSessionBanner(
         AppAccent
     }
 
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    Column(
         modifier = modifier
-            .background(Color(0xEE181818), RoundedCornerShape(50))
-            .padding(start = 12.dp, end = 6.dp, top = 5.dp, bottom = 5.dp)
+            .fillMaxWidth()
+            .background(Color(0xFF141E17))
+            .statusBarsPadding()
             .testTag("global_parent_mode_banner"),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.clickable(onClick = onOpenParentSettings),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp),
         ) {
-            Icon(
-                imageVector = Icons.Default.Lock,
-                contentDescription = null,
-                tint = accent,
-                modifier = Modifier.height(15.dp),
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onOpenParentSettings),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier.height(15.dp),
+                )
+                Text(
+                    text = "Parent Mode unlocked · $timerText",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
             Text(
-                text = "Parent Mode · $timerText",
-                color = Color.White,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
+                text = "Lock",
+                color = Color.Black,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .background(accent, RoundedCornerShape(50))
+                    .clickable { ParentSecurityManager.lockNow(context) }
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                    .testTag("global_parent_mode_lock"),
             )
         }
-        Text(
-            text = "Lock",
-            color = Color.Black,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
+        Spacer(
             modifier = Modifier
-                .background(accent, RoundedCornerShape(50))
-                .clickable { ParentSecurityManager.lockNow(context) }
-                .padding(horizontal = 10.dp, vertical = 4.dp)
-                .testTag("global_parent_mode_lock"),
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(accent.copy(alpha = 0.35f)),
         )
     }
 }

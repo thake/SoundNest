@@ -90,35 +90,35 @@ fun App() {
         io.github.thake.soundnest.ui.immersive.shell.LocalImmersiveChrome provides if (immersive) chrome else null,
     ) {
         val rail = io.github.thake.soundnest.ui.components.windowSize().navigationRail
+        val navBackStackEntry by navController.currentBackStackEntryAsState()
+        val currentRoute = navBackStackEntry?.destination?.route
         androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
-            androidx.compose.foundation.layout.Row(Modifier.fillMaxSize()) {
-                if (rail && !immersive) io.github.thake.soundnest.ui.navigation.MainNavigationRail(navController)
-                Scaffold(
-                    modifier = Modifier.weight(1f),
-                    bottomBar = {
-                        if (!immersive) MainBottomNavigation(navController)
-                    }
-                ) {
-                    MyNavHost(
-                        navHostController = navController,
-                        modifier = if (immersive) Modifier.background(io.github.thake.soundnest.ui.immersive.Immersive.Page) else Modifier,
+            androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
+                if (currentRoute != io.github.thake.soundnest.ui.navigation.Routes.ParentSettings.route) {
+                    io.github.thake.soundnest.parental.ParentAdminSessionBanner(
+                        onOpenParentSettings = {
+                            navController.navigateSingleTop(io.github.thake.soundnest.ui.navigation.Routes.ParentSettings.route)
+                        },
                     )
                 }
-            }
-            if (immersive) ImmersiveShell(navController)
-            else io.github.thake.soundnest.ui.navigation.PlayerOverlay(navController)
-            val navBackStackEntry by navController.currentBackStackEntryAsState()
-            val currentRoute = navBackStackEntry?.destination?.route
-            if (currentRoute != io.github.thake.soundnest.ui.navigation.Routes.ParentSettings.route) {
-                io.github.thake.soundnest.parental.ParentAdminSessionBanner(
-                    onOpenParentSettings = {
-                        navController.navigateSingleTop(io.github.thake.soundnest.ui.navigation.Routes.ParentSettings.route)
-                    },
-                    modifier = Modifier
-                        .align(androidx.compose.ui.Alignment.TopCenter)
-                        .statusBarsPadding()
-                        .padding(top = 6.dp),
-                )
+                androidx.compose.foundation.layout.Box(Modifier.weight(1f).fillMaxSize()) {
+                    androidx.compose.foundation.layout.Row(Modifier.fillMaxSize()) {
+                        if (rail && !immersive) io.github.thake.soundnest.ui.navigation.MainNavigationRail(navController)
+                        Scaffold(
+                            modifier = Modifier.weight(1f),
+                            bottomBar = {
+                                if (!immersive) MainBottomNavigation(navController)
+                            }
+                        ) {
+                            MyNavHost(
+                                navHostController = navController,
+                                modifier = if (immersive) Modifier.background(io.github.thake.soundnest.ui.immersive.Immersive.Page) else Modifier,
+                            )
+                        }
+                    }
+                    if (immersive) ImmersiveShell(navController)
+                    else io.github.thake.soundnest.ui.navigation.PlayerOverlay(navController)
+                }
             }
             io.github.thake.soundnest.ui.components.HiddenSongUndo()
             io.github.thake.soundnest.parental.ParentPinPromptHost()

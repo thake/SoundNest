@@ -2,12 +2,12 @@
 
 Auto-generated deterministically by `./gradlew :app:generateDocScreenshots` ([`DocScreenshotTest.kt`](../../base/app/src/test/java/io/github/thake/soundnest/ui/DocScreenshotTest.kt)).
 
-Total captured screens, panels, dialogs & sheets: **124**.
+Total captured screens, panels, dialogs & sheets: **125**.
 
 ## Contents
 - [Hero Overview (6)](#hero-overview)
 - [Onboarding & Session (9)](#onboarding-session)
-- [Parental Controls & Security (11)](#parental-controls-security)
+- [Parental Controls & Security (12)](#parental-controls-security)
 - [Classic Look (40)](#classic-look)
 - [Immersive Look (46)](#immersive-look)
 - [Sheets & Modals (12)](#sheets-modals)
@@ -20,7 +20,7 @@ Total captured screens, panels, dialogs & sheets: **124**.
 | **Minimal Home (Strict Allowlist)** (`IMMERSIVE`) | <img src="minimal-home.png" width="180" alt="Minimal Home (Strict Allowlist)" /> | [`minimal-home.png`](minimal-home.png)<br/>Distraction-free home showing only parent-approved playlists and albums. |
 | **Mandatory Parent PIN Gate** (`CLASSIC`) | <img src="parent-pin-gate.png" width="180" alt="Mandatory Parent PIN Gate" /> | [`parent-pin-gate.png`](parent-pin-gate.png)<br/>Post-login security gate supporting a 4+ character PIN or password. |
 | **Parental Controls Dashboard** (`CLASSIC`) | <img src="parent-dashboard.png" width="180" alt="Parental Controls Dashboard" /> | [`parent-dashboard.png`](parent-dashboard.png)<br/>PIN-locked configuration for filter modes, allowlists, and feature gates. |
-| **Kid-Accessible Settings** (`CLASSIC`) | <img src="kid-settings.png" width="180" alt="Kid-Accessible Settings" /> | [`kid-settings.png`](kid-settings.png)<br/>Audio, appearance, and locked Parental Controls card. |
+| **Kid-Accessible Settings** (`CLASSIC`) | <img src="kid-settings.png" width="180" alt="Kid-Accessible Settings" /> | [`kid-settings.png`](kid-settings.png)<br/>Audio, appearance, and compact Parent Controls header icon. |
 | **Immersive Full-Screen Player** (`IMMERSIVE`) | <img src="immersive-player.png" width="180" alt="Immersive Full-Screen Player" /> | [`immersive-player.png`](immersive-player.png)<br/>Full-screen artwork mesh backdrop, scrubber, sleep timer, and transport controls. |
 
 ## Onboarding & Session
@@ -41,17 +41,18 @@ Total captured screens, panels, dialogs & sheets: **124**.
 
 | Screen | Preview | File & Description |
 | :--- | :---: | :--- |
-| **Initial Parent PIN / Password Setup** (`CLASSIC`) | <img src="parental/01-pin-setup.png" width="180" alt="Initial Parent PIN / Password Setup" /> | [`parental/01-pin-setup.png`](parental/01-pin-setup.png)<br/>Mandatory setup screen with 4+ character PIN or password and trusted Wi-Fi option. |
-| **Parent Unlock Prompt** (`CLASSIC`) | <img src="parental/02-pin-unlock-prompt.png" width="180" alt="Parent Unlock Prompt" /> | [`parental/02-pin-unlock-prompt.png`](parental/02-pin-unlock-prompt.png)<br/>Modal PIN/password prompt when tapping Unlock Parental Controls. |
+| **Initial Parent PIN / Password Setup** (`CLASSIC`) | <img src="parental/01-pin-setup.png" width="180" alt="Initial Parent PIN / Password Setup" /> | [`parental/01-pin-setup.png`](parental/01-pin-setup.png)<br/>Mandatory setup screen with 4+ character PIN or password and zero-permission Home LAN trust option. |
+| **Parent Unlock Prompt** (`CLASSIC`) | <img src="parental/02-pin-unlock-prompt.png" width="180" alt="Parent Unlock Prompt" /> | [`parental/02-pin-unlock-prompt.png`](parental/02-pin-unlock-prompt.png)<br/>Modal PIN/password prompt with Forgot PIN recovery guidance. |
 | **Brute-Force Cooldown Lockout** (`CLASSIC`) | <img src="parental/03-pin-unlock-lockout.png" width="180" alt="Brute-Force Cooldown Lockout" /> | [`parental/03-pin-unlock-lockout.png`](parental/03-pin-unlock-lockout.png)<br/>Exponential backoff lockout state after 5 failed PIN attempts. |
 | **Change Parent PIN / Password Dialog** (`CLASSIC`) | <img src="parental/04-change-pin-dialog.png" width="180" alt="Change Parent PIN / Password Dialog" /> | [`parental/04-change-pin-dialog.png`](parental/04-change-pin-dialog.png)<br/>Modal dialog to update the current parent PIN or password. |
 | **Dashboard: Security & Filter Mode** (`CLASSIC`) | <img src="parental/05-dashboard-top.png" width="180" alt="Dashboard: Security & Filter Mode" /> | [`parental/05-dashboard-top.png`](parental/05-dashboard-top.png)<br/>Admin session status, PIN change, Filter Mode selector, and explicit/keyword rules. |
-| **Dashboard: Content Allowlists** (`CLASSIC`) | <img src="parental/06-dashboard-allowlists.png" width="180" alt="Dashboard: Content Allowlists" /> | [`parental/06-dashboard-allowlists.png`](parental/06-dashboard-allowlists.png)<br/>Approved playlists, albums, and artists pickers & chips. |
+| **Dashboard: Content Allowlists & Rule Counts** (`CLASSIC`) | <img src="parental/06-dashboard-allowlists.png" width="180" alt="Dashboard: Content Allowlists & Rule Counts" /> | [`parental/06-dashboard-allowlists.png`](parental/06-dashboard-allowlists.png)<br/>Approved playlists, albums, artists, and summary rule manager rows. |
 | **Dashboard: Home Customization** (`CLASSIC`) | <img src="parental/07-dashboard-home-sections.png" width="180" alt="Dashboard: Home Customization" /> | [`parental/07-dashboard-home-sections.png`](parental/07-dashboard-home-sections.png)<br/>Minimal Home mode, Parent Picks shelf, and shelf visibility toggles. |
 | **Dashboard: Feature Gates** (`CLASSIC`) | <img src="parental/08-dashboard-feature-gates.png" width="180" alt="Dashboard: Feature Gates" /> | [`parental/08-dashboard-feature-gates.png`](parental/08-dashboard-feature-gates.png)<br/>Granular switches for podcasts, audiobooks, lyrics, radio, local files, and library edits. |
-| **Dashboard: Speakers & Trusted Wi-Fi** (`CLASSIC`) | <img src="parental/09-dashboard-speakers-network.png" width="180" alt="Dashboard: Speakers & Trusted Wi-Fi" /> | [`parental/09-dashboard-speakers-network.png`](parental/09-dashboard-speakers-network.png)<br/>Trusted home Wi-Fi SSIDs and Spotify Connect speaker visibility rules. |
+| **Dashboard: Speakers & Trusted Home LAN** (`CLASSIC`) | <img src="parental/09-dashboard-speakers-network.png" width="180" alt="Dashboard: Speakers & Trusted Home LAN" /> | [`parental/09-dashboard-speakers-network.png`](parental/09-dashboard-speakers-network.png)<br/>Zero-permission Home LAN & mDNS speaker fingerprints and Spotify Connect visibility rules. |
 | **Dashboard: Encrypted Config Backup** (`CLASSIC`) | <img src="parental/10-dashboard-backup-restore.png" width="180" alt="Dashboard: Encrypted Config Backup" /> | [`parental/10-dashboard-backup-restore.png`](parental/10-dashboard-backup-restore.png)<br/>Passphrase-encrypted parental policy export and import. |
-| **Settings (Admin Session Active)** (`CLASSIC`) | <img src="parental/11-settings-admin-unlocked.png" width="180" alt="Settings (Admin Session Active)" /> | [`parental/11-settings-admin-unlocked.png`](parental/11-settings-admin-unlocked.png)<br/>Parental Controls banner in Settings while the 5-minute Admin Session is unlocked. |
+| **Settings (Admin Session Active)** (`CLASSIC`) | <img src="parental/11-settings-admin-unlocked.png" width="180" alt="Settings (Admin Session Active)" /> | [`parental/11-settings-admin-unlocked.png`](parental/11-settings-admin-unlocked.png)<br/>Floating global Parent Mode banner while the 5-minute Admin Session is unlocked. |
+| **Manage Content Rules Sheet** (`CLASSIC`) | <img src="parental/12-manage-content-rules-sheet.png" width="180" alt="Manage Content Rules Sheet" /> | [`parental/12-manage-content-rules-sheet.png`](parental/12-manage-content-rules-sheet.png)<br/>Searchable Approved & Blocked item rules manager with human-readable titles. |
 
 ## Classic Look
 
