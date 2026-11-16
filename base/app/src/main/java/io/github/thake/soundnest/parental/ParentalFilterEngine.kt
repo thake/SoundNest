@@ -168,6 +168,14 @@ object ParentalFilterEngine {
         parentContextUri: String? = null,
         isAudiobookChapter: Boolean = false,
     ): Boolean {
+        // 0. Audible audiobook chapters (always fail-closed unless explicitly approved + connected)
+        if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(song.url) ||
+            io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(song.showId)
+        ) {
+            val ref = song.showId.ifBlank { song.url }
+            return isAudibleBookAllowed(ref, policy)
+        }
+
         // 1. Podcast episodes / audiobook chapters
         if (song.isEpisode || song.showId.isNotBlank()) {
             val gateOpen = if (isAudiobookChapter) policy.allowAudiobooks else policy.allowPodcasts
@@ -296,9 +304,15 @@ object ParentalFilterEngine {
         isAudiobook: Boolean = false,
         policy: ParentalPolicy,
     ): Boolean {
+        val unprefixed = showId.removePrefix(Api.SHOW_PREFIX)
+        if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(showId) ||
+            io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(unprefixed)
+        ) {
+            return isAudibleBookAllowed(unprefixed, policy)
+        }
         val gateOpen = if (isAudiobook) policy.allowAudiobooks else policy.allowPodcasts
         if (!gateOpen) return false
-        val id = ParentalPolicyStore.normalizeSpotifyId(showId.removePrefix(Api.SHOW_PREFIX))
+        val id = ParentalPolicyStore.normalizeSpotifyId(unprefixed)
         if (id.isNotEmpty() && id in policy.blockedShowIds) return false
         if (id.isNotEmpty() && id in policy.allowedShowIds) return true
         if (matchesBlockedText(policy, name, publisher, description)) return false
@@ -306,6 +320,18 @@ object ParentalFilterEngine {
             FilterMode.FILTERED_OPEN -> true
             FilterMode.STRICT_ALLOWLIST -> false
         }
+    }
+
+    fun isAudibleBookAllowed(
+        idOrUri: String,
+        policy: ParentalPolicy,
+        isConnected: Boolean? = null,
+    ): Boolean {
+        if (!policy.allowAudiobooks) return false
+        val connected = isConnected ?: io.github.thake.soundnest.audible.AudibleCredentialStore.isConnectedOrLoaded()
+        if (!connected) return false
+        val asin = ParentalPolicyStore.normalizeAudibleAsin(idOrUri)
+        return asin.isNotEmpty() && asin in policy.allowedAudibleAsins
     }
 
     fun isShowAllowed(show: PodcastModel, policy: ParentalPolicy): Boolean =
@@ -440,6 +466,9 @@ object ParentalFilterEngine {
         parentContextUri: String? = null,
     ): Boolean {
         val uri = canonicalUri(item.uri)
+        if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(uri)) {
+            return isAudibleBookAllowed(uri, policy)
+        }
         val kind = if (item.kind != MediaKind.UNKNOWN) item.kind else MediaKind.of(uri)
         val id = ParentalPolicyStore.normalizeSpotifyId(uri)
         val subtitle = item.subtitle.orEmpty()
@@ -548,6 +577,12 @@ object ParentalFilterEngine {
         if (entry.spotifyId == Api.HomeCache.LIKED_SONGS_ID) return entry
         if (entry.isFolder) {
             return entry.takeUnless { matchesBlockedText(policy, entry.name) }
+        }
+        if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(entry.spotifyId) ||
+            io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(entry.uri)
+        ) {
+            val ref = if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(entry.uri)) entry.uri else entry.spotifyId
+            return entry.takeIf { isAudibleBookAllowed(ref, policy) }
         }
         if (entry.spotifyId == Api.EPISODES_ID || entry.spotifyId == Api.NEW_EPISODES_ID) {
             return entry.takeIf { policy.allowPodcasts }

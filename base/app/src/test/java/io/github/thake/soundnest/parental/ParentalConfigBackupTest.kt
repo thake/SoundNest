@@ -170,4 +170,42 @@ class ParentalConfigBackupTest {
         assertTrue(futureSchema.isFailure)
         assertEquals(baseline, ParentalPolicyStore.current(context))
     }
+
+    @Test
+    fun `round-trip backup preserves Audible ASIN allowlist and Home pins while never exporting Audible tokens`() {
+        io.github.thake.soundnest.audible.AudibleCredentialStore.save(
+            context,
+            io.github.thake.soundnest.audible.AudibleSessionTokens(
+                marketplace = io.github.thake.soundnest.audible.AudibleMarketplace.DE,
+                deviceSerial = "DEV_SERIAL_99",
+                adpToken = "DO_NOT_EXPORT_ADP_TOKEN",
+                devicePrivateKeyPem = "DO_NOT_EXPORT_PRIVATE_KEY",
+                refreshToken = "DO_NOT_EXPORT_REFRESH_TOKEN",
+            ),
+        )
+        ParentalPolicyStore.update(context) {
+            it.copy(
+                allowAudiobooks = true,
+                homeSections = it.homeSections.copy(showPinnedAudibleOnHome = false),
+            )
+        }
+        ParentalPolicyStore.setAudibleBookAllowed(context, "B08G9PRS1K", allowed = true)
+        ParentalPolicyStore.setAudibleBookAllowed(context, "B07KIDSBOOK", allowed = true)
+        ParentalPolicyStore.setAudibleBookPinned(context, "B07KIDSBOOK", pinned = true)
+
+        val exportedJson = ParentalConfigBackup.exportJson(context)
+        assertFalse(exportedJson.contains("DO_NOT_EXPORT_ADP_TOKEN"))
+        assertFalse(exportedJson.contains("DO_NOT_EXPORT_PRIVATE_KEY"))
+        assertFalse(exportedJson.contains("DO_NOT_EXPORT_REFRESH_TOKEN"))
+
+        // Wipe and restore on sibling device
+        io.github.thake.soundnest.audible.AudibleCredentialStore.clear(context)
+        ParentalPolicyStore.resetForTests(context)
+
+        assertTrue(ParentalConfigBackup.importJson(context, exportedJson).isSuccess)
+        val restored = ParentalPolicyStore.current(context)
+        assertEquals(setOf("B08G9PRS1K", "B07KIDSBOOK"), restored.allowedAudibleAsins)
+        assertEquals(setOf("B07KIDSBOOK"), restored.pinnedAudibleAsins)
+        assertFalse(restored.homeSections.showPinnedAudibleOnHome)
+    }
 }

@@ -115,9 +115,17 @@ object HomeSectionFilter {
                 id.isNotEmpty() && id in policy.allowedArtistIds && id !in policy.blockedArtistIds
             }
             is HomeItem.Show -> {
-                val showsAllowed = policy.allowPodcasts || policy.allowAudiobooks
-                val id = ParentalPolicyStore.normalizeSpotifyId(item.id)
-                showsAllowed && id.isNotEmpty() && id in policy.allowedShowIds && id !in policy.blockedShowIds
+                if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(item.id)) {
+                    val asin = io.github.thake.soundnest.audible.AudibleUris.asinFromAny(item.id).orEmpty()
+                    policy.homeSections.showPinnedAudibleOnHome &&
+                        asin.isNotEmpty() &&
+                        asin in policy.pinnedAudibleAsins &&
+                        ParentalFilterEngine.isAudibleBookAllowed(asin, policy)
+                } else {
+                    val showsAllowed = policy.allowPodcasts || policy.allowAudiobooks
+                    val id = ParentalPolicyStore.normalizeSpotifyId(item.id)
+                    showsAllowed && id.isNotEmpty() && id in policy.allowedShowIds && id !in policy.blockedShowIds
+                }
             }
         }
     }
@@ -230,6 +238,10 @@ object HomeSectionFilter {
         is HomeItem.Playlist -> "playlist:${ParentalPolicyStore.normalizeSpotifyId(item.id).ifEmpty { item.name.lowercase() }}"
         is HomeItem.Album -> "album:${ParentalPolicyStore.normalizeSpotifyId(item.id).ifEmpty { item.name.lowercase() }}"
         is HomeItem.Artist -> "artist:${ParentalPolicyStore.normalizeSpotifyId(item.id).ifEmpty { item.name.lowercase() }}"
-        is HomeItem.Show -> "show:${ParentalPolicyStore.normalizeSpotifyId(item.id).ifEmpty { item.name.lowercase() }}"
+        is HomeItem.Show -> if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(item.id)) {
+            "audible:${io.github.thake.soundnest.audible.AudibleUris.asinFromAny(item.id).orEmpty().ifEmpty { item.name.lowercase() }}"
+        } else {
+            "show:${ParentalPolicyStore.normalizeSpotifyId(item.id).ifEmpty { item.name.lowercase() }}"
+        }
     }
 }

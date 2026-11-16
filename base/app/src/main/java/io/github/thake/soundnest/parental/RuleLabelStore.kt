@@ -45,6 +45,7 @@ object RuleLabelStore {
         "artist" -> "Artist"
         "track" -> "Track"
         "show" -> "Show"
+        "audible" -> "Audible Book"
         else -> kind.replaceFirstChar { it.uppercase() }
     }
 
@@ -110,7 +111,7 @@ object RuleLabelStore {
 
         return RuleLabel(
             title = "${kindDisplayName(normKind)} · $normId",
-            subtitle = "spotify:$normKind:$normId",
+            subtitle = if (normKind == "audible") "audible:book:$normId" else "spotify:$normKind:$normId",
         )
     }
 

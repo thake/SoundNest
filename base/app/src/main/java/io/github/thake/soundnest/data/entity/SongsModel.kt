@@ -44,6 +44,6 @@ data class SongsModel(
 ){
     constructor() : this(-1 ,"" ,"" ,"" ,"" ,"", "")
 
-    /** A podcast episode (url = "episode:<raw id>"), not a music track. */
-    val isEpisode : Boolean get() = url.startsWith("episode:")
+    /** A podcast episode (url = "episode:<raw id>") or Audible chapter ("audible:chapter:<asin>:<idx>"), not a music track. */
+    val isEpisode : Boolean get() = url.startsWith("episode:") || url.startsWith("audible:chapter:")
 }

@@ -209,6 +209,13 @@ object AudibleCredentialStore {
     }
 
     @Synchronized
+    fun isConnectedOrLoaded(): Boolean {
+        if (initialized) return cachedTokens != null
+        val app = runCatching { io.github.thake.soundnest.di.Graph.app }.getOrNull() ?: return false
+        return isConnected(app)
+    }
+
+    @Synchronized
     fun clear(context: Context) {
         prefs(context).edit().clear().commit()
         runCatching {

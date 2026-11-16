@@ -44,6 +44,16 @@ object SpotifyLinkGuard {
         val trimmed = rawLink.trim()
         if (trimmed.isEmpty()) return LinkDecision.Blocked("empty")
 
+        if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(trimmed)) {
+            val asin = io.github.thake.soundnest.audible.AudibleUris.asinFromAny(trimmed)
+                ?: return LinkDecision.Blocked("unrecognized_audible_uri")
+            return if (ParentalFilterEngine.isAudibleBookAllowed(asin, policy)) {
+                LinkDecision.OpenInAppPage(io.github.thake.soundnest.audible.AudibleUris.bookUri(asin))
+            } else {
+                LinkDecision.Blocked("audible_book_not_approved")
+            }
+        }
+
         if (!isSpotifyLink(trimmed)) {
             val normalizedWeb = if (trimmed.startsWith("www.", ignoreCase = true)) "https://$trimmed" else trimmed
             return LinkDecision.ExternalBrowser(normalizedWeb)

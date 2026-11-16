@@ -44,6 +44,7 @@ data class HomeSectionConfig(
     val showFilterChips: Boolean = true,
     val showDjCard: Boolean = false,
     val showParentPicks: Boolean = true,
+    val showPinnedAudibleOnHome: Boolean = true,
     val showChartsAndTrending: Boolean = true,
     val showMixesAndMadeForYou: Boolean = true,
     val showNewReleases: Boolean = true,
@@ -60,6 +61,8 @@ data class ParentalPolicy(
     val allowedArtistIds: Set<String> = emptySet(),
     val allowedPlaylistIds: Set<String> = emptySet(),
     val allowedShowIds: Set<String> = emptySet(),
+    val allowedAudibleAsins: Set<String> = emptySet(),
+    val pinnedAudibleAsins: Set<String> = emptySet(),
     val blockedTrackIds: Set<String> = emptySet(),
     val blockedAlbumIds: Set<String> = emptySet(),
     val blockedArtistIds: Set<String> = emptySet(),
@@ -117,6 +120,10 @@ object ParentalPolicyStore {
             .substringAfterLast('/')
             .trim()
 
+    fun normalizeAudibleAsin(raw: String): String =
+        io.github.thake.soundnest.audible.AudibleUris.asinFromAny(raw)
+            ?: normalizeSpotifyId(raw)
+
     @Synchronized
     fun current(context: Context = Graph.app): ParentalPolicy {
         if (!initialized) {
@@ -136,12 +143,17 @@ object ParentalPolicyStore {
     @Synchronized
     fun replace(context: Context, newPolicy: ParentalPolicy): ParentalPolicy {
         val app = context.applicationContext
-        prefs(app).edit().putString(KEY_POLICY_JSON, json.encodeToString(newPolicy)).apply()
-        _policyFlow.value = newPolicy
+        val sanitized = if (newPolicy.pinnedAudibleAsins.all { it in newPolicy.allowedAudibleAsins }) {
+            newPolicy
+        } else {
+            newPolicy.copy(pinnedAudibleAsins = newPolicy.pinnedAudibleAsins.intersect(newPolicy.allowedAudibleAsins))
+        }
+        prefs(app).edit().putString(KEY_POLICY_JSON, json.encodeToString(sanitized)).apply()
+        _policyFlow.value = sanitized
         initialized = true
         _revision.value++
-        syncRuntimeFlags(app, newPolicy)
-        return newPolicy
+        syncRuntimeFlags(app, sanitized)
+        return sanitized
     }
 
     @Synchronized
@@ -337,6 +349,47 @@ object ParentalPolicyStore {
             it.copy(
                 allowedShowIds = it.allowedShowIds - id,
                 blockedShowIds = it.blockedShowIds - id,
+            )
+        }
+    }
+
+    fun setAudibleBookAllowed(
+        context: Context,
+        asin: String,
+        allowed: Boolean,
+        title: String? = null,
+        subtitle: String? = null,
+    ) {
+        val id = normalizeAudibleAsin(asin).takeIf { it.isNotEmpty() } ?: return
+        if (allowed) {
+            RuleLabelStore.record(context, "audible", id, title, subtitle)
+            update(context) { it.copy(allowedAudibleAsins = it.allowedAudibleAsins + id) }
+        } else {
+            update(context) {
+                it.copy(
+                    allowedAudibleAsins = it.allowedAudibleAsins - id,
+                    pinnedAudibleAsins = it.pinnedAudibleAsins - id,
+                )
+            }
+        }
+    }
+
+    fun setAudibleBookPinned(context: Context, asin: String, pinned: Boolean) {
+        val id = normalizeAudibleAsin(asin).takeIf { it.isNotEmpty() } ?: return
+        update(context) {
+            when {
+                pinned && id in it.allowedAudibleAsins -> it.copy(pinnedAudibleAsins = it.pinnedAudibleAsins + id)
+                !pinned -> it.copy(pinnedAudibleAsins = it.pinnedAudibleAsins - id)
+                else -> it
+            }
+        }
+    }
+
+    fun clearAllAudibleRules(context: Context) {
+        update(context) {
+            it.copy(
+                allowedAudibleAsins = emptySet(),
+                pinnedAudibleAsins = emptySet(),
             )
         }
     }
