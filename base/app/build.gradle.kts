@@ -22,11 +22,27 @@ val RELEASE_ABIS = listOf("arm64-v8a", "armeabi-v7a")
 val ABI_NAMES = mapOf("arm64-v8a" to "ARMv8", "armeabi-v7a" to "ARMv7")
 val APK_NAME = "SoundNest"
 
+val generateDocScreenshotsRequested = providers.gradleProperty("docScreenshots").isPresent ||
+    gradle.startParameter.taskNames.any { it.endsWith("generateDocScreenshots") }
+
 android {
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
-            all { it.systemProperty("roborazzi.test.record", "true") }
+            all { testTask ->
+                testTask.systemProperty("roborazzi.test.record", "true")
+                if (generateDocScreenshotsRequested) {
+                    testTask.filter.includeTestsMatching("io.github.thake.soundnest.ui.DocScreenshotTest")
+                    testTask.systemProperty("soundnest.docScreenshots", "true")
+                    testTask.systemProperty(
+                        "soundnest.docScreenshotsDir",
+                        rootProject.file("../docs/screenshots").absolutePath,
+                    )
+                    testTask.outputs.upToDateWhen { false }
+                } else {
+                    testTask.filter.excludeTestsMatching("io.github.thake.soundnest.ui.DocScreenshotTest")
+                }
+            }
         }
     }
     namespace = "io.github.thake.soundnest"
@@ -212,3 +228,10 @@ tasks.register("collectApks") {
         dst.listFiles()?.sorted()?.forEach { println("${it.name}  ${it.length() / 1024 / 1024} MB") }
     }
 }
+
+tasks.register("generateDocScreenshots") {
+    group = "documentation"
+    description = "Renders headless Roborazzi documentation screenshots into docs/screenshots/."
+    dependsOn("testDebugUnitTest")
+}
+

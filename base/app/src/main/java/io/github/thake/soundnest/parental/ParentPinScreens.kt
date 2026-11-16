@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -447,15 +448,23 @@ fun ParentSecurityControlsSection(onOpenParentSettings: (() -> Unit)? = null) {
                 )
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = {
-                    TrustedNetworkGate.trustCurrentNetwork(context)
-                    trustedSsids = TrustedNetworkGate.trustedSsids(context)
-                }) {
-                    Text("Trust Current Wi-Fi", color = AppText)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(
+                    onClick = {
+                        TrustedNetworkGate.trustCurrentNetwork(context)
+                        trustedSsids = TrustedNetworkGate.trustedSsids(context)
+                    },
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Trust Current Wi-Fi", color = AppText, fontSize = 13.sp, maxLines = 1)
                 }
-                OutlinedButton(onClick = { showChangePin = true }) {
-                    Text("Change Parent PIN", color = AppText)
+                OutlinedButton(
+                    onClick = { showChangePin = true },
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Change Parent PIN", color = AppText, fontSize = 13.sp, maxLines = 1)
                 }
             }
         }
