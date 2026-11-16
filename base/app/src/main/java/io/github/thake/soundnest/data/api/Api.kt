@@ -465,10 +465,18 @@ class Api constructor(
     suspend fun searchEverything(query: String): Flow<Response<SearchResults>> = flow {
         emit(Response.Loading())
         if (query.isBlank()) { emit(Response.Success(SearchResults())); return@flow }
-        if (!readyToRead()) { emit(Response.Error(notSignedIn())); return@flow }
         val p = policy()
+        val audibleShows = io.github.thake.soundnest.audible.AudibleCatalogCache.matchingShows(context, query, p)
+        if (!readyToRead()) {
+            if (audibleShows.isNotEmpty()) emit(Response.Success(SearchResults(shows = audibleShows)))
+            else emit(Response.Error(notSignedIn()))
+            return@flow
+        }
         val music = runCatching { api.search.all(query, limit = 20) }.getOrElse {
-            Log.e("Api", "searchEverything failed", it); emit(Response.Error(it.message ?: "error")); return@flow
+            Log.e("Api", "searchEverything failed", it)
+            if (audibleShows.isNotEmpty()) emit(Response.Success(SearchResults(shows = audibleShows)))
+            else emit(Response.Error(it.message ?: "error"))
+            return@flow
         }
         val base = SearchResults(
             songs = music.tracks.items.map(::songOf).filter { io.github.thake.soundnest.parental.ParentalFilterEngine.isTrackAllowed(it, p) },
@@ -486,6 +494,7 @@ class Api constructor(
             }.filterNotNull(),
             artists = music.artists.items.map(::artistOf).filter { io.github.thake.soundnest.parental.ParentalFilterEngine.isArtistAllowed(it, p) },
             playlists = music.playlists.items.map(::playlistEntry).mapNotNull { io.github.thake.soundnest.parental.ParentalFilterEngine.filterLibraryEntry(it, p) },
+            shows = audibleShows,
         )
         emit(Response.Success(base))
         if (!p.allowPodcasts) return@flow
@@ -499,7 +508,7 @@ class Api constructor(
         val filteredEpisodes = episodes.map(::episodeSong)
             .filter { io.github.thake.soundnest.parental.ParentalFilterEngine.isTrackAllowed(it, p) }
         if (filteredShows.isNotEmpty() || filteredEpisodes.isNotEmpty()) emit(Response.Success(base.copy(
-            shows = filteredShows,
+            shows = audibleShows + filteredShows,
             episodes = filteredEpisodes,
         )))
     }
@@ -541,6 +550,21 @@ class Api constructor(
     suspend fun getShowPage(showId: String): Flow<Response<ShowPage>> = flow {
         emit(Response.Loading())
         val pol = policy()
+        if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(showId)) {
+            io.github.thake.soundnest.audible.AudibleShowPageLoader.load(context, showId, pol).fold(
+                onSuccess = { page ->
+                    val asin = io.github.thake.soundnest.audible.AudibleUris.asinFromAny(showId).orEmpty()
+                    if (asin.isNotEmpty()) {
+                        SongPlayer.registerContext(page.items.map { it.url }, io.github.thake.soundnest.audible.AudibleUris.bookUri(asin))
+                    }
+                    emit(Response.Success(page))
+                },
+                onFailure = { err ->
+                    emit(Response.Error(err.message ?: context.getString(R.string.page_load_failed)))
+                },
+            )
+            return@flow
+        }
         if (!pol.allowPodcasts && !pol.allowAudiobooks) { emit(Response.Error(context.getString(R.string.page_load_failed))); return@flow }
         if (!ready()) { emit(Response.Error(notSignedIn())); return@flow }
         val uri = "spotify:show:$showId"

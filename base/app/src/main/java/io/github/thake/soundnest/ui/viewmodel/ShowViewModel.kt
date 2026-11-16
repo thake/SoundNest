@@ -93,20 +93,26 @@ class ShowViewModel constructor(
                 // A failed page may be loaded again (Try again, or opening it anew).
                 if (response is Response.Error) showKey = null
                 if (loaded == null) return@collect
-                following.value = loaded.show.saved || SongPlayer.library["spotify:show:$showId"] == true
+                following.value = if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(showId)) {
+                    false
+                } else {
+                    loaded.show.saved || SongPlayer.library["spotify:show:$showId"] == true
+                }
                 if (!loaded.audiobook && loaded.items.isNotEmpty()) {
                     PodcastPrefs.markOpened(showId, loaded.items.maxOf { it.releaseDate }, following.value)
                 }
             }
         }
-        // The page's own "finished" marks are a separate set: read once, then the rows carry
-        // Spotify's playedState.
-        viewModelScope.launch(Dispatchers.IO) {
-            val marked = runCatching { api.finishedEpisodes() }.getOrDefault(emptySet())
-            if (marked.isEmpty()) return@launch
-            marked.forEach { uri ->
-                val id = uri.substringAfterLast(':')
-                finished["episode:$id"] = true
+        if (!io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(showId)) {
+            // The page's own "finished" marks are a separate set: read once, then the rows carry
+            // Spotify's playedState.
+            viewModelScope.launch(Dispatchers.IO) {
+                val marked = runCatching { api.finishedEpisodes() }.getOrDefault(emptySet())
+                if (marked.isEmpty()) return@launch
+                marked.forEach { uri ->
+                    val id = uri.substringAfterLast(':')
+                    finished["episode:$id"] = true
+                }
             }
         }
     }
@@ -117,6 +123,14 @@ class ShowViewModel constructor(
     /** "Marquer comme terminé" / "Marquer comme non commencé". */
     fun setFinished(episode: SongsModel, played: Boolean) {
         finished[episode.url] = played
+        if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(episode.url)) {
+            val asin = io.github.thake.soundnest.audible.AudibleUris.asinFromAny(episode.url)
+            val chapterIdx = io.github.thake.soundnest.audible.AudibleUris.chapterIndexFromUri(episode.url)
+            if (asin != null && chapterIdx != null) {
+                io.github.thake.soundnest.audible.AudibleProgressStore.setChapterFinished(Graph.app, asin, chapterIdx, played)
+            }
+            return
+        }
         viewModelScope.launch(Dispatchers.IO) {
             runCatching { api.setEpisodePlayed("spotify:episode:${episode.url.removePrefix("episode:")}", played) }
                 .onFailure {
@@ -127,6 +141,7 @@ class ShowViewModel constructor(
     }
 
     fun setFollow(showId: String, on: Boolean) {
+        if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(showId)) return
         following.value = on
         PodcastPrefs.setFollowed(showId, on)
         SongPlayer.setSaved("spotify:show:$showId", on)

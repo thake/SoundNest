@@ -118,6 +118,7 @@ fun LibraryScreen(navController: NavController) {
         val top = (entries as? Response.Success)?.data.orEmpty().take(8).mapNotNull { e ->
             when {
                 e.isFolder || LibraryEdits.isPending(e.spotifyId) || e.spotifyId.startsWith(LOCAL_PLAYLIST_PREFIX) -> null
+                io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(e.spotifyId) -> null
                 e.spotifyId in setOf(Api.HomeCache.LOCAL_FILES_ID, Api.HomeCache.EPISODES_ID) -> null
                 e.spotifyId == Api.HomeCache.LIKED_SONGS_ID -> "liked" to ""
                 e.isPlaylist -> "playlist" to e.spotifyId
@@ -138,8 +139,11 @@ fun LibraryScreen(navController: NavController) {
     var searchQuery by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
     // The filter chips under the title; the chosen one is kept while the screen is open.
     var chip by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(io.github.thake.soundnest.data.local.LibraryChip.ALL) }
-    androidx.compose.runtime.LaunchedEffect(policy.allowPodcasts) {
+    androidx.compose.runtime.LaunchedEffect(policy.allowPodcasts, policy.allowAudiobooks) {
         if (!policy.allowPodcasts && chip == io.github.thake.soundnest.data.local.LibraryChip.PODCASTS) {
+            chip = io.github.thake.soundnest.data.local.LibraryChip.ALL
+        }
+        if (!policy.allowAudiobooks && chip == io.github.thake.soundnest.data.local.LibraryChip.AUDIOBOOKS) {
             chip = io.github.thake.soundnest.data.local.LibraryChip.ALL
         }
     }
@@ -220,7 +224,11 @@ fun LibraryScreen(navController: NavController) {
             }
         }
 
-        LibraryChipRow(chip, allowPodcasts = policy.allowPodcasts) { chip = io.github.thake.soundnest.data.local.LibraryChips.toggle(chip, it) }
+        LibraryChipRow(
+            chosen = chip,
+            allowPodcasts = policy.allowPodcasts,
+            allowAudiobooks = policy.allowAudiobooks,
+        ) { chip = io.github.thake.soundnest.data.local.LibraryChips.toggle(chip, it) }
 
         // Grid/list switch, like the icon at the top-right of Spotify's library.
         Row(
@@ -380,6 +388,7 @@ fun LibraryScreen(navController: NavController) {
 private fun LibraryChipRow(
     chosen: io.github.thake.soundnest.data.local.LibraryChip,
     allowPodcasts: Boolean = true,
+    allowAudiobooks: Boolean = true,
     onTap: (io.github.thake.soundnest.data.local.LibraryChip) -> Unit,
 ) {
     val chips = listOf(
@@ -388,8 +397,12 @@ private fun LibraryChipRow(
         io.github.thake.soundnest.data.local.LibraryChip.ARTISTS to R.string.library_chip_artists,
         io.github.thake.soundnest.data.local.LibraryChip.ALBUMS to R.string.library_chip_albums,
         io.github.thake.soundnest.data.local.LibraryChip.PODCASTS to R.string.library_chip_podcasts,
+        io.github.thake.soundnest.data.local.LibraryChip.AUDIOBOOKS to R.string.library_chip_audiobooks,
         io.github.thake.soundnest.data.local.LibraryChip.SONGS to R.string.library_chip_songs,
-    ).filter { (c, _) -> c != io.github.thake.soundnest.data.local.LibraryChip.PODCASTS || allowPodcasts }
+    ).filter { (c, _) ->
+        (c != io.github.thake.soundnest.data.local.LibraryChip.PODCASTS || allowPodcasts) &&
+            (c != io.github.thake.soundnest.data.local.LibraryChip.AUDIOBOOKS || allowAudiobooks)
+    }
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier
@@ -536,7 +549,10 @@ fun SumUpLibraryScreen(
             val key = LibraryOrder.key(entry)
             val dragged = dragKey == key
             val movable = reorderLevel != null && index >= pinned
-            val hasMenu = entry.uri.isNotBlank() && !LibraryEdits.isPending(entry.spotifyId)
+            val hasMenu = entry.uri.isNotBlank() &&
+                !io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(entry.spotifyId) &&
+                !io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(entry.uri) &&
+                !LibraryEdits.isPending(entry.spotifyId)
             Row(
                 horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically,
@@ -649,6 +665,7 @@ const val LOCAL_PLAYLIST_PREFIX = "local-playlist:"
 private fun prefetchLibraryEntry(entry: LibraryEntry) = when {
     LibraryEdits.isPending(entry.spotifyId) -> Unit
     entry.isFolder || entry.spotifyId.startsWith(LOCAL_PLAYLIST_PREFIX) || entry.spotifyId.startsWith(Api.HomeCache.SHOW_PREFIX) -> Unit
+    io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(entry.spotifyId) -> Unit
     entry.spotifyId == Api.HomeCache.LOCAL_FILES_ID || entry.spotifyId == Api.HomeCache.EPISODES_ID || entry.spotifyId == Api.HomeCache.NEW_EPISODES_ID -> Unit
     entry.spotifyId == io.github.thake.soundnest.radio.RadioFeaturePref.LIBRARY_ENTRY_ID -> Unit
     entry.spotifyId == Api.HomeCache.LIKED_SONGS_ID -> ContextViewModel.prefetch("liked", "")
@@ -661,6 +678,7 @@ private fun openLibraryEntry(entry: LibraryEntry, navController: NavController) 
     if (LibraryEdits.isPending(entry.spotifyId)) return
     if (entry.isFolder) navController.navigate(folderRoute(entry.folderUri, entry.name))
     else if (entry.spotifyId.startsWith(LOCAL_PLAYLIST_PREFIX)) navController.navigate(localPlaylistRoute(entry.spotifyId.removePrefix(LOCAL_PLAYLIST_PREFIX)))
+    else if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(entry.spotifyId)) navController.navigate(showRoute(entry.spotifyId, entry.name))
     else if (entry.spotifyId.startsWith(Api.HomeCache.SHOW_PREFIX)) navController.navigate(showRoute(entry.spotifyId.removePrefix(Api.HomeCache.SHOW_PREFIX), entry.name))
     else if (entry.spotifyId == Api.HomeCache.LOCAL_FILES_ID) navController.navigate(Routes.LocalFiles.route)
     else if (entry.spotifyId == io.github.thake.soundnest.radio.RadioFeaturePref.LIBRARY_ENTRY_ID) navController.navigate(Routes.LiveRadio.route)

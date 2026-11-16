@@ -126,7 +126,7 @@ fun SumUpSearchScreen(
     // typed queries, and only appear once the user taps into the search bar.
     var searchFocused by remember { mutableStateOf(false) }
     var recents by remember {
-        mutableStateOf(io.github.thake.soundnest.data.preferences.getRecentItems(context).filter { io.github.thake.soundnest.data.api.Features.PODCASTS || it.type != "show" })
+        mutableStateOf(loadClassicSearchRecents(context))
     }
     var menuSong by remember { mutableStateOf<SongsModel?>(null) }
     // Re-tapping the Search tab while already on it focuses the field (official behaviour)
@@ -162,7 +162,7 @@ fun SumUpSearchScreen(
     val recordRecent: (io.github.thake.soundnest.data.preferences.RecentItem) -> Unit = { item ->
         dismissKeyboard()
         io.github.thake.soundnest.data.preferences.addRecentItem(context, item)
-        recents = io.github.thake.soundnest.data.preferences.getRecentItems(context).filter { io.github.thake.soundnest.data.api.Features.PODCASTS || it.type != "show" }
+        recents = loadClassicSearchRecents(context)
     }
     // One relevance-mixed list (songs, artists, albums interleaved) instead of
     // separate type sections — matches how most music apps present search.
@@ -252,7 +252,7 @@ fun SumUpSearchScreen(
                         },
                         onRemove = {
                             io.github.thake.soundnest.data.preferences.removeRecentItem(context, item)
-                            recents = io.github.thake.soundnest.data.preferences.getRecentItems(context).filter { io.github.thake.soundnest.data.api.Features.PODCASTS || it.type != "show" }
+                            recents = loadClassicSearchRecents(context)
                         },
                     ) }
                     // A recent song slides into the queue like a result does.
@@ -336,10 +336,12 @@ fun SumUpSearchScreen(
                     }
                 }
             }
-            // ── Podcasts: shows (→ detail) then individual episodes (→ play) ──
-            if (io.github.thake.soundnest.data.api.Features.PODCASTS && (filter == SearchFilter.Top || filter == SearchFilter.Podcasts)) {
+            // ── Podcasts & Audiobooks: shows / books (→ detail) then individual episodes (→ play) ──
+            if ((io.github.thake.soundnest.data.api.Features.PODCASTS || io.github.thake.soundnest.data.api.Features.AUDIOBOOKS) && (filter == SearchFilter.Top || filter == SearchFilter.Podcasts)) {
             if (results.shows.isNotEmpty()) {
-                item { SearchSectionHeader(stringResource(R.string.assisted_curation_search_filter_podcasts)) }
+                val hasPodcasts = results.shows.any { !io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(it.id) }
+                val headerRes = if (hasPodcasts) R.string.assisted_curation_search_filter_podcasts else R.string.audiobooks_title
+                item { SearchSectionHeader(stringResource(headerRes)) }
                 items(results.shows.size) { i ->
                     val show = results.shows[i]
                     SearchShowRow(show) {
@@ -416,7 +418,9 @@ private fun SearchFilterChips(selected: SearchFilter, onSelect: (SearchFilter) -
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
     ) {
-        val filters = SearchFilter.entries.filter { it != SearchFilter.Podcasts || io.github.thake.soundnest.data.api.Features.PODCASTS }
+        val filters = SearchFilter.entries.filter {
+            it != SearchFilter.Podcasts || io.github.thake.soundnest.data.api.Features.PODCASTS || io.github.thake.soundnest.data.api.Features.AUDIOBOOKS
+        }
         items(filters.size) { i ->
             val f = filters[i]
             val on = f == selected
@@ -489,7 +493,7 @@ fun RecentItemRow(
                 "song" -> stringResource(R.string.assisted_curation_search_song) + " • ${item.singer}"
                 "artist" -> stringResource(R.string.artist_subtitle)
                 "album" -> stringResource(R.string.album) + " • ${item.singer}"
-                "show" -> stringResource(R.string.album_type_podcast) + (if (item.singer.isNotBlank()) " • ${item.singer}" else "")
+                "show" -> stringResource(if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(item.key)) R.string.audiobooks_title else R.string.album_type_podcast) + (if (item.singer.isNotBlank()) " • ${item.singer}" else "")
                 "playlist" -> stringResource(R.string.assisted_curation_search_playlist) + (if (item.singer.isNotBlank()) " • ${item.singer}" else "")
                 else -> ""
             }
@@ -615,8 +619,9 @@ fun SearchShowRow(show: io.github.thake.soundnest.data.entity.PodcastModel, onCl
         )
         Column {
             Text(text = show.name, color = AppText, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            val kindRes = if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(show.id)) R.string.audiobooks_title else R.string.album_type_podcast
             Text(
-                text = stringResource(R.string.album_type_podcast) + (if (show.publisher.isNotBlank()) " • ${show.publisher}" else ""),
+                text = stringResource(kindRes) + (if (show.publisher.isNotBlank()) " • ${show.publisher}" else ""),
                 color = AppMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
         }
@@ -920,3 +925,10 @@ private fun clearSpotifyRecents() {
     val runtime = io.github.thake.soundnest.host.android.SoundNestRuntime
     runtime.scope.launch { runCatching { runtime.api.search.clearRecent() } }
 }
+
+private fun loadClassicSearchRecents(context: android.content.Context): List<io.github.thake.soundnest.data.preferences.RecentItem> =
+    io.github.thake.soundnest.data.preferences.getRecentItems(context).filter {
+        it.type != "show" ||
+            (if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(it.key)) io.github.thake.soundnest.data.api.Features.AUDIOBOOKS else io.github.thake.soundnest.data.api.Features.PODCASTS)
+    }
+

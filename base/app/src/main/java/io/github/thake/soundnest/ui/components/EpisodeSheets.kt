@@ -71,9 +71,12 @@ fun EpisodeOptionsSheet(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
+    val isAudible = io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(song.url)
     // The + / ✓ follows Spotify's library: ask once for this episode's saved state.
-    androidx.compose.runtime.LaunchedEffect(song.url) { SongPlayer.requestSaved(song.spotifyUri) }
-    val saved = SongPlayer.library[song.spotifyUri] == true
+    androidx.compose.runtime.LaunchedEffect(song.url, isAudible) {
+        if (!isAudible) SongPlayer.requestSaved(song.spotifyUri)
+    }
+    val saved = !isAudible && SongPlayer.library[song.spotifyUri] == true
     io.github.thake.soundnest.ui.components.LookSheet(onDismissRequest = onDismiss, containerColor = Sheet) {
         Column(Modifier.navigationBarsPadding().padding(bottom = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(20.dp, 4.dp, 20.dp, 16.dp)) {
@@ -88,16 +91,18 @@ fun EpisodeOptionsSheet(
                     Text(song.singer, color = AppText.copy(alpha = 0.65f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            SheetAction(Icons.Outlined.Share, stringResource(R.string.a11y_share)) {
-                onDismiss()
-                shareEpisode(context, song)
-            }
-            SheetAction(
-                if (saved) Icons.Default.Check else Icons.Outlined.Add,
-                stringResource(if (saved) R.string.episode_unsave else R.string.episode_save),
-            ) {
-                SongPlayer.setSaved(song.spotifyUri, !saved)
-                onDismiss()
+            if (!isAudible) {
+                SheetAction(Icons.Outlined.Share, stringResource(R.string.a11y_share)) {
+                    onDismiss()
+                    shareEpisode(context, song)
+                }
+                SheetAction(
+                    if (saved) Icons.Default.Check else Icons.Outlined.Add,
+                    stringResource(if (saved) R.string.episode_unsave else R.string.episode_save),
+                ) {
+                    SongPlayer.setSaved(song.spotifyUri, !saved)
+                    onDismiss()
+                }
             }
             // The mark the official episode menu carries and the music menu does not.
             if (finished) {
@@ -113,15 +118,17 @@ fun EpisodeOptionsSheet(
                     onDismiss()
                 }
             }
-            SheetAction(Icons.Outlined.PlaylistAdd, stringResource(R.string.episode_add_queue)) {
-                SongPlayer.addEpisodeToQueue(song.url)
-                onDismiss()
+            if (!isAudible) {
+                SheetAction(Icons.Outlined.PlaylistAdd, stringResource(R.string.episode_add_queue)) {
+                    SongPlayer.addEpisodeToQueue(song.url)
+                    onDismiss()
+                }
             }
             SheetAction(Icons.Default.PlayArrow, stringResource(R.string.episode_play)) {
                 onDismiss()
                 onPlay()
             }
-            if (onOpen != null) SheetAction(Icons.Outlined.Info, stringResource(R.string.episode_open)) {
+            if (onOpen != null && !isAudible) SheetAction(Icons.Outlined.Info, stringResource(R.string.episode_open)) {
                 onDismiss()
                 onOpen()
             }

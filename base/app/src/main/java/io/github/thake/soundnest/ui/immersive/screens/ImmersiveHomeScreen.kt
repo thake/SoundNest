@@ -264,7 +264,12 @@ private fun HomeItem.contextUri(): String = when (this) {
     is HomeItem.Album -> if (id.isNotBlank()) "spotify:album:$id" else ""
     is HomeItem.Playlist -> if (id.isNotBlank()) "spotify:playlist:$id" else ""
     is HomeItem.Artist -> if (id.isNotBlank()) "spotify:artist:$id" else ""
-    is HomeItem.Show -> if (id.isNotBlank() && !isEpisode) "spotify:show:$id" else ""
+    is HomeItem.Show -> when {
+        id.isBlank() || isEpisode -> ""
+        io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(id) ->
+            io.github.thake.soundnest.audible.AudibleUris.asinFromAny(id)?.let(io.github.thake.soundnest.audible.AudibleUris::bookUri).orEmpty()
+        else -> "spotify:show:$id"
+    }
 }
 
 /** True while this card's album, playlist or artist is the playing context, [playingContext]. */

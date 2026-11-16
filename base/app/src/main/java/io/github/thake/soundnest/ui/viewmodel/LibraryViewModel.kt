@@ -46,17 +46,25 @@ class LibraryViewModel constructor(
     @Volatile private var server: List<LibraryEntry>? = null
 
     private fun show() {
-        val list = server ?: return
-        _entries.value = Response.Success(LibraryEdits.applyTo(null, list))
+        val audible = io.github.thake.soundnest.audible.AudibleCatalogCache.approvedLibraryEntries(context)
+        val list = server
+        if (list == null && audible.isEmpty()) return
+        val base = if (list != null) LibraryEdits.applyTo(null, list) else emptyList()
+        val existingIds = base.mapTo(HashSet()) { it.spotifyId }
+        _entries.value = Response.Success(base + audible.filter { it.spotifyId !in existingIds })
     }
 
     init {
         // Seed UI with the last-seen library immediately so it's visible offline.
         val cached = getCachedLibraryEntries(context)
-        if (cached.isNotEmpty()) { server = cached; show() }
+        if (cached.isNotEmpty()) server = cached
+        show()
         // A delete, rename or new playlist is shown at once, and taken back if Spotify refuses.
         viewModelScope.launch { LibraryEdits.version.drop(1).collect { show() } }
         viewModelScope.launch { LibraryEdits.reloads.collect { load() } }
+        viewModelScope.launch { io.github.thake.soundnest.parental.ParentalPolicyStore.policyFlow.drop(1).collect { show() } }
+        viewModelScope.launch { io.github.thake.soundnest.audible.AudibleCredentialStore.summaryFlow.drop(1).collect { show() } }
+        viewModelScope.launch { io.github.thake.soundnest.audible.AudibleCatalogCache.revision.drop(1).collect { show() } }
         val cachedArtists = getCachedFollowedArtists(context)
         if (cachedArtists.isNotEmpty()) _followedArtists.value = cachedArtists
 
@@ -84,9 +92,10 @@ class LibraryViewModel constructor(
             // Offline: keep the saved library instead of replacing it with a
             // spinner/error, so downloads stay reachable after a restart (#51).
             if (response !is Response.Success && _entries.value is Response.Success) return@collect
-            // Nothing saved yet and no network: offer just the downloads (not cached).
+            // Nothing saved yet and no network: offer just the downloads + approved local Audible books.
             if (response is Response.Error) {
-                _entries.value = Response.Success(emptyList())
+                server = emptyList()
+                show()
                 return@collect
             }
             if (response is Response.Success) {

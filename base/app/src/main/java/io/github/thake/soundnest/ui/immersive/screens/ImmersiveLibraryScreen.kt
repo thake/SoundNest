@@ -136,6 +136,7 @@ private val LibraryChipLabels = listOf(
     LibraryChip.ARTISTS to R.string.library_chip_artists,
     LibraryChip.ALBUMS to R.string.library_chip_albums,
     LibraryChip.PODCASTS to R.string.library_chip_podcasts,
+    LibraryChip.AUDIOBOOKS to R.string.library_chip_audiobooks,
     LibraryChip.SONGS to R.string.library_chip_songs,
 )
 
@@ -161,6 +162,7 @@ fun ImmersiveLibraryScreen(navController: NavController) {
         val top = (entries as? Response.Success)?.data.orEmpty().take(8).mapNotNull { e ->
             when {
                 e.isFolder || e.spotifyId.startsWith(LOCAL_PLAYLIST_PREFIX) -> null
+                io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(e.spotifyId) -> null
                 e.spotifyId in setOf(Api.HomeCache.LOCAL_FILES_ID, Api.HomeCache.EPISODES_ID) -> null
                 e.spotifyId == Api.HomeCache.LIKED_SONGS_ID -> "liked" to ""
                 e.isPlaylist -> "playlist" to e.spotifyId
@@ -181,8 +183,9 @@ fun ImmersiveLibraryScreen(navController: NavController) {
     var kind by rememberSaveable { mutableStateOf(LibraryChip.ALL) }
     io.github.thake.soundnest.parental.ParentalPolicyStore.current(context)
     val policy by io.github.thake.soundnest.parental.ParentalPolicyStore.policyFlow.collectAsState()
-    LaunchedEffect(policy.allowPodcasts) {
+    LaunchedEffect(policy.allowPodcasts, policy.allowAudiobooks) {
         if (!policy.allowPodcasts && kind == LibraryChip.PODCASTS) kind = LibraryChip.ALL
+        if (!policy.allowAudiobooks && kind == LibraryChip.AUDIOBOOKS) kind = LibraryChip.ALL
     }
     // The shows are only read once the Podcasts chip is chosen.
     LaunchedEffect(kind, policy.allowPodcasts) { if (kind == LibraryChip.PODCASTS && policy.allowPodcasts) vm.loadFollowedShows() }
@@ -458,7 +461,10 @@ private fun LibraryHeader(
         val policy by io.github.thake.soundnest.parental.ParentalPolicyStore.policyFlow.collectAsState()
         ImmersiveChipRow {
             LibraryChipLabels
-                .filter { (k, _) -> k != LibraryChip.PODCASTS || policy.allowPodcasts }
+                .filter { (k, _) ->
+                    (k != LibraryChip.PODCASTS || policy.allowPodcasts) &&
+                        (k != LibraryChip.AUDIOBOOKS || policy.allowAudiobooks)
+                }
                 .forEach { (k, label) ->
                     ImmersiveChip(stringResource(label), selected = k == kind) { onKind(k) }
                 }
@@ -477,6 +483,7 @@ internal fun Modifier.immersiveBleed(inset: Dp): Modifier = layout { measurable,
 /** Albums, playlists and folders start loading under the finger. */
 private fun prefetchLibraryEntry(entry: LibraryEntry) = when {
     entry.isFolder || entry.spotifyId.startsWith(LOCAL_PLAYLIST_PREFIX) || entry.spotifyId.startsWith(Api.HomeCache.SHOW_PREFIX) -> Unit
+    io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(entry.spotifyId) -> Unit
     entry.spotifyId == Api.HomeCache.LOCAL_FILES_ID || entry.spotifyId == Api.HomeCache.EPISODES_ID || entry.spotifyId == Api.HomeCache.NEW_EPISODES_ID -> Unit
     entry.spotifyId == io.github.thake.soundnest.radio.RadioFeaturePref.LIBRARY_ENTRY_ID -> Unit
     entry.spotifyId == Api.HomeCache.LIKED_SONGS_ID -> ContextViewModel.prefetch("liked", "")
@@ -487,6 +494,7 @@ private fun prefetchLibraryEntry(entry: LibraryEntry) = when {
 private fun openLibraryEntry(entry: LibraryEntry, navController: NavController) {
     if (entry.isFolder) navController.navigate(folderRoute(entry.folderUri, entry.name))
     else if (entry.spotifyId.startsWith(LOCAL_PLAYLIST_PREFIX)) navController.navigate(localPlaylistRoute(entry.spotifyId.removePrefix(LOCAL_PLAYLIST_PREFIX)))
+    else if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(entry.spotifyId)) navController.navigate(showRoute(entry.spotifyId, entry.name))
     else if (entry.spotifyId.startsWith(Api.HomeCache.SHOW_PREFIX)) navController.navigate(showRoute(entry.spotifyId.removePrefix(Api.HomeCache.SHOW_PREFIX), entry.name))
     else if (entry.spotifyId == Api.HomeCache.LOCAL_FILES_ID) navController.navigate(Routes.LocalFiles.route)
     else if (entry.spotifyId == io.github.thake.soundnest.radio.RadioFeaturePref.LIBRARY_ENTRY_ID) navController.navigate(Routes.LiveRadio.route)
@@ -711,7 +719,9 @@ private fun LibraryEntryRow(entry: LibraryEntry, onMenu: () -> Unit, modifier: M
                 Text(text = entry.subtitle, style = Immersive.Subhead, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        if (entry.uri.isNotBlank()) ImmersiveMoreButton(onClick = onMenu)
+        if (entry.uri.isNotBlank() && !io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(entry.spotifyId) && !io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(entry.uri)) {
+            ImmersiveMoreButton(onClick = onMenu)
+        }
     }
 }
 

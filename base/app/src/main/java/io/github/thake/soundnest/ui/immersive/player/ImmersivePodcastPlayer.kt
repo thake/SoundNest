@@ -127,10 +127,13 @@ fun ImmersivePodcastPlayer(navController: NavController) {
     val title = state.title
     val showName = state.artist.ifBlank { np.contextName }
     val cover = Graph.currentSongState.coverUri.value
+    val isAudible = io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(np.uri)
     val episodeId = np.uri.removePrefix("spotify:episode:")
-    val uri = "spotify:episode:$episodeId"
-    val saved = SongPlayer.library[uri] == true
-    LaunchedEffect(uri) { SongPlayer.requestSaved(uri) }
+    val uri = if (isAudible) np.uri else "spotify:episode:$episodeId"
+    val saved = !isAudible && SongPlayer.library[uri] == true
+    LaunchedEffect(uri, isAudible) {
+        if (!isAudible) SongPlayer.requestSaved(uri)
+    }
 
     var showSpeed by remember { mutableStateOf(false) }
     var showSleep by remember { mutableStateOf(false) }
@@ -192,7 +195,7 @@ fun ImmersivePodcastPlayer(navController: NavController) {
                 onTextLayout = { if (it.hasVisualOverflow) titleOverflows = true },
                 modifier = Modifier
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                        navController.navigate(episodeRoute(episodeId, title))
+                        if (isAudible) openShow() else navController.navigate(episodeRoute(episodeId, title))
                     }
                     .overflowRightFade(titleOverflows)
                     .titleMarquee(iterations = Int.MAX_VALUE),
@@ -224,13 +227,15 @@ fun ImmersivePodcastPlayer(navController: NavController) {
             )
         }
         Spacer(Modifier.width(10.dp))
-        CircleGlyph(
-            icon = if (saved) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-            contentDescription = stringResource(if (saved) R.string.immersive_player_unlike else R.string.immersive_player_like),
-            onClick = { SongPlayer.setSaved(uri, !saved) },
-            active = saved,
-        )
-        Spacer(Modifier.width(8.dp))
+        if (!isAudible) {
+            CircleGlyph(
+                icon = if (saved) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                contentDescription = stringResource(if (saved) R.string.immersive_player_unlike else R.string.immersive_player_like),
+                onClick = { SongPlayer.setSaved(uri, !saved) },
+                active = saved,
+            )
+            Spacer(Modifier.width(8.dp))
+        }
         CircleGlyph(
             icon = Icons.Rounded.MoreHoriz,
             contentDescription = stringResource(R.string.episode_options),
@@ -393,19 +398,31 @@ fun ImmersivePodcastPlayer(navController: NavController) {
             album = showName,
             singer = showName,
             coverUri = cover,
-            url = "episode:$episodeId",
+            url = if (isAudible) np.uri else "episode:$episodeId",
             durationMs = state.durationMs.toInt(),
         )
         EpisodeOptionsSheet(
             song = song,
-            finished = false,
+            finished = if (isAudible) {
+                val asin = io.github.thake.soundnest.audible.AudibleUris.asinFromAny(np.uri)
+                val chIdx = io.github.thake.soundnest.audible.AudibleUris.chapterIndexFromUri(np.uri)
+                asin != null && chIdx != null && io.github.thake.soundnest.audible.AudibleProgressStore.get(Graph.app, asin)?.finishedChapters?.contains(chIdx) == true
+            } else false,
             onPlay = { SongPlayer.play() },
             onMarkFinished = { played ->
-                scope.launch {
-                    withContext(Dispatchers.IO) { runCatching { Graph.api.setEpisodePlayed(uri, played) } }
+                if (isAudible) {
+                    val asin = io.github.thake.soundnest.audible.AudibleUris.asinFromAny(np.uri)
+                    val chIdx = io.github.thake.soundnest.audible.AudibleUris.chapterIndexFromUri(np.uri)
+                    if (asin != null && chIdx != null) {
+                        io.github.thake.soundnest.audible.AudibleProgressStore.setChapterFinished(Graph.app, asin, chIdx, played)
+                    }
+                } else {
+                    scope.launch {
+                        withContext(Dispatchers.IO) { runCatching { Graph.api.setEpisodePlayed(uri, played) } }
+                    }
                 }
             },
-            onOpen = { navController.navigate(episodeRoute(episodeId, title)) },
+            onOpen = if (isAudible) null else ({ navController.navigate(episodeRoute(episodeId, title)) }),
             onDismiss = { showMenu = false },
         )
     }

@@ -44,5 +44,37 @@ class LibraryChipsTest {
         assertEquals(LibraryChip.ALBUMS, LibraryChips.toggle(LibraryChip.ALL, LibraryChip.ALBUMS))
         assertEquals(LibraryChip.ARTISTS, LibraryChips.toggle(LibraryChip.ALBUMS, LibraryChip.ARTISTS))
         assertEquals(LibraryChip.ALL, LibraryChips.toggle(LibraryChip.ARTISTS, LibraryChip.ARTISTS))
+        assertEquals(LibraryChip.AUDIOBOOKS, LibraryChips.toggle(LibraryChip.ALL, LibraryChip.AUDIOBOOKS))
+        assertEquals(LibraryChip.ALL, LibraryChips.toggle(LibraryChip.AUDIOBOOKS, LibraryChip.AUDIOBOOKS))
+    }
+
+    @Test fun audiobooksChipKeepsAudibleAndSpotifyAudiobooksAndExcludesThemFromAlbums() {
+        val audibleBook = LibraryEntry(
+            spotifyId = "audible:B08G9PRS1K",
+            name = "Project Hail Mary",
+            subtitle = "Andy Weir",
+            coverUri = "https://example.com/phm.jpg",
+            isPlaylist = false,
+            uri = "audible:book:B08G9PRS1K",
+        )
+        val spotifyBook = LibraryEntry(
+            spotifyId = "book1",
+            name = "The Hobbit",
+            subtitle = "J.R.R. Tolkien",
+            coverUri = "https://example.com/hobbit.jpg",
+            isPlaylist = false,
+            uri = "spotify:audiobook:book1",
+        )
+        val mixed = entries + listOf(audibleBook, spotifyBook)
+
+        val audiobookIds = LibraryChips.apply(LibraryChip.AUDIOBOOKS, mixed, artists, songIds).first.map { it.spotifyId }
+        assertEquals(listOf("audible:B08G9PRS1K", "book1"), audiobookIds)
+
+        val albumIds = LibraryChips.apply(LibraryChip.ALBUMS, mixed, artists, songIds).first.map { it.spotifyId }
+        assertEquals(listOf("a1", "a2"), albumIds)
+
+        val allIds = LibraryChips.apply(LibraryChip.ALL, mixed, artists, songIds).first.map { it.spotifyId }
+        assertEquals(mixed.map { it.spotifyId }, allIds)
     }
 }
+

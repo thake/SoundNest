@@ -143,10 +143,13 @@ fun PodcastPlayerScreen(navController: NavController) {
     val showName = state.singer.value.ifBlank { np.contextName }
     val cover = state.coverUri.value
     val playing = state.playingState.value
+    val isAudible = io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(np.uri)
     val episodeId = np.uri.removePrefix("spotify:episode:")
-    val uri = "spotify:episode:$episodeId"
-    val saved = SongPlayer.library[uri] == true
-    androidx.compose.runtime.LaunchedEffect(uri) { SongPlayer.requestSaved(uri) }
+    val uri = if (isAudible) np.uri else "spotify:episode:$episodeId"
+    val saved = !isAudible && SongPlayer.library[uri] == true
+    androidx.compose.runtime.LaunchedEffect(uri, isAudible) {
+        if (!isAudible) SongPlayer.requestSaved(uri)
+    }
 
     var showSpeed by remember { mutableStateOf(false) }
     var showSleep by remember { mutableStateOf(false) }
@@ -162,7 +165,7 @@ fun PodcastPlayerScreen(navController: NavController) {
         album = showName,
         singer = showName,
         coverUri = cover,
-        url = "episode:$episodeId",
+        url = if (isAudible) np.uri else "episode:$episodeId",
         durationMs = duration.toInt(),
     )
 
@@ -172,16 +175,28 @@ fun PodcastPlayerScreen(navController: NavController) {
     if (showQueue) QueueSheet(contextName = showName) { showQueue = false }
     if (showMenu) EpisodeOptionsSheet(
         song = song,
-        finished = false,
+        finished = if (isAudible) {
+            val asin = io.github.thake.soundnest.audible.AudibleUris.asinFromAny(np.uri)
+            val chIdx = io.github.thake.soundnest.audible.AudibleUris.chapterIndexFromUri(np.uri)
+            asin != null && chIdx != null && io.github.thake.soundnest.audible.AudibleProgressStore.get(context, asin)?.finishedChapters?.contains(chIdx) == true
+        } else false,
         onPlay = { SongPlayer.play() },
         onMarkFinished = { played ->
-            scope.launch {
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    runCatching { Graph.api.setEpisodePlayed(uri, played) }
+            if (isAudible) {
+                val asin = io.github.thake.soundnest.audible.AudibleUris.asinFromAny(np.uri)
+                val chIdx = io.github.thake.soundnest.audible.AudibleUris.chapterIndexFromUri(np.uri)
+                if (asin != null && chIdx != null) {
+                    io.github.thake.soundnest.audible.AudibleProgressStore.setChapterFinished(context, asin, chIdx, played)
+                }
+            } else {
+                scope.launch {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        runCatching { Graph.api.setEpisodePlayed(uri, played) }
+                    }
                 }
             }
         },
-        onOpen = { navController.navigate(io.github.thake.soundnest.ui.navigation.episodeRoute(episodeId, title)) },
+        onOpen = if (isAudible) null else ({ navController.navigate(io.github.thake.soundnest.ui.navigation.episodeRoute(episodeId, title)) }),
         onDismiss = { showMenu = false },
     )
 
@@ -295,7 +310,9 @@ fun PodcastPlayerScreen(navController: NavController) {
                         }.titleMarquee(iterations = 3),
                     )
                 }
-                LikeButton(liked = saved, size = 28.dp) { SongPlayer.setSaved(uri, !saved) }
+                if (!isAudible) {
+                    LikeButton(liked = saved, size = 28.dp) { SongPlayer.setSaved(uri, !saved) }
+                }
             }
 
             PodcastProgress(playing = playing, uri = np.uri, duration = duration)
@@ -384,9 +401,13 @@ private fun SkipIcon(back: Boolean) {
     }
 }
 
-/** The show id carried by the played context ("spotify:show:<id>"), "" when there is none. */
-internal fun episodeShowId(contextUri: String): String =
-    contextUri.takeIf { it.startsWith("spotify:show:") }?.removePrefix("spotify:show:").orEmpty()
+/** The show id carried by the played context ("spotify:show:<id>" or "audible:<asin>"), "" when there is none. */
+internal fun episodeShowId(contextUri: String): String = when {
+    io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(contextUri) ->
+        io.github.thake.soundnest.audible.AudibleUris.asinFromAny(contextUri)?.let(io.github.thake.soundnest.audible.AudibleUris::showId).orEmpty()
+    contextUri.startsWith("spotify:show:") -> contextUri.removePrefix("spotify:show:")
+    else -> ""
+}
 
 /**
  * Opens the page of the show the playing episode [episodeUri] belongs to, with its episodes: the
@@ -396,6 +417,11 @@ internal fun episodeShowId(contextUri: String): String =
 internal fun openEpisodeShow(navController: androidx.navigation.NavController, contextUri: String, episodeUri: String, showName: String) {
     val known = episodeShowId(contextUri)
     if (known.isNotBlank()) { navController.navigate(io.github.thake.soundnest.ui.navigation.showRoute(known, showName)); return }
+    if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(episodeUri)) {
+        val asin = io.github.thake.soundnest.audible.AudibleUris.asinFromAny(episodeUri) ?: return
+        navController.navigate(io.github.thake.soundnest.ui.navigation.showRoute(io.github.thake.soundnest.audible.AudibleUris.showId(asin), showName))
+        return
+    }
     if (!episodeUri.startsWith("spotify:episode:")) return
     kotlinx.coroutines.MainScope().launch {
         val show = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {

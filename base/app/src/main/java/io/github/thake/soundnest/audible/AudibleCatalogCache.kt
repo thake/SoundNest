@@ -89,6 +89,61 @@ object AudibleCatalogCache {
         _revision.value++
     }
 
+    fun approvedLibraryEntries(
+        context: Context,
+        policy: io.github.thake.soundnest.parental.ParentalPolicy = io.github.thake.soundnest.parental.ParentalPolicyStore.current(context),
+    ): List<io.github.thake.soundnest.data.entity.LibraryEntry> {
+        if (!policy.allowAudiobooks || !AudibleCredentialStore.isConnected(context)) return emptyList()
+        val pinnedSet = policy.pinnedAudibleAsins
+        return books(context)
+            .filter { io.github.thake.soundnest.parental.ParentalFilterEngine.isAudibleBookAllowed(it.asin, policy) }
+            .map { book ->
+                val authorsLabel = book.authors.joinToString(", ").ifBlank { "Audible" }
+                io.github.thake.soundnest.data.entity.LibraryEntry(
+                    spotifyId = AudibleUris.showId(book.asin),
+                    name = book.title,
+                    subtitle = authorsLabel,
+                    coverUri = book.coverUrl,
+                    isPlaylist = false,
+                    uri = AudibleUris.bookUri(book.asin),
+                    artists = book.authors.joinToString(", "),
+                    pinned = book.asin in pinnedSet,
+                )
+            }
+    }
+
+    fun matchingShows(
+        context: Context,
+        query: String,
+        policy: io.github.thake.soundnest.parental.ParentalPolicy = io.github.thake.soundnest.parental.ParentalPolicyStore.current(context),
+    ): List<io.github.thake.soundnest.data.entity.PodcastModel> {
+        val needle = query.trim()
+        if (needle.isEmpty() || !policy.allowAudiobooks || !AudibleCredentialStore.isConnected(context)) return emptyList()
+        return books(context)
+            .filter { book ->
+                io.github.thake.soundnest.parental.ParentalFilterEngine.isAudibleBookAllowed(book.asin, policy) &&
+                    (
+                        book.title.contains(needle, ignoreCase = true) ||
+                            book.subtitle.contains(needle, ignoreCase = true) ||
+                            book.authors.any { it.contains(needle, ignoreCase = true) } ||
+                            book.narrators.any { it.contains(needle, ignoreCase = true) } ||
+                            (book.seriesTitle?.contains(needle, ignoreCase = true) == true)
+                        )
+            }
+            .map { book ->
+                io.github.thake.soundnest.data.entity.PodcastModel(
+                    id = AudibleUris.showId(book.asin),
+                    name = book.title,
+                    publisher = book.authors.joinToString(", ").ifBlank { "Audible" },
+                    coverUri = book.coverUrl,
+                    description = io.github.thake.soundnest.spotify.stripHtml(book.description).trim(),
+                    authors = book.authors,
+                    narrators = book.narrators,
+                    audiobook = true,
+                )
+            }
+    }
+
     @Synchronized
     internal fun resetMemoryForTests() {
         state = null

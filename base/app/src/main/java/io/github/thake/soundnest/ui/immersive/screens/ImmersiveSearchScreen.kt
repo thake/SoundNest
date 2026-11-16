@@ -204,7 +204,7 @@ fun ImmersiveSearchScreen(navController: NavController) {
                     }
                     if (text.isNotBlank()) {
                         ImmersiveChipRow {
-                            val filters = SearchFilter.entries.filter { it != SearchFilter.Podcasts || Features.PODCASTS }
+                            val filters = SearchFilter.entries.filter { it != SearchFilter.Podcasts || Features.PODCASTS || Features.AUDIOBOOKS }
                             filters.forEach { f ->
                                 val on = f == filter
                                 ImmersiveChip(stringResource(f.label), selected = on) {
@@ -285,7 +285,10 @@ fun ImmersiveSearchScreen(navController: NavController) {
 }
 
 private fun loadRecents(context: Context): List<RecentItem> =
-    getRecentItems(context).filter { Features.PODCASTS || it.type != "show" }
+    getRecentItems(context).filter {
+        it.type != "show" ||
+            (if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(it.key)) Features.AUDIOBOOKS else Features.PODCASTS)
+    }
 
 /** Replays a recent song or opens its album, artist, show or playlist, as the Classic screen does. */
 private fun openRecent(item: RecentItem, navController: NavController, vm: SearchViewModel, context: Context) {
@@ -335,7 +338,7 @@ private fun LazyListScope.recentSearches(
             "song" -> stringResource(R.string.assisted_curation_search_song) + " • ${item.singer}"
             "artist" -> stringResource(R.string.artist_subtitle)
             "album" -> stringResource(R.string.album) + " • ${item.singer}"
-            "show" -> stringResource(R.string.album_type_podcast) + (if (item.singer.isNotBlank()) " • ${item.singer}" else "")
+            "show" -> stringResource(if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(item.key)) R.string.audiobooks_title else R.string.album_type_podcast) + (if (item.singer.isNotBlank()) " • ${item.singer}" else "")
             "playlist" -> stringResource(R.string.assisted_curation_search_playlist) + (if (item.singer.isNotBlank()) " • ${item.singer}" else "")
             else -> ""
         }
@@ -438,9 +441,9 @@ private fun LazyListScope.searchResults(
     val artists = if (top || filter == SearchFilter.Artists) data.artists else emptyList()
     val albums = if (top || filter == SearchFilter.Albums) data.albums else emptyList()
     val playlists = if (top || filter == SearchFilter.Playlists) data.playlists else emptyList()
-    val podcasts = Features.PODCASTS && (top || filter == SearchFilter.Podcasts)
+    val podcasts = (Features.PODCASTS || Features.AUDIOBOOKS) && (top || filter == SearchFilter.Podcasts)
     val shows = if (podcasts) data.shows else emptyList()
-    val episodes = if (podcasts) data.episodes else emptyList()
+    val episodes = if (Features.PODCASTS && (top || filter == SearchFilter.Podcasts)) data.episodes else emptyList()
     val sectioned = top
 
     if (songs.isEmpty() && artists.isEmpty() && albums.isEmpty() && playlists.isEmpty() && shows.isEmpty() && episodes.isEmpty()) {
@@ -518,13 +521,16 @@ private fun LazyListScope.searchResults(
             if (n < range.count() - 1) RowDivider()
         }
     }
-    // Podcasts: shows (open their page) then individual episodes (play).
-    section("shows", sectioned, title(R.string.assisted_curation_search_filter_podcasts), shows.size) { range ->
+    // Podcasts & Audiobooks: shows / books (open their page) then individual episodes (play).
+    val hasPodcastShows = shows.any { !io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(it.id) }
+    val showsHeaderRes = if (hasPodcastShows) R.string.assisted_curation_search_filter_podcasts else R.string.audiobooks_title
+    section("shows", sectioned, title(showsHeaderRes), shows.size) { range ->
         items(range.count(), key = { "show:${shows[range.first + it].id}:${range.first + it}" }) { n ->
             val show = shows[range.first + n]
+            val kindRes = if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(show.id)) R.string.audiobooks_title else R.string.album_type_podcast
             ImmersiveListRow(
                 title = show.name,
-                subtitle = stringResource(R.string.album_type_podcast) + (if (show.publisher.isNotBlank()) " • ${show.publisher}" else ""),
+                subtitle = stringResource(kindRes) + (if (show.publisher.isNotBlank()) " • ${show.publisher}" else ""),
                 imageUrl = show.coverUri,
                 round = false,
                 onClick = { onShow(show) },

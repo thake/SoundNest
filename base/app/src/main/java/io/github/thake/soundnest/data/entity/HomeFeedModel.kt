@@ -40,9 +40,20 @@ data class HomeSection(
  * The shelves as the feed shows them: with podcasts off, their shows and episodes leave
  * (and a shelf left empty goes).
  */
-fun List<HomeSection>.withoutPodcastShows(): List<HomeSection> =
-    if (io.github.thake.soundnest.data.api.Features.PODCASTS) this
-    else map { s -> s.copy(items = s.items.filterNot { it is HomeItem.Show }) }.filter { it.items.isNotEmpty() }
+fun List<HomeSection>.withoutPodcastShows(): List<HomeSection> {
+    val allowPodcasts = io.github.thake.soundnest.data.api.Features.PODCASTS
+    val allowAudiobooks = io.github.thake.soundnest.data.api.Features.AUDIOBOOKS
+    if (allowPodcasts && allowAudiobooks) return this
+    return map { s ->
+        s.copy(
+            items = s.items.filter { item ->
+                if (item !is HomeItem.Show) true
+                else if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(item.id)) allowAudiobooks
+                else allowPodcasts
+            },
+        )
+    }.filter { it.items.isNotEmpty() }
+}
 
 /** The shelves without Spotify's DJ (a playlist card named "DJ"); a shelf left empty goes. */
 fun List<HomeSection>.withoutDj(): List<HomeSection> =

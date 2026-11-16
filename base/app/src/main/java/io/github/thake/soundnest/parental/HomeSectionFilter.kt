@@ -209,17 +209,34 @@ object HomeSectionFilter {
         }
     }
 
-    fun cachedLibraryCandidates(): List<HomeItem> = buildList {
+    fun cachedLibraryCandidates(
+        context: android.content.Context? = runCatching { io.github.thake.soundnest.di.Graph.app }.getOrNull(),
+    ): List<HomeItem> = buildList {
         val lib = io.github.thake.soundnest.data.api.Api.HomeCache.library.orEmpty()
         for (entry in lib) {
             if (entry.isFolder || entry.spotifyId.isBlank()) continue
             if (entry.isPlaylist) {
                 add(HomeItem.Playlist(name = entry.name, imageUrl = entry.coverUri, subtitle = entry.subtitle, id = entry.spotifyId))
+            } else if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(entry.spotifyId)) {
+                add(HomeItem.Show(id = entry.spotifyId, name = entry.name, imageUrl = entry.coverUri, subtitle = entry.subtitle, isEpisode = false))
             } else if (entry.spotifyId.startsWith(io.github.thake.soundnest.data.api.Api.HomeCache.SHOW_PREFIX)) {
                 val showId = entry.spotifyId.removePrefix(io.github.thake.soundnest.data.api.Api.HomeCache.SHOW_PREFIX)
                 add(HomeItem.Show(id = showId, name = entry.name, imageUrl = entry.coverUri, subtitle = entry.subtitle, isEpisode = false))
             } else {
                 add(HomeItem.Album(id = entry.spotifyId, name = entry.name, imageUrl = entry.coverUri, subtitle = entry.subtitle, artists = entry.artists))
+            }
+        }
+        if (context != null && io.github.thake.soundnest.audible.AudibleCredentialStore.isConnected(context)) {
+            io.github.thake.soundnest.audible.AudibleCatalogCache.books(context).forEach { book ->
+                add(
+                    HomeItem.Show(
+                        id = io.github.thake.soundnest.audible.AudibleUris.showId(book.asin),
+                        name = book.title,
+                        imageUrl = book.coverUrl,
+                        subtitle = book.authors.joinToString(", ").ifBlank { "Audible" },
+                        isEpisode = false,
+                    ),
+                )
             }
         }
         io.github.thake.soundnest.data.api.Api.HomeCache.albums.orEmpty().forEach { album ->

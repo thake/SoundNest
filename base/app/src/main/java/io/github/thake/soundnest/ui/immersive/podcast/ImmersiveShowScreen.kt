@@ -93,10 +93,17 @@ fun ImmersiveShowScreen(navController: NavController, showId: String, showName: 
     val np by SongPlayer.nowPlaying
     val listState = rememberLazyListState()
 
+    val isAudible = io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(showId)
+    val contextUri = if (isAudible) {
+        io.github.thake.soundnest.audible.AudibleUris.asinFromAny(showId)?.let(io.github.thake.soundnest.audible.AudibleUris::bookUri).orEmpty()
+    } else {
+        "spotify:show:$showId"
+    }
+
     fun playAt(index: Int) {
         val song = items.getOrNull(index) ?: return
         vm.updateQueue(items)
-        SongPlayer.playSong(song.url, context, contextUri = "spotify:show:$showId")
+        SongPlayer.playSong(song.url, context, contextUri = contextUri)
         vm.updateSongState(song.coverUri, song.title, song.singer, true, song.id, index, song.album)
     }
 
@@ -114,7 +121,9 @@ fun ImmersiveShowScreen(navController: NavController, showId: String, showName: 
                 if (index >= 0) playAt(index)
             },
             onMarkFinished = { vm.setFinished(sel, it) },
-            onOpen = { navController.navigate(episodeRoute(sel.url.removePrefix("episode:"), sel.title)) },
+            onOpen = if (isAudible || io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(sel.url)) null else ({
+                navController.navigate(episodeRoute(sel.url.removePrefix("episode:"), sel.title))
+            }),
             onDismiss = { menuSong = null },
         )
     }
@@ -131,6 +140,7 @@ fun ImmersiveShowScreen(navController: NavController, showId: String, showName: 
                         show = show,
                         name = displayName,
                         cover = cover,
+                        showFollow = !isAudible,
                         following = vm.following.value,
                         onFollow = { on ->
                             Haptics.toggle(on)
@@ -201,16 +211,25 @@ fun ImmersiveShowScreen(navController: NavController, showId: String, showName: 
                     ImmersiveMessageState(stringResource(R.string.show_empty))
                 }
                 if (tab == 0) items(rows, key = { it.url }) { ep ->
+                    val epIsAudible = io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(ep.url)
+                    val epPlayUri = if (epIsAudible) ep.url else "spotify:episode:${ep.url.removePrefix("episode:")}"
                     ImmersiveEpisodeRow(
                         episode = ep,
-                        playing = np.uri == "spotify:episode:${ep.url.removePrefix("episode:")}" && SongPlayer.isPlaying(),
+                        playing = np.uri == epPlayUri && SongPlayer.isPlaying(),
                         finished = vm.isFinished(ep),
                         isNew = vm.isNew(ep),
                         onPlay = {
                             val index = items.indexOfFirst { it.url == ep.url }
                             if (index >= 0) playAt(index)
                         },
-                        onOpen = { navController.navigate(episodeRoute(ep.url.removePrefix("episode:"), ep.title)) },
+                        onOpen = {
+                            if (isAudible || epIsAudible) {
+                                val index = items.indexOfFirst { it.url == ep.url }
+                                if (index >= 0) playAt(index)
+                            } else {
+                                navController.navigate(episodeRoute(ep.url.removePrefix("episode:"), ep.title))
+                            }
+                        },
                         onMenu = { menuSong = ep },
                         modifier = rowPlacement(),
                     )
@@ -230,6 +249,7 @@ private fun ShowHeader(
     show: io.github.thake.soundnest.data.entity.PodcastModel?,
     name: String,
     cover: String,
+    showFollow: Boolean = true,
     following: Boolean,
     onFollow: (Boolean) -> Unit,
 ) {
@@ -284,14 +304,16 @@ private fun ShowHeader(
                     Text(String.format(java.util.Locale.getDefault(), "%.1f", rating), style = Immersive.Subhead)
                 }
             }
-            Spacer(Modifier.height(16.dp))
-            ImmersiveButton(
-                text = stringResource(if (following) R.string.show_following else R.string.show_follow),
-                icon = if (following) Icons.Rounded.Check else Icons.Rounded.Add,
-                filled = !following,
-                modifier = Modifier.widthIn(min = 170.dp),
-                onClick = { onFollow(!following) },
-            )
+            if (showFollow) {
+                Spacer(Modifier.height(16.dp))
+                ImmersiveButton(
+                    text = stringResource(if (following) R.string.show_following else R.string.show_follow),
+                    icon = if (following) Icons.Rounded.Check else Icons.Rounded.Add,
+                    filled = !following,
+                    modifier = Modifier.widthIn(min = 170.dp),
+                    onClick = { onFollow(!following) },
+                )
+            }
         }
     }
 }
