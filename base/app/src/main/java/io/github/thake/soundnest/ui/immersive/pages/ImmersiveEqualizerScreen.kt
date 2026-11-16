@@ -57,7 +57,7 @@ fun ImmersiveEqualizerScreen(navController: NavController) {
     }
     ImmersivePage(title = stringResource(R.string.equalizer_title), onBack = { navController.popBackStack() }) {
         immersiveBlock("scope") {
-            Text(stringResource(R.string.equalizer_scope), style = Immersive.Caption, textAlign = TextAlign.Start)
+            Text(stringResource(R.string.equalizer_scope_soundnest), style = Immersive.Caption, textAlign = TextAlign.Start)
         }
         immersiveGroup("eq", footerRes = R.string.equalizer_enable_detail) {
             row { ImmersiveSwitchRow(stringResource(R.string.equalizer_enable), checked = pref.enabled, onChecked = { pref.setEnabled(ctx, it) }) }
@@ -81,7 +81,7 @@ fun ImmersiveEqualizerScreen(navController: NavController) {
                     onClick = { pref.setPreset(ctx, EqPreset.FLAT) })
             }
         }
-        immersiveGroup("spatial", headerRes = R.string.spatial_title, footerRes = R.string.spatial_detail) {
+        immersiveGroup("spatial", headerRes = R.string.spatial_title, footerRes = R.string.spatial_detail_soundnest) {
             row { ImmersiveSwitchRow(stringResource(R.string.spatial_enable), checked = pref.spatial, onChecked = { pref.setSpatial(ctx, it) }) }
             row {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 16.dp)) {

@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Icon
@@ -52,12 +53,14 @@ import com.bumptech.glide.integration.compose.GlideImage
 import com.bumptech.glide.integration.compose.placeholder
 import io.github.thake.soundnest.R
 import io.github.thake.soundnest.di.SongPlayer
+import io.github.thake.soundnest.ui.theme.AppAccent
+import io.github.thake.soundnest.ui.theme.AppMuted
 import io.github.thake.soundnest.ui.theme.AppPalette
 
 /**
  * The "play queue" — the track that's playing now plus everything coming up
  * (Spotify's Queue view). Tapping an upcoming track jumps straight to it;
- * dragging the handle reorders it; swiping a row removes it.
+ * swiping a row or tapping its remove button removes it.
  */
 @OptIn(ExperimentalGlideComposeApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -98,6 +101,16 @@ fun QueueScreen(navController: NavController) {
                 .fillMaxSize()
                 .navigationBarsPadding()
         ) {
+            if (q.current == null && q.queued.isEmpty() && q.nextUp.isEmpty()) {
+                item(key = "empty") {
+                    Text(
+                        text = stringResource(R.string.nothing_here),
+                        color = AppMuted,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(20.dp),
+                    )
+                }
+            }
             q.current?.let {
                 item(key = "now") {
                     QueueHeader(stringResource(R.string.default_notification_channel_name))
@@ -108,10 +121,24 @@ fun QueueScreen(navController: NavController) {
             // the ones under it slide up instead of every row after it being drawn anew.
             val keys = queueKeys(q.queued + q.nextUp)
             if (q.queued.isNotEmpty()) {
-                item(key = "heading-queued") { QueueHeader(stringResource(R.string.next_in_queue), animatedRow()) }
+                item(key = "heading-queued") {
+                    QueueHeader(
+                        text = stringResource(R.string.next_in_queue),
+                        modifier = animatedRow(),
+                        actionLabel = stringResource(R.string.clear_queue),
+                        onAction = { SongPlayer.clearQueue() },
+                    )
+                }
                 itemsIndexed(q.queued, key = { i, _ -> keys[i] }) { _, item ->
                     Box(animatedRow()) {
-                        SwipeRemove(item) { QueueRow(song = item.song, highlight = false, onClick = { SongPlayer.skipTo(item) }) }
+                        SwipeRemove(item) {
+                            QueueRow(
+                                song = item.song,
+                                highlight = false,
+                                onClick = { SongPlayer.skipTo(item) },
+                                onRemove = { SongPlayer.removeFromQueue(item) },
+                            )
+                        }
                     }
                 }
             }
@@ -119,7 +146,14 @@ fun QueueScreen(navController: NavController) {
                 item(key = "heading-next") { QueueHeader(stringResource(R.string.next_up), animatedRow()) }
                 itemsIndexed(q.nextUp, key = { i, _ -> keys[q.queued.size + i] }) { _, item ->
                     Box(animatedRow()) {
-                        SwipeRemove(item) { QueueRow(song = item.song, highlight = false, onClick = { SongPlayer.skipTo(item) }) }
+                        SwipeRemove(item) {
+                            QueueRow(
+                                song = item.song,
+                                highlight = false,
+                                onClick = { SongPlayer.skipTo(item) },
+                                onRemove = { SongPlayer.removeFromQueue(item) },
+                            )
+                        }
                     }
                 }
             }
@@ -137,14 +171,34 @@ private fun queueKeys(rows: List<SongPlayer.QueueItem>): List<String> {
 }
 
 @Composable
-private fun QueueHeader(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text,
-        color = AppText,
-        fontSize = 16.sp,
-        fontWeight = FontWeight.Bold,
-        modifier = modifier.padding(16.dp, 18.dp, 16.dp, 6.dp)
-    )
+private fun QueueHeader(
+    text: String,
+    modifier: Modifier = Modifier,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = modifier.fillMaxWidth().padding(16.dp, 18.dp, 16.dp, 6.dp),
+    ) {
+        Text(
+            text,
+            color = AppText,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f),
+        )
+        if (actionLabel != null && onAction != null) {
+            Text(
+                actionLabel,
+                color = AppAccent,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clickable(onClick = onAction).padding(start = 12.dp, top = 4.dp, bottom = 4.dp),
+            )
+        }
+    }
 }
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -181,11 +235,9 @@ private fun QueueRow(
     song: io.github.thake.soundnest.data.entity.SongsModel,
     highlight: Boolean,
     onClick: () -> Unit,
+    onRemove: (() -> Unit)? = null,
     isDragging: Boolean = false,
     dragOffsetY: Float = 0f,
-    onDragStart: () -> Unit = {},
-    onDragEnd: () -> Unit = {},
-    onDragDelta: (Float) -> Unit = {},
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -222,10 +274,23 @@ private fun QueueRow(
             )
             Text(
                 text = song.singer,
-                color = Color.Gray,
+                color = AppMuted,
                 fontSize = 13.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (onRemove != null) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = stringResource(R.string.aligned_curation_first_save_default_row_remove_action_description),
+                tint = AppMuted,
+                modifier = Modifier
+                    .padding(start = 8.dp)
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(50))
+                    .clickable(onClick = onRemove)
+                    .padding(6.dp),
             )
         }
     }

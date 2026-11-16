@@ -218,7 +218,7 @@ fun SettingsScreen(
                     .padding(horizontal = 20.dp, vertical = 10.dp),
             ) {
                 Text(stringResource(R.string.equalizer_title), color = AppText, fontSize = 16.sp)
-                Text(stringResource(R.string.equalizer_settings_detail), color = AppMuted, fontSize = 12.sp)
+                Text(stringResource(R.string.equalizer_settings_detail_soundnest), color = AppMuted, fontSize = 12.sp)
             }
             // What keeps the music going and what the headset buttons do.
             Section(R.string.settings_section_controls)
@@ -255,7 +255,7 @@ fun SettingsScreen(
             )
             OptionRow(
                 label = stringResource(R.string.data_saver_title),
-                detail = stringResource(R.string.data_saver_summary),
+                detail = stringResource(R.string.data_saver_summary_soundnest),
                 checked = io.github.thake.soundnest.data.DataSaver.enabled,
                 onChecked = io.github.thake.soundnest.data.DataSaver::set,
             )
@@ -568,7 +568,7 @@ private fun TransitionsLink(onOpen: () -> Unit) {
         modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(start = 20.dp, end = 12.dp, top = 10.dp, bottom = 10.dp)) {
         Column(Modifier.weight(1f)) {
             Text(stringResource(R.string.settings_transitions_title), color = AppText, fontSize = 16.sp)
-            Text(stringResource(R.string.settings_transitions_detail), color = AppMuted, fontSize = 12.sp)
+            Text(stringResource(R.string.settings_transitions_detail_soundnest), color = AppMuted, fontSize = 12.sp)
         }
         Text(
             when (io.github.thake.soundnest.data.preferences.TransitionPref.mode) {
@@ -605,7 +605,7 @@ private fun TransitionsRow() {
     androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp)) {
         Text(stringResource(R.string.settings_transitions_title), color = AppText, fontSize = 16.sp)
         Text(
-            stringResource(R.string.settings_transitions_detail),
+            stringResource(R.string.settings_transitions_detail_soundnest),
             color = AppMuted, fontSize = 12.sp,
             modifier = Modifier.padding(top = 2.dp),
         )
@@ -631,7 +631,7 @@ private fun TransitionsRow() {
         )
         // The long explanation of AutoMix, as the Immersive page gives it under the choice.
         if (mode == TransitionMode.AUTOMIX) Text(
-            stringResource(R.string.settings_automix_detail),
+            stringResource(R.string.settings_automix_detail_soundnest),
             color = AppMuted, fontSize = 12.sp,
             modifier = Modifier.padding(top = 8.dp),
         )
@@ -708,7 +708,7 @@ private fun TransitionsRow() {
         onDismissRequest = { intro = false; io.github.thake.soundnest.ui.components.AutoMixIntro.markSeen() },
         containerColor = tone(0xFF282828),
         title = { Text(stringResource(R.string.settings_automix_intro_title), color = AppText) },
-        text = { Text(stringResource(R.string.settings_automix_intro_text), color = AppMuted) },
+        text = { Text(stringResource(R.string.settings_automix_intro_text_soundnest), color = AppMuted) },
         confirmButton = {
             androidx.compose.material3.TextButton(onClick = { intro = false; io.github.thake.soundnest.ui.components.AutoMixIntro.markSeen() }) {
                 Text(stringResource(R.string.settings_automix_intro_ok), color = io.github.thake.soundnest.ui.theme.AppAccent)
@@ -995,7 +995,7 @@ private fun StorageRows() {
     ) {
         Text(stringResource(R.string.settings_storage_clear_cache), color = AppText, fontSize = 16.sp)
         Text(
-            usage?.let { stringResource(R.string.settings_storage_clear_cache_detail, android.text.format.Formatter.formatShortFileSize(ctx, it.caches)) }.orEmpty(),
+            usage?.let { stringResource(R.string.settings_storage_clear_cache_detail_soundnest, android.text.format.Formatter.formatShortFileSize(ctx, it.caches)) }.orEmpty(),
             color = AppMuted, fontSize = 12.sp,
         )
     }
@@ -1039,7 +1039,7 @@ private fun AboutRow() {
 internal fun shareDiagnosticReport(context: android.content.Context, file: java.io.File) {
     val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
         type = "text/plain"
-        putExtra(android.content.Intent.EXTRA_SUBJECT, "Myspoti diagnostic report")
+        putExtra(android.content.Intent.EXTRA_SUBJECT, "SoundNest diagnostic report")
     }
     val uri = runCatching {
         androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
@@ -1049,7 +1049,7 @@ internal fun shareDiagnosticReport(context: android.content.Context, file: java.
         send.putExtra(android.content.Intent.EXTRA_STREAM, uri)
         send.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
     } else {
-        send.putExtra(android.content.Intent.EXTRA_TEXT, "Myspoti diagnostic report: ${file.absolutePath}")
+        send.putExtra(android.content.Intent.EXTRA_TEXT, "SoundNest diagnostic report: ${file.absolutePath}")
     }
     context.startActivity(android.content.Intent.createChooser(send, null).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
 }

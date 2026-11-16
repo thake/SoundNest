@@ -193,7 +193,7 @@ private fun StationRow(station: RadioStation) {
             if (playing) io.github.thake.soundnest.ui.immersive.components.ImmersivePlayingBars(Modifier.align(Alignment.Center))
         }
         Column(Modifier.padding(start = 12.dp).weight(1f)) {
-            Text(station.name, color = if (current) AppAccent else AppText, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(station.name.trim(), color = if (current) AppAccent else AppText, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val subtitle = stationSubtitle(station)
             if (subtitle.isNotBlank()) Text(subtitle, color = AppMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }

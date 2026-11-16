@@ -111,8 +111,9 @@ fun NewReleasesScreen(navController: NavController) {
             SoundNestRuntime.api.home.whatsNew(0, 50).items
                 .filter { io.github.thake.soundnest.parental.ParentalFilterEngine.isFollowedReleaseAllowed(it, policy) }
                 .map { a ->
+                    val formattedDate = a.releaseDate?.let { d -> io.github.thake.soundnest.ui.components.episodeDateLabel(d).ifBlank { d.take(10) } }
                     ReleaseTile(a.uri.substringAfterLast(':'), a.name, a.artists.joinToString(", ") { it.name },
-                        a.images.best(300)?.url.orEmpty(), listOfNotNull(a.type.lowercase().replaceFirstChar { it.uppercase() }, a.releaseDate?.take(10)).joinToString(" • "),
+                        a.images.best(300)?.url.orEmpty(), listOfNotNull(a.type.lowercase().replaceFirstChar { it.uppercase() }, formattedDate).joinToString(" • "),
                         a.uri.split(':').getOrElse(1) { "album" })
                 }
         }.getOrDefault(emptyList())
@@ -233,7 +234,8 @@ fun NewEpisodesScreen(navController: NavController) {
                             modifier = Modifier.size(56.dp).clip(RoundedCornerShape(6.dp)))
                         Column(Modifier.padding(start = 12.dp).weight(1f)) {
                             Text(e.title, color = AppText, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            Text(e.singer + " • " + e.releaseDate.take(10), color = Subtle, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            val dateLabel = io.github.thake.soundnest.ui.components.episodeDateLabel(e.releaseDate).ifBlank { e.releaseDate.take(10) }
+                            Text(e.singer + " • " + dateLabel, color = Subtle, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
@@ -246,7 +248,7 @@ fun NewEpisodesScreen(navController: NavController) {
 private fun formatMinutes(min: Long) = if (min >= 60) "${min / 60} h ${min % 60} min" else "$min min"
 
 /**
- * The in-app recap: listens on this phone from Spotify, downloads and local files. Spotify's own
+ * The in-app recap: listens on this phone from Spotify and local files. Spotify's own
  * Wrapped only counts what Spotify streamed; this one counts everything, and stays on the phone.
  */
 @OptIn(ExperimentalGlideComposeApi::class)
@@ -283,8 +285,8 @@ fun RecapScreen(navController: NavController, initialTab: Int = 0) {
                     Text(stringResource(R.string.recap_listens, recap.listens), color = Subtle, fontSize = 14.sp)
                     Spacer(Modifier.height(10.dp))
                     val src = recap.bySource
-                    Text(stringResource(R.string.recap_sources,
-                        src[ListenHistory.Source.SPOTIFY] ?: 0, src[ListenHistory.Source.DOWNLOAD] ?: 0, src[ListenHistory.Source.LOCAL] ?: 0),
+                    Text(stringResource(R.string.recap_sources_soundnest,
+                        src[ListenHistory.Source.SPOTIFY] ?: 0, src[ListenHistory.Source.LOCAL] ?: 0),
                         color = Subtle, fontSize = 13.sp)
                 }
             }
@@ -313,7 +315,7 @@ fun RecapScreen(navController: NavController, initialTab: Int = 0) {
             ranked(R.string.recap_top_artists, recap.topArtists)
             ranked(R.string.recap_top_albums, recap.topAlbums)
             item {
-                Text(stringResource(R.string.recap_private_note), color = Color(0xFF7A7A7A), fontSize = 12.sp, modifier = Modifier.padding(16.dp, 24.dp))
+                Text(stringResource(R.string.recap_private_note_soundnest), color = Color(0xFF7A7A7A), fontSize = 12.sp, modifier = Modifier.padding(16.dp, 24.dp))
             }
         }
     }

@@ -121,22 +121,29 @@ fun ImmersiveSongOptionsSheet(
         ImmersiveSheetHeader(title = song.title, subtitle = song.singer, coverUrl = song.coverUri)
         ImmersiveSheetDivider()
 
-        ImmersiveSheetRow(
-            icon = if (liked) null else Icons.Rounded.AddCircleOutline,
-            label = stringResource(if (liked) R.string.collection_liked_songs_title else R.string.aligned_curation_context_menu_item_add_to_liked_songs),
-            enabled = hasId,
-            leading = if (liked) ({ LikedTick() }) else null,
-        ) {
-            SongPlayer.setTrackSaved(song.spotifyTrackId, !liked)
-            toast(context.getString(if (liked) R.string.snackbar_removed_from_liked_songs else R.string.snackbar_added_to_liked_songs))
-            onDismiss()
-        }
-        ImmersiveSheetRow(Icons.AutoMirrored.Rounded.PlaylistAdd, stringResource(R.string.context_menu_add_to_playlist), enabled = hasId) { showSavedIn = true }
-        ImmersiveSheetRow(Icons.AutoMirrored.Rounded.PlaylistAdd, stringResource(R.string.context_menu_add_to_another_playlist), enabled = hasId) { showAddTo = true }
-        if (onRemoveFromPlaylist != null) {
-            ImmersiveSheetRow(Icons.Rounded.DeleteOutline, stringResource(R.string.context_menu_remove_from_playlist), enabled = hasId) {
+        val canModifyLib = io.github.thake.soundnest.parental.FeatureGates.canModifySpotifyLibrary(context)
+        val canRadio = io.github.thake.soundnest.parental.FeatureGates.canUseAutoplayAndRadio(context)
+
+        if (canModifyLib) {
+            ImmersiveSheetRow(
+                icon = if (liked) null else Icons.Rounded.AddCircleOutline,
+                label = stringResource(if (liked) R.string.collection_liked_songs_title else R.string.aligned_curation_context_menu_item_add_to_liked_songs),
+                enabled = hasId,
+                leading = if (liked) ({ LikedTick() }) else null,
+            ) {
+                SongPlayer.setTrackSaved(song.spotifyTrackId, !liked)
+                toast(context.getString(if (liked) R.string.snackbar_removed_from_liked_songs else R.string.snackbar_added_to_liked_songs))
                 onDismiss()
-                onRemoveFromPlaylist()
+            }
+            ImmersiveSheetRow(Icons.AutoMirrored.Rounded.PlaylistAdd, stringResource(R.string.context_menu_add_to_playlist), enabled = hasId) { showSavedIn = true }
+            if (currentPlaylistId != null) {
+                ImmersiveSheetRow(Icons.AutoMirrored.Rounded.PlaylistAdd, stringResource(R.string.context_menu_add_to_another_playlist), enabled = hasId) { showAddTo = true }
+            }
+            if (onRemoveFromPlaylist != null) {
+                ImmersiveSheetRow(Icons.Rounded.DeleteOutline, stringResource(R.string.context_menu_remove_from_playlist), enabled = hasId) {
+                    onDismiss()
+                    onRemoveFromPlaylist()
+                }
             }
         }
         if (!nowPlaying) {
@@ -154,11 +161,13 @@ fun ImmersiveSongOptionsSheet(
                 onOpenQueue()
             }
         }
-        ImmersiveSheetRow(Icons.Rounded.Radio, stringResource(R.string.context_menu_go_to_song_radio), enabled = hasId) {
-            onDismiss()
-            playerViewModel.goToSongRadio(song.spotifyTrackId, song.title,
-                navigate = { route -> navController.navigate(route) },
-                onFailed = { toast(context.getString(R.string.song_radio_failed)) })
+        if (canRadio) {
+            ImmersiveSheetRow(Icons.Rounded.Radio, stringResource(R.string.context_menu_go_to_song_radio), enabled = hasId) {
+                onDismiss()
+                playerViewModel.goToSongRadio(song.spotifyTrackId, song.title,
+                    navigate = { route -> navController.navigate(route) },
+                    onFailed = { toast(context.getString(R.string.song_radio_failed)) })
+            }
         }
         ImmersiveSheetRow(Icons.Rounded.Album, stringResource(R.string.context_menu_browse_album), enabled = !isRadio && (song.album.isNotBlank() || song.albumId.isNotBlank())) {
             onDismiss()
@@ -170,10 +179,10 @@ fun ImmersiveSongOptionsSheet(
         }
         ImmersiveSheetRow(Icons.Rounded.Info, stringResource(R.string.track_credits), enabled = hasId) { showCredits = true }
         if (nowPlaying && hasId && !song.url.startsWith("episode:")) {
-            if (io.github.thake.soundnest.data.preferences.GeniusPref.on)
+            if (io.github.thake.soundnest.parental.FeatureGates.canUseGeniusMeanings(context) && io.github.thake.soundnest.data.preferences.GeniusPref.on)
                 ImmersiveSheetRow(Icons.Rounded.Lightbulb, stringResource(R.string.lyrics_meaning_title)) { showMeaning = true }
         }
-        if (nowPlaying && lyricsOpen) {
+        if (nowPlaying && lyricsOpen && io.github.thake.soundnest.parental.FeatureGates.canShowLyrics(context)) {
             // The lyrics panel's translation, the Classic look's: same model, shown under each line.
             val lyricsVm: io.github.thake.soundnest.ui.viewmodel.LyricsViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
             val lyricsState = lyricsVm.state.collectAsState().value
@@ -210,7 +219,9 @@ fun ImmersiveSongOptionsSheet(
                 }
             }
             // Ask another provider for the lyrics (also when none were found).
-            if (lyricsState !is io.github.thake.soundnest.ui.viewmodel.LyricsViewModel.State.Loading) {
+            if (lyricsState !is io.github.thake.soundnest.ui.viewmodel.LyricsViewModel.State.Loading &&
+                io.github.thake.soundnest.parental.FeatureGates.canUseExtraLyricSources(context)
+            ) {
                 ImmersiveSheetRow(Icons.Rounded.SwapHoriz, stringResource(R.string.lyrics_other_source)) { showSources = true }
             }
         }
@@ -231,15 +242,17 @@ fun ImmersiveSongOptionsSheet(
 
         val trackUri = "spotify:track:${song.spotifyTrackId}"
         val excluded by produceState<Boolean?>(null, trackUri) {
-            value = if (!hasId) null else runCatching { io.github.thake.soundnest.host.android.SoundNestRuntime.api.extras.isExcludedFromTaste(listOf(trackUri)).single() }.getOrNull()
+            value = if (!hasId || !canModifyLib) null else runCatching { io.github.thake.soundnest.host.android.SoundNestRuntime.api.extras.isExcludedFromTaste(listOf(trackUri)).single() }.getOrNull()
         }
-        ImmersiveSheetRow(Icons.Rounded.Block, stringResource(if (excluded == true) R.string.include_taste else R.string.exclude_taste), enabled = hasId && excluded != null) {
-            val exclude = excluded != true
-            io.github.thake.soundnest.host.android.SoundNestRuntime.scope.launch {
-                runCatching { io.github.thake.soundnest.host.android.SoundNestRuntime.api.extras.setExcludedFromTaste(trackUri, exclude) }
+        if (canModifyLib && excluded != null) {
+            ImmersiveSheetRow(Icons.Rounded.Block, stringResource(if (excluded == true) R.string.include_taste else R.string.exclude_taste)) {
+                val exclude = excluded != true
+                io.github.thake.soundnest.host.android.SoundNestRuntime.scope.launch {
+                    runCatching { io.github.thake.soundnest.host.android.SoundNestRuntime.api.extras.setExcludedFromTaste(trackUri, exclude) }
+                }
+                Haptics.confirm()
+                onDismiss()
             }
-            Haptics.confirm()
-            onDismiss()
         }
         val artistBan by produceState<Pair<String, Boolean>?>(null, trackUri) {
             if (!hasId) return@produceState
@@ -249,32 +262,36 @@ fun ImmersiveSongOptionsSheet(
                 artist to api.extras.isArtistBanned(listOf(artist)).single()
             }.getOrNull()
         }
-        ImmersiveSheetRow(Icons.Rounded.Block, stringResource(if (artistBan?.second == true) R.string.artist_unban else R.string.artist_ban), enabled = artistBan != null) {
-            val (artist, banned) = artistBan ?: return@ImmersiveSheetRow
-            onDismiss()
-            io.github.thake.soundnest.parental.ParentSecurityManager.runProtected(
-                context,
-                io.github.thake.soundnest.parental.AppSurface.HIDDEN_SONGS_AND_BANS,
-            ) {
-                io.github.thake.soundnest.host.android.SoundNestRuntime.scope.launch {
-                    runCatching { io.github.thake.soundnest.host.android.SoundNestRuntime.api.extras.setArtistBanned(artist, !banned) }
+        if (artistBan != null) {
+            ImmersiveSheetRow(Icons.Rounded.Block, stringResource(if (artistBan?.second == true) R.string.artist_unban else R.string.artist_ban)) {
+                val (artist, banned) = artistBan ?: return@ImmersiveSheetRow
+                onDismiss()
+                io.github.thake.soundnest.parental.ParentSecurityManager.runProtected(
+                    context,
+                    io.github.thake.soundnest.parental.AppSurface.HIDDEN_SONGS_AND_BANS,
+                ) {
+                    io.github.thake.soundnest.host.android.SoundNestRuntime.scope.launch {
+                        runCatching { io.github.thake.soundnest.host.android.SoundNestRuntime.api.extras.setArtistBanned(artist, !banned) }
+                    }
+                    toast(context.getString(if (banned) R.string.artist_unbanned else R.string.artist_banned, song.singer.substringBefore(",").trim()))
+                    Haptics.confirm()
                 }
-                toast(context.getString(if (banned) R.string.artist_unbanned else R.string.artist_banned, song.singer.substringBefore(",").trim()))
-                Haptics.confirm()
             }
         }
-        if (song.url.startsWith("episode:")) {
+        if (canModifyLib && song.url.startsWith("episode:")) {
             val episodeUri = "spotify:episode:" + song.url.removePrefix("episode:")
             val saved by produceState<Boolean?>(null, episodeUri) {
                 value = runCatching { io.github.thake.soundnest.host.android.SoundNestRuntime.api.library.contains(listOf(episodeUri)).single() }.getOrNull()
             }
-            ImmersiveSheetRow(Icons.Rounded.Bookmark, stringResource(if (saved == true) R.string.episode_unsave else R.string.episode_save), enabled = saved != null) {
-                val save = saved != true
-                io.github.thake.soundnest.host.android.SoundNestRuntime.scope.launch {
-                    runCatching { io.github.thake.soundnest.host.android.SoundNestRuntime.api.podcasts.setEpisodeSaved(episodeUri, save) }
+            if (saved != null) {
+                ImmersiveSheetRow(Icons.Rounded.Bookmark, stringResource(if (saved == true) R.string.episode_unsave else R.string.episode_save)) {
+                    val save = saved != true
+                    io.github.thake.soundnest.host.android.SoundNestRuntime.scope.launch {
+                        runCatching { io.github.thake.soundnest.host.android.SoundNestRuntime.api.podcasts.setEpisodeSaved(episodeUri, save) }
+                    }
+                    Haptics.confirm()
+                    onDismiss()
                 }
-                Haptics.confirm()
-                onDismiss()
             }
         }
         if (nowPlaying && song.url.startsWith("episode:")) {

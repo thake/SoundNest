@@ -114,21 +114,40 @@ internal fun BrowseTileRow(
 internal fun BrowseTileCard(tile: BrowseTile, modifier: Modifier = Modifier) {
     val tone = remember(tile.color) { moodTone(tile.color) }
     val artwork = spotifyImageUrl(tile.image)
-    Box(modifier = modifier.background(tone.stripe)) {
-        Box(
-            Modifier
-                .align(Alignment.CenterEnd)
-                .fillMaxHeight()
-                .fillMaxWidth(1f - StripeFraction)
-                .background(tone.placeholder),
-        ) {
-            if (artwork != null) {
+    Box(
+        modifier = modifier.background(
+            if (artwork == null) {
+                Brush.linearGradient(listOf(tone.stripe, lerp(tone.stripe, tone.placeholder, 0.52f)))
+            } else {
+                Brush.horizontalGradient(listOf(tone.stripe, tone.stripe))
+            },
+        ),
+    ) {
+        if (artwork != null) {
+            Box(
+                Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight()
+                    .fillMaxWidth(1f - StripeFraction * 0.5f)
+                    .background(tone.placeholder),
+            ) {
                 GlideImage(
                     model = artwork,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     colorFilter = tone.duotone,
                     modifier = Modifier.fillMaxSize(),
+                )
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .background(
+                            Brush.horizontalGradient(
+                                0f to tone.stripe,
+                                0.36f to tone.stripe.copy(alpha = 0.80f),
+                                0.72f to Color.Transparent,
+                            ),
+                        ),
                 )
             }
         }

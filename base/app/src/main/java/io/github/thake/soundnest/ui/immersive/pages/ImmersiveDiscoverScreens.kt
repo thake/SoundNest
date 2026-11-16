@@ -71,8 +71,9 @@ fun ImmersiveNewReleasesScreen(navController: NavController) {
             SoundNestRuntime.api.home.whatsNew(0, 50).items
                 .filter { io.github.thake.soundnest.parental.ParentalFilterEngine.isFollowedReleaseAllowed(it, policy) }
                 .map { a ->
+                    val formattedDate = a.releaseDate?.let { d -> io.github.thake.soundnest.ui.components.episodeDateLabel(d).ifBlank { d.take(10) } }
                     ReleaseTile(a.uri.substringAfterLast(':'), a.name, a.artists.joinToString(", ") { it.name },
-                        a.images.best(300)?.url.orEmpty(), listOfNotNull(a.type.lowercase().replaceFirstChar { it.uppercase() }, a.releaseDate?.take(10)).joinToString(" • "),
+                        a.images.best(300)?.url.orEmpty(), listOfNotNull(a.type.lowercase().replaceFirstChar { it.uppercase() }, formattedDate).joinToString(" • "),
                         a.uri.split(':').getOrElse(1) { "album" })
                 }
         }.getOrDefault(emptyList())
@@ -181,9 +182,10 @@ fun ImmersiveNewEpisodesScreen(navController: NavController) {
             list.isEmpty() -> item(key = "empty") { ImmersiveMessageState(stringResource(R.string.new_episodes_empty)) }
             else -> items(list, key = { it.url }) { e ->
                 Column(immersiveItemPlacement()) {
+                    val dateLabel = io.github.thake.soundnest.ui.components.episodeDateLabel(e.releaseDate).ifBlank { e.releaseDate.take(10) }
                     ImmersiveListRow(
                         title = e.title,
-                        subtitle = e.singer + " • " + e.releaseDate.take(10),
+                        subtitle = e.singer + " • " + dateLabel,
                         imageUrl = e.coverUri,
                         round = false,
                         onClick = { navController.navigate(io.github.thake.soundnest.ui.navigation.episodeRoute(e.url.removePrefix("episode:"), e.title)) },
@@ -198,7 +200,7 @@ private fun episodeMinutesLabel(min: Long) = if (min >= 60) "${min / 60} h ${min
 
 /**
  * The in-app recap: Spotify's ranking of the account first, then what was played on this phone
- * (Spotify, downloads and local files). Same counters as the Classic `RecapScreen`.
+ * (Spotify and local files). Same counters as the Classic `RecapScreen`.
  */
 @Composable
 fun ImmersiveRecapScreen(navController: NavController, initialTab: Int = 0) {
@@ -303,7 +305,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.phoneStats(
             Text(stringResource(R.string.recap_listens, recap.listens), style = Immersive.Subhead)
             val src = recap.bySource
             Text(
-                stringResource(R.string.recap_sources, src[ListenHistory.Source.SPOTIFY] ?: 0, src[ListenHistory.Source.DOWNLOAD] ?: 0, src[ListenHistory.Source.LOCAL] ?: 0),
+                stringResource(R.string.recap_sources_soundnest, src[ListenHistory.Source.SPOTIFY] ?: 0, src[ListenHistory.Source.LOCAL] ?: 0),
                 style = Immersive.Caption, modifier = Modifier.padding(top = 8.dp),
             )
         }
@@ -325,7 +327,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.phoneStats(
     ranked("artists", R.string.recap_top_artists, recap.topArtists)
     ranked("albums", R.string.recap_top_albums, recap.topAlbums)
     item(key = "note") {
-        Text(stringResource(R.string.recap_private_note), style = Immersive.Caption.copy(color = Immersive.TextTertiary),
+        Text(stringResource(R.string.recap_private_note_soundnest), style = Immersive.Caption.copy(color = Immersive.TextTertiary),
             modifier = Modifier.padding(Immersive.Gutter, 24.dp))
     }
 }

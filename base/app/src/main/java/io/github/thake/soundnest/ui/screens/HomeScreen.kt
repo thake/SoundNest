@@ -574,7 +574,7 @@ private fun ProfileSheet(onOpen: (route: String) -> Unit = {}, onDismiss: () -> 
                     .padding(horizontal = 20.dp, vertical = 10.dp),
             ) {
                 Text(stringResource(R.string.recap_title), color = AppText, fontSize = 16.sp)
-                Text(stringResource(R.string.recap_detail), color = AppMuted, fontSize = 12.sp)
+                Text(stringResource(R.string.recap_detail_soundnest), color = AppMuted, fontSize = 12.sp)
             }
             // The account's own listening history, as Spotify keeps it: it belongs beside the
             // recap (the local counter) because both answer "what did I listen to".
@@ -585,11 +585,16 @@ private fun ProfileSheet(onOpen: (route: String) -> Unit = {}, onDismiss: () -> 
                 Text(stringResource(R.string.recents_title), color = AppText, fontSize = 16.sp)
                 Text(stringResource(R.string.recents_detail), color = AppMuted, fontSize = 12.sp)
             }
-            // The Spotify account page (plan, privacy, devices), in the app's signed-in browser.
+            // The Spotify account page (plan, privacy, devices), in the app's signed-in browser (Parent PIN required).
             androidx.compose.foundation.layout.Column(
                 Modifier.fillMaxWidth().clickable {
                     onDismiss()
-                    io.github.thake.soundnest.ui.screens.AccountBrowser.open(io.github.thake.soundnest.di.Graph.app, io.github.thake.soundnest.ui.screens.AccountBrowser.ACCOUNT_URL)
+                    io.github.thake.soundnest.parental.ParentSecurityManager.runProtected(
+                        io.github.thake.soundnest.di.Graph.app,
+                        io.github.thake.soundnest.parental.AppSurface.ACCOUNTS_AND_LOGOUT,
+                    ) {
+                        io.github.thake.soundnest.ui.screens.AccountBrowser.open(io.github.thake.soundnest.di.Graph.app, io.github.thake.soundnest.ui.screens.AccountBrowser.ACCOUNT_URL)
+                    }
                 }.padding(horizontal = 20.dp, vertical = 10.dp),
             ) {
                 Text(stringResource(R.string.account_page_title), color = AppText, fontSize = 16.sp)

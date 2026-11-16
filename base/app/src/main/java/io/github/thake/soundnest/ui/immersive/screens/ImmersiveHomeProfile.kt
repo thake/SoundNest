@@ -18,8 +18,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -105,6 +108,7 @@ internal fun AvatarDisc(
 internal fun ImmersiveProfileSheet(onOpen: (route: String) -> Unit, onDismiss: () -> Unit) {
     val name = ProfileCache.name.orEmpty()
     val avatar = ProfileCache.imageUrl
+    val adminUnlocked = io.github.thake.soundnest.parental.ParentSecurityManager.isAdminUnlocked(Graph.app)
     // Opened in full: half-open, the sheet and its list both moved under the finger.
     ImmersiveGlassSheet(onDismiss, rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(
@@ -139,25 +143,31 @@ internal fun ImmersiveProfileSheet(onOpen: (route: String) -> Unit, onDismiss: (
             SheetRow(stringResource(R.string.settings_title), stringResource(R.string.settings_detail)) {
                 onOpen(Routes.Settings.route)
             }
-            SheetRow("Parental Controls", "Content filters, Home sections, features, speakers & backup") {
+            SheetRow("Parental Controls", "Content filters, Home sections, features, speakers & backup", locked = !adminUnlocked) {
                 io.github.thake.soundnest.parental.ParentSecurityManager.runProtected(
                     Graph.app,
                     io.github.thake.soundnest.parental.AppSurface.PARENT_CONTROLS,
                 ) { onOpen(Routes.ParentSettings.route) }
             }
-            SheetRow(stringResource(R.string.recap_title), stringResource(R.string.recap_detail)) {
+            SheetRow(stringResource(R.string.recap_title), stringResource(R.string.recap_detail_soundnest)) {
                 onOpen(Routes.Recap.route)
             }
             SheetRow(stringResource(R.string.recents_title), stringResource(R.string.recents_detail)) {
                 onOpen(Routes.Recent.route)
             }
-            // The account page (plan, privacy, devices), in the app's signed-in browser.
+            // The account page (plan, privacy, devices), in the app's signed-in browser (Parent PIN required).
             SheetRow(
                 stringResource(R.string.immersive_screens_account_page),
                 stringResource(R.string.immersive_screens_account_page_detail),
+                locked = !adminUnlocked,
             ) {
                 onDismiss()
-                AccountBrowser.open(Graph.app, AccountBrowser.ACCOUNT_URL)
+                io.github.thake.soundnest.parental.ParentSecurityManager.runProtected(
+                    Graph.app,
+                    io.github.thake.soundnest.parental.AppSurface.ACCOUNTS_AND_LOGOUT,
+                ) {
+                    AccountBrowser.open(Graph.app, AccountBrowser.ACCOUNT_URL)
+                }
             }
             var about by remember { mutableStateOf(false) }
             if (about) AboutSheet(onDismiss = { about = false })
@@ -167,13 +177,13 @@ internal fun ImmersiveProfileSheet(onOpen: (route: String) -> Unit, onDismiss: (
             // The other Spotify accounts kept on the phone: switch, add, remove (Parent PIN required).
             var accounts by remember { mutableStateOf(false) }
             if (accounts) io.github.thake.soundnest.ui.components.AccountsSheet(onDismiss = { accounts = false }, onLeave = { accounts = false; onDismiss() })
-            SheetRow(stringResource(R.string.accounts_switch_row), io.github.thake.soundnest.ui.components.switchAccountDetail()) {
+            SheetRow(stringResource(R.string.accounts_switch_row), io.github.thake.soundnest.ui.components.switchAccountDetail(), locked = !adminUnlocked) {
                 io.github.thake.soundnest.parental.ParentSecurityManager.runProtected(
                     Graph.app,
                     io.github.thake.soundnest.parental.AppSurface.ACCOUNTS_AND_LOGOUT,
                 ) { accounts = true }
             }
-            SheetRow(stringResource(R.string.connect_device_menu_logout), null) {
+            SheetRow(stringResource(R.string.connect_device_menu_logout), null, locked = !adminUnlocked) {
                 onDismiss()
                 io.github.thake.soundnest.parental.ParentSecurityManager.runProtected(
                     Graph.app,
@@ -189,15 +199,27 @@ private fun SheetRow(
     title: String,
     detail: String?,
     titleColor: androidx.compose.ui.graphics.Color = Immersive.Text,
+    locked: Boolean = false,
     onClick: () -> Unit,
 ) {
-    Column(
-        Modifier
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
             .fillMaxWidth()
             .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = Immersive.Gutter, vertical = if (detail == null) 14.dp else 10.dp),
     ) {
-        Text(title, style = Immersive.Body.copy(color = titleColor))
-        if (detail != null) Text(detail, style = Immersive.Caption)
+        Column(Modifier.weight(1f)) {
+            Text(title, style = Immersive.Body.copy(color = titleColor))
+            if (detail != null) Text(detail, style = Immersive.Caption)
+        }
+        if (locked) {
+            Icon(
+                imageVector = Icons.Rounded.Lock,
+                contentDescription = "Protected by Parent PIN",
+                tint = Immersive.TextTertiary,
+                modifier = Modifier.padding(start = 12.dp).size(16.dp),
+            )
+        }
     }
 }

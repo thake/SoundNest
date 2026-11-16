@@ -93,7 +93,7 @@ private fun StationRow(station: RadioStation) {
     val current = currentId == RadioPlayer.songIdFor(station)
     val fav = RadioFavoritesStore.isFavorite(station.stationUuid)
     ImmersiveListRow(
-        title = station.name,
+        title = station.name.trim(),
         subtitle = stationSubtitle(station),
         imageUrl = station.favicon.ifBlank { null },
         round = false,

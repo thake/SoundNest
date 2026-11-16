@@ -85,7 +85,7 @@ fun Modifier.immersiveHazeSource(
 @Composable
 internal fun Modifier.immersiveFrost(
     state: HazeState,
-    tint: Color = Immersive.GlassFill.copy(alpha = 0.55f),
+    tint: Color = if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S) Immersive.GlassFill else Immersive.GlassFill.copy(alpha = 0.74f),
     blur: Float = 24f,
 ): Modifier {
     val page = LocalImmersiveFrostPage.current

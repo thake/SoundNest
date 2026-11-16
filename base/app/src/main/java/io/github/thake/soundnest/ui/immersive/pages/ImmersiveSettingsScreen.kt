@@ -302,7 +302,7 @@ private fun PlaybackPage(navController: NavController, open: (SettingsPage) -> U
             }
             row {
                 ImmersiveGroupRow(
-                    stringResource(R.string.settings_transitions_title), detail = stringResource(R.string.settings_transitions_detail),
+                    stringResource(R.string.settings_transitions_title), detail = stringResource(R.string.settings_transitions_detail_soundnest),
                     value = transitionValue(crossfade),
                     chevron = true, onClick = { open(SettingsPage.Crossfade) },
                 )
@@ -310,7 +310,7 @@ private fun PlaybackPage(navController: NavController, open: (SettingsPage) -> U
             // The local player's equalizer, speed and silence skipping (never Spotify's own songs).
             row {
                 ImmersiveGroupRow(
-                    stringResource(R.string.equalizer_title), detail = stringResource(R.string.equalizer_settings_detail),
+                    stringResource(R.string.equalizer_title), detail = stringResource(R.string.equalizer_settings_detail_soundnest),
                     value = if (io.github.thake.soundnest.data.preferences.EqualizerPref.enabled) stringResource(io.github.thake.soundnest.ui.screens.eqPresetLabel(io.github.thake.soundnest.data.preferences.EqualizerPref.preset)) else null,
                     chevron = true, onClick = { navController.navigate(Routes.Equalizer.route) },
                 )
@@ -522,7 +522,7 @@ private fun CrossfadePage(back: () -> Unit) {
     }
     val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
     ImmersivePage(title = stringResource(R.string.settings_transitions_title), onBack = back) {
-        immersiveGroup("mode", footerRes = R.string.settings_transitions_detail) {
+        immersiveGroup("mode", footerRes = R.string.settings_transitions_detail_soundnest) {
             for ((m, title, detail) in listOf(
                 Triple(TransitionMode.OFF, R.string.settings_crossfade_off, R.string.settings_transition_off_detail),
                 Triple(TransitionMode.CROSSFADE, R.string.settings_crossfade_title, R.string.settings_transition_crossfade_detail),
@@ -540,7 +540,7 @@ private fun CrossfadePage(back: () -> Unit) {
         if (reason != null) immersiveGroup("automix-now") {
             row { ImmersiveGroupRow(stringResource(reason)) }
         }
-        if (mode == TransitionMode.CROSSFADE) immersiveGroup("length", headerRes = R.string.settings_crossfade_length, footerRes = R.string.settings_crossfade_detail) {
+        if (mode == TransitionMode.CROSSFADE) immersiveGroup("length", headerRes = R.string.settings_crossfade_length, footerRes = R.string.settings_crossfade_detail_soundnest) {
             // Any length from 1 to 12 s on a slider (it was four fixed choices).
             row {
                 io.github.thake.soundnest.ui.components.CrossfadeSlider(Immersive.Accent, Immersive.Text, Immersive.TextSecondary,
@@ -580,7 +580,7 @@ private fun CrossfadePage(back: () -> Unit) {
                 row { ImmersiveChoiceRow(stringResource(label), selected = automix.nextStyle == i, onClick = { automix.changeNextStyle(i) }) }
             }
         }
-        if (mode == TransitionMode.AUTOMIX) immersiveGroup("automix", headerRes = R.string.settings_automix_options, footerRes = R.string.settings_automix_detail) {
+        if (mode == TransitionMode.AUTOMIX) immersiveGroup("automix", headerRes = R.string.settings_automix_options, footerRes = R.string.settings_automix_detail_soundnest) {
             row {
                 ImmersiveSwitchRow(stringResource(R.string.settings_automix_harmonic), checked = automix.harmonic,
                     onChecked = automix::changeHarmonic, detail = stringResource(R.string.settings_automix_harmonic_detail))
@@ -649,7 +649,7 @@ private fun CrossfadePage(back: () -> Unit) {
     if (intro) ImmersiveAlertDialog(
         onDismissRequest = { intro = false; io.github.thake.soundnest.ui.components.AutoMixIntro.markSeen() },
         title = { Text(stringResource(R.string.settings_automix_intro_title), style = Immersive.Headline) },
-        text = { Text(stringResource(R.string.settings_automix_intro_text), style = Immersive.Subhead) },
+        text = { Text(stringResource(R.string.settings_automix_intro_text_soundnest), style = Immersive.Subhead) },
         confirmButton = {
             TextButton(onClick = { intro = false; io.github.thake.soundnest.ui.components.AutoMixIntro.markSeen() }) {
                 Text(stringResource(R.string.settings_automix_intro_ok), color = Immersive.Accent)
@@ -682,7 +682,7 @@ private fun StoragePage(back: () -> Unit) {
             row {
                 ImmersiveGroupRow(
                     stringResource(R.string.settings_storage_clear_cache),
-                    detail = usage?.let { stringResource(R.string.settings_storage_clear_cache_detail, android.text.format.Formatter.formatShortFileSize(ctx, it.caches)) },
+                    detail = usage?.let { stringResource(R.string.settings_storage_clear_cache_detail_soundnest, android.text.format.Formatter.formatShortFileSize(ctx, it.caches)) },
                     enabled = !clearing,
                     onClick = {
                         clearing = true
@@ -718,7 +718,7 @@ private fun DataPage(back: () -> Unit) {
             }
             row {
                 ImmersiveSwitchRow(stringResource(R.string.data_saver_title), checked = io.github.thake.soundnest.data.DataSaver.enabled,
-                    onChecked = io.github.thake.soundnest.data.DataSaver::set, detail = stringResource(R.string.data_saver_summary))
+                    onChecked = io.github.thake.soundnest.data.DataSaver::set, detail = stringResource(R.string.data_saver_summary_soundnest))
             }
             row {
                 ImmersiveSwitchRow(
@@ -810,7 +810,7 @@ private fun DisplayPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
                 }
                 row {
                     ImmersiveSwitchRow(stringResource(R.string.settings_player_modes_title), checked = io.github.thake.soundnest.data.preferences.PlayerModesPref.on,
-                        onChecked = { io.github.thake.soundnest.data.preferences.PlayerModesPref.set(ctx, it) }, detail = stringResource(R.string.settings_player_modes_detail))
+                        onChecked = { io.github.thake.soundnest.data.preferences.PlayerModesPref.set(ctx, it) }, detail = stringResource(R.string.settings_player_modes_detail_soundnest))
                 }
                 row {
                     ImmersiveSwitchRow(stringResource(R.string.settings_player_volume_title), checked = io.github.thake.soundnest.data.preferences.PlayerVolumePref.on,

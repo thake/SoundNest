@@ -124,8 +124,8 @@
     <string name="song_radio_name">%1$s Radio</string>
     <string name="local_files_find_hint">Find in Local Files</string>
     <string name="data_saver_title">Data saver</string>
-    <string name="data_saver_summary">On mobile data, SoundNest uses no data: only downloaded songs and Local Files play</string>
-    <string name="data_saver_blocked">Data saver: on mobile data, only downloaded songs and Local Files play</string>
+    <string name="data_saver_summary">On mobile data, SoundNest blocks streaming so only Local Files play</string>
+    <string name="data_saver_blocked">Data saver is on: only Local Files play on mobile data</string>
     <string name="new_releases_followed">From artists you follow</string>
     <string name="new_releases_latest">Latest releases</string>
     <string name="your_episodes_title">Your Episodes</string>
@@ -167,8 +167,8 @@
     <string name="recap_top_tracks">Top tracks</string>
     <string name="recap_top_artists">Top artists</string>
     <string name="recap_top_albums">Top albums</string>
-    <string name="recap_private_note">Counts everything played in SoundNest (Spotify, downloads, local files). It stays on this phone and is never sent to Spotify.</string>
-    <string name="recap_detail">Your listening, downloads and local files included</string>
+    <string name="recap_private_note">Counts everything played in SoundNest (Spotify and local files). Kept on this phone and never sent to Spotify.</string>
+    <string name="recap_detail">Your listening history and local files</string>
     <string name="track_credits">Credits</string>
     <string name="exclude_taste">Exclude from your taste profile</string>
     <string name="include_taste">Include in your taste profile</string>
@@ -392,9 +392,9 @@
     <string name="myspoti_shuffle_detail">With shuffle on, a playlist, album or Liked Songs plays every song once, in a random order, before starting over. Off: Spotify\'s shuffle. A free account may keep Spotify\'s shuffle on some lists.</string>
     <string name="myspoti_shuffle_imposed">Spotify keeps its own shuffle on this list for your account: SoundNest shuffle is off for it.</string>
     <string name="settings_automix_title">AutoMix</string>
-    <string name="settings_automix_detail">DJ-style transitions between songs from extensions, downloads and local files: each song is analysed once (beats, bars, phrases, key) and the next one comes in on the beat, tempo matched, with a bass swap. Songs that cannot be beat-matched get a cut on the beat or a fade. Streams are analysed on unmetered networks, or on mobile data if you allow it below.</string>
+    <string name="settings_automix_detail">DJ-style transitions between local files: each song is analysed once (beats, bars, phrases, key) and the next comes in on the beat, tempo matched, with a bass swap. Songs that cannot be beat-matched get a cut on the beat or a fade.</string>
     <string name="settings_crossfade_title">Crossfade</string>
-    <string name="settings_crossfade_detail">Songs from extensions, downloads and local files overlap: the end of one fades out while the next fades in. Spotify streams cannot overlap (one audio stream): they only fade out and in.</string>
+    <string name="settings_crossfade_detail">Local files overlap so the end of one fades out while the next fades in. Spotify streams fade out and in without overlapping.</string>
     <string name="settings_crossfade_off">Off</string>
     <string name="settings_crossfade_seconds">%1$ds</string>
     <string name="settings_rotation_title">Screen rotation</string>
@@ -567,7 +567,7 @@
     <string name="settings_hide_dj_title">Hide the DJ</string>
     <string name="settings_hide_dj_detail">Removes Spotify\'s DJ from Home</string>
     <string name="settings_player_modes_title">Shuffle and repeat in the player</string>
-    <string name="settings_player_modes_detail">Off, the player\'s capsule holds only the devices button, as in 2.1.0</string>
+    <string name="settings_player_modes_detail">When off, the player\'s bottom capsule holds only the devices button</string>
     <string name="settings_player_lyrics_card_title">Lyrics preview in the player</string>
     <string name="settings_player_lyrics_card_detail">The lyrics card under the player. Off, a flick up on the cover still opens the lyrics.</string>
     <string name="settings_player_source_title">Source and quality in the player</string>
@@ -632,8 +632,8 @@
     <string name="lan_failed">%1$s did not accept the login. Open it once with the Spotify app, then try again.</string>
     <string name="lan_others">%1$d more on this network need the Spotify app to log them in first</string>
     <string name="equalizer_title">Equalizer</string>
-    <string name="equalizer_settings_detail">Equalizer, speed and silence skipping for songs from extensions, downloads and local files</string>
-    <string name="equalizer_scope">For songs from extensions, downloads and local files, which the app plays itself. Spotify\'s own songs play in Spotify\'s web player, whose sound the app cannot reach: nothing on this page changes them, nor what plays on a Cast device.</string>
+    <string name="equalizer_settings_detail">Equalizer, speed and silence skipping for local files and Live Radio</string>
+    <string name="equalizer_scope">Applies to local files and Live Radio played directly by SoundNest. Spotify streams play inside Spotify\'s web player and Cast devices use their own audio output.</string>
     <string name="equalizer_enable">Use the equalizer</string>
     <string name="equalizer_enable_detail">Off, or with every band at 0 dB, the sound passes untouched (a lossless stream stays lossless).</string>
     <string name="equalizer_preset">Preset</string>
@@ -675,7 +675,7 @@
     <string name="settings_section_podcasts">Podcasts</string>
     <string name="spatial_title">Spatial audio</string>
     <string name="spatial_enable">Widen the stereo</string>
-    <string name="spatial_detail">Mid/side processing: what sits at the sides is brought out, what sits in the middle stays put. Songs from extensions, downloads and local files only: Spotify\'s own streams are not processed. Mono songs, and everything when off, pass untouched.</string>
+    <string name="spatial_detail">Mid/side stereo widening for local files and Live Radio. Spotify streams and mono tracks pass untouched.</string>
     <string name="spatial_width">Width</string>
     <string name="playlist_reorder_hint">Drag a song by its handle to move it</string>
     <string name="lan_sonos_consent">To log in %1$s, Spotify asks once for the permission its desktop app uses. Allow it, or close this page. SoundNest only reads the address the page ends on.</string>
@@ -684,7 +684,7 @@
     <string name="voice_search">Search by voice</string>
     <string name="voice_search_unavailable">Voice search needs the Google app installed</string>
     <string name="settings_transitions_title">Transitions</string>
-    <string name="settings_transitions_detail">How songs from extensions, downloads and phone files follow each other. Spotify streams always change with a short fade.</string>
+    <string name="settings_transitions_detail">How local files follow each other. Spotify streams always change with a short fade.</string>
     <string name="settings_transition_off_detail">Each song ends, then the next one starts.</string>
     <string name="settings_transition_crossfade_detail">The end of a song fades into the next one.</string>
     <string name="settings_transition_automix_detail">Mixes like a DJ: on the beat, at the end of a phrase, tempos matched. The mix shows on the seek bar and the cover pulses with it.</string>
@@ -732,7 +732,7 @@
     <string name="settings_automix_podcasts">Mix podcasts</string>
     <string name="settings_automix_podcasts_detail">Off, podcast episodes and audiobooks start and end whole.</string>
     <string name="settings_automix_mobile_data">Analyse on mobile data</string>
-    <string name="settings_automix_mobile_data_detail">Songs from extensions are analysed on mobile data too. Each is downloaded a second time for it: about as much data again as playing it. Off, on Wi-Fi only.</string>
+    <string name="settings_automix_mobile_data_detail">Audio streams are analysed on mobile data too. Off, on Wi-Fi only.</string>
     <string name="playback_speed_note">Speed %1$s× · tap for 1×</string>
     <string name="jam_start_premium">Starting a Jam needs Spotify Premium. You can join one with its link or QR code.</string>
     <string name="jam_plays_here">The Jam plays on this phone.</string>
@@ -748,12 +748,12 @@
     <string name="settings_download_lyrics_detail">A downloaded song keeps its lyrics, shown without a connection</string>
     <string name="settings_section_storage">Storage</string>
     <string name="settings_storage_media_cache">Media cache</string>
-    <string name="settings_storage_media_cache_detail">Canvas videos kept on this phone, so they are not downloaded again.</string>
-    <string name="settings_storage_media_cache_restart">Canvas videos kept on this phone. The new size applies when the app starts again.</string>
+    <string name="settings_storage_media_cache_detail">Artwork and media cache kept on this phone so items load faster.</string>
+    <string name="settings_storage_media_cache_restart">Artwork and media cache kept on this phone. The new size applies when the app starts again.</string>
     <string name="settings_storage_mb">%1$d MB</string>
     <string name="settings_storage_gb">%1$d GB</string>
     <string name="settings_storage_clear_cache">Clear cache</string>
-    <string name="settings_storage_clear_cache_detail">%1$s: Canvas videos, covers and AutoMix analyses. Downloads are kept.</string>
+    <string name="settings_storage_clear_cache_detail">%1$s: cached covers, media and AutoMix analyses.</string>
     <string name="settings_storage_cleared">Cache cleared</string>
     <string name="settings_automix_cache">AutoMix analyses</string>
     <string name="settings_automix_cache_detail">%1$s on this phone. Cleared, songs are analysed again when they play.</string>
@@ -771,7 +771,7 @@
     <string name="settings_automix_diagnostics_privacy">The on-screen history is limited to 60 events. Copied reports include only safe event labels and omit track names, addresses and identifiers.</string>
     <string name="settings_automix_diagnostics_cue">%1$s: %2$s, outgoing %3$d–%4$d ms; incoming %5$d–%6$d ms</string>
     <string name="settings_automix_intro_title">How AutoMix works</string>
-    <string name="settings_automix_intro_text">AutoMix mixes the songs SoundNest plays itself: from extensions, downloads and files on this phone. Spotify songs play in Spotify\'s web player, whose sound the app never has: they only fade.\n\nEach song is analysed once (beats, bars, key). Streams are analysed on Wi-Fi, or on mobile data if you allow it; a song not analysed in time changes with a fade.</string>
+    <string name="settings_automix_intro_text">AutoMix mixes local files played directly on this phone. Spotify songs play inside Spotify\'s web player and transition with a fade.\n\nEach local track is analysed once (beats, bars, key); a track not analysed in time changes with a fade.</string>
     <string name="settings_automix_intro_ok">Got it</string>
     <string name="automix_reason_spotify">No mix now: Spotify songs play in Spotify\'s web player and only fade.</string>
     <string name="automix_reason_cast">No mix now: songs on a Cast device change without a mix.</string>
@@ -829,4 +829,20 @@
     <string name="connecting_spotify_status" tools:ignore="MissingTranslation">Connecting to Spotify…</string>
     <string name="connecting_spotify_detail" tools:ignore="MissingTranslation">Verifying your session and preparing your library.</string>
     <string name="connecting_cancel_sign_in" tools:ignore="MissingTranslation">Back to sign-in</string>
+    <!-- SoundNest cleaned playback, recap, equalizer & storage copy (avoids legacy extension/download/Canvas translations in values-*) -->
+    <string name="data_saver_summary_soundnest" tools:ignore="MissingTranslation">On mobile data, SoundNest blocks streaming so only Local Files play</string>
+    <string name="data_saver_blocked_soundnest" tools:ignore="MissingTranslation">Data saver is on: only Local Files play on mobile data</string>
+    <string name="recap_sources_soundnest" tools:ignore="MissingTranslation">Spotify %1$d min • Local files %2$d min</string>
+    <string name="recap_detail_soundnest" tools:ignore="MissingTranslation">Your listening history and local files</string>
+    <string name="recap_private_note_soundnest" tools:ignore="MissingTranslation">Counts everything played in SoundNest (Spotify and local files). Kept on this phone and never sent to Spotify.</string>
+    <string name="equalizer_scope_soundnest" tools:ignore="MissingTranslation">Applies to local files and Live Radio played directly by SoundNest. Spotify streams play inside Spotify\'s web player and Cast devices use their own audio output.</string>
+    <string name="equalizer_settings_detail_soundnest" tools:ignore="MissingTranslation">Equalizer, speed and silence skipping for local files and Live Radio</string>
+    <string name="spatial_detail_soundnest" tools:ignore="MissingTranslation">Mid/side stereo widening for local files and Live Radio. Spotify streams and mono tracks pass untouched.</string>
+    <string name="settings_transitions_detail_soundnest" tools:ignore="MissingTranslation">How local files follow each other. Spotify streams always change with a short fade.</string>
+    <string name="settings_crossfade_detail_soundnest" tools:ignore="MissingTranslation">Local files overlap so the end of one fades out while the next fades in. Spotify streams fade out and in without overlapping.</string>
+    <string name="settings_automix_detail_soundnest" tools:ignore="MissingTranslation">DJ-style transitions between local files: each song is analysed once (beats, bars, phrases, key) and the next comes in on the beat, tempo matched, with a bass swap. Songs that cannot be beat-matched get a cut on the beat or a fade.</string>
+    <string name="settings_automix_intro_text_soundnest" tools:ignore="MissingTranslation">AutoMix mixes local files played directly on this phone. Spotify songs play inside Spotify\'s web player and transition with a fade.\n\nEach local track is analysed once (beats, bars, key); a track not analysed in time changes with a fade.</string>
+    <string name="settings_player_modes_detail_soundnest" tools:ignore="MissingTranslation">When off, the player\'s bottom capsule holds only the devices button</string>
+    <string name="settings_storage_media_cache_detail_soundnest" tools:ignore="MissingTranslation">Artwork and media cache kept on this phone so items load faster.</string>
+    <string name="settings_storage_clear_cache_detail_soundnest" tools:ignore="MissingTranslation">%1$s: cached covers, media and AutoMix analyses.</string>
 </resources>

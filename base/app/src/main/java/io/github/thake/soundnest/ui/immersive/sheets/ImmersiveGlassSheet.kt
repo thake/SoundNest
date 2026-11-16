@@ -47,7 +47,12 @@ fun ImmersiveGlassSheet(
         contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
     ) {
         CompositionLocalProvider(LocalOverscrollFactory provides rememberImmersiveOverscrollFactory()) {
-            Column(Modifier.fillMaxWidth().immersiveGlassSurface(ImmersiveSheetShape)) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF1A1A20).copy(alpha = 0.94f), ImmersiveSheetShape)
+                    .immersiveGlassSurface(ImmersiveSheetShape),
+            ) {
                 Box(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 6.dp), contentAlignment = Alignment.Center) {
                     Box(
                         Modifier

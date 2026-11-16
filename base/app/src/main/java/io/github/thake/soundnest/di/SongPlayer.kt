@@ -1222,7 +1222,7 @@ object SongPlayer {
         // Data saver on mobile data: Spotify can't stream, only Local Files play.
         if (io.github.thake.soundnest.data.DataSaver.active) {
             main.post {
-                android.widget.Toast.makeText(Graph.app, io.github.thake.soundnest.R.string.data_saver_blocked, android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(Graph.app, io.github.thake.soundnest.R.string.data_saver_blocked_soundnest, android.widget.Toast.LENGTH_SHORT).show()
             }
             return
         }

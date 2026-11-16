@@ -170,25 +170,30 @@ fun SongOptionsSheet(
             HorizontalDivider(color = tone(0xFF3E3E3E), thickness = 0.5.dp)
             Spacer(Modifier.height(8.dp))
 
-            MenuRow(
-                icon = if (liked) null else Icons.Outlined.AddCircleOutline,
-                label = stringResource(if (liked) R.string.collection_liked_songs_title else R.string.aligned_curation_context_menu_item_add_to_liked_songs),
-                enabled = hasId,
-                leading = if (liked) ({ LikedBadge() }) else null,
-            ) {
-                SongPlayer.setTrackSaved(song.spotifyTrackId, !liked)
-                toast(context.getString(if (liked) R.string.snackbar_removed_from_liked_songs else R.string.snackbar_added_to_liked_songs))
-                onDismiss()
-            }
-            MenuRow(Icons.AutoMirrored.Filled.PlaylistAdd, stringResource(R.string.context_menu_add_to_playlist), enabled = hasId) { showSavedIn = true }
-            // Copy into another playlist: one tap, one target, said out loud by the toast.
-            MenuRow(Icons.AutoMirrored.Filled.PlaylistAdd, stringResource(R.string.context_menu_add_to_another_playlist), enabled = hasId) { showAddTo = true }
-            // Only where a playlist is on screen (A11): the row disappears at once, the
-            // screen tells the user and offers Undo.
-            if (onRemoveFromPlaylist != null) {
-                MenuRow(Icons.Outlined.Delete, stringResource(R.string.context_menu_remove_from_playlist), enabled = hasId) {
+            val canModifyLib = io.github.thake.soundnest.parental.FeatureGates.canModifySpotifyLibrary(context)
+            val canRadio = io.github.thake.soundnest.parental.FeatureGates.canUseAutoplayAndRadio(context)
+
+            if (canModifyLib) {
+                MenuRow(
+                    icon = if (liked) null else Icons.Outlined.AddCircleOutline,
+                    label = stringResource(if (liked) R.string.collection_liked_songs_title else R.string.aligned_curation_context_menu_item_add_to_liked_songs),
+                    enabled = hasId,
+                    leading = if (liked) ({ LikedBadge() }) else null,
+                ) {
+                    SongPlayer.setTrackSaved(song.spotifyTrackId, !liked)
+                    toast(context.getString(if (liked) R.string.snackbar_removed_from_liked_songs else R.string.snackbar_added_to_liked_songs))
                     onDismiss()
-                    onRemoveFromPlaylist()
+                }
+                MenuRow(Icons.AutoMirrored.Filled.PlaylistAdd, stringResource(R.string.context_menu_add_to_playlist), enabled = hasId) { showSavedIn = true }
+                if (currentPlaylistId != null) {
+                    // Copy into another playlist when viewing inside an existing playlist.
+                    MenuRow(Icons.AutoMirrored.Filled.PlaylistAdd, stringResource(R.string.context_menu_add_to_another_playlist), enabled = hasId) { showAddTo = true }
+                }
+                if (onRemoveFromPlaylist != null) {
+                    MenuRow(Icons.Outlined.Delete, stringResource(R.string.context_menu_remove_from_playlist), enabled = hasId) {
+                        onDismiss()
+                        onRemoveFromPlaylist()
+                    }
                 }
             }
             if (!nowPlaying) {
@@ -206,11 +211,13 @@ fun SongOptionsSheet(
                     onOpenQueue()
                 }
             }
-            MenuRow(Icons.Outlined.Radio, stringResource(R.string.context_menu_go_to_song_radio), enabled = hasId) {
-                onDismiss()
-                playerViewModel.goToSongRadio(song.spotifyTrackId, song.title,
-                    navigate = { route -> navController.navigate(route) },
-                    onFailed = { toast(context.getString(R.string.song_radio_failed)) })
+            if (canRadio) {
+                MenuRow(Icons.Outlined.Radio, stringResource(R.string.context_menu_go_to_song_radio), enabled = hasId) {
+                    onDismiss()
+                    playerViewModel.goToSongRadio(song.spotifyTrackId, song.title,
+                        navigate = { route -> navController.navigate(route) },
+                        onFailed = { toast(context.getString(R.string.song_radio_failed)) })
+                }
             }
             MenuRow(Icons.Default.Album, stringResource(R.string.context_menu_browse_album), enabled = !isRadio && (song.album.isNotBlank() || song.albumId.isNotBlank())) {
                 onDismiss()
@@ -234,18 +241,20 @@ fun SongOptionsSheet(
                     }
                 }
             }
-            // Taste profile: the server says whether the track is excluded (the page's own cache can lag).
+            // Taste profile: shown only when the account supports taste exclusion and has loaded.
             val trackUri = "spotify:track:${song.spotifyTrackId}"
             val excluded by androidx.compose.runtime.produceState<Boolean?>(null, trackUri) {
-                value = if (!hasId) null else runCatching { io.github.thake.soundnest.host.android.SoundNestRuntime.api.extras.isExcludedFromTaste(listOf(trackUri)).single() }.getOrNull()
+                value = if (!hasId || !canModifyLib) null else runCatching { io.github.thake.soundnest.host.android.SoundNestRuntime.api.extras.isExcludedFromTaste(listOf(trackUri)).single() }.getOrNull()
             }
-            MenuRow(Icons.Outlined.Block, stringResource(if (excluded == true) R.string.include_taste else R.string.exclude_taste), enabled = hasId && excluded != null) {
-                val exclude = excluded != true
-                io.github.thake.soundnest.host.android.SoundNestRuntime.scope.launch {
-                    runCatching { io.github.thake.soundnest.host.android.SoundNestRuntime.api.extras.setExcludedFromTaste(trackUri, exclude) }
+            if (canModifyLib && excluded != null) {
+                MenuRow(Icons.Outlined.Block, stringResource(if (excluded == true) R.string.include_taste else R.string.exclude_taste)) {
+                    val exclude = excluded != true
+                    io.github.thake.soundnest.host.android.SoundNestRuntime.scope.launch {
+                        runCatching { io.github.thake.soundnest.host.android.SoundNestRuntime.api.extras.setExcludedFromTaste(trackUri, exclude) }
+                    }
+                    io.github.thake.soundnest.di.Haptics.confirm()
+                    onDismiss()
                 }
-                io.github.thake.soundnest.di.Haptics.confirm()
-                onDismiss()
             }
             // "Don't play this artist": Parent PIN required so kids cannot unban artists.
             val artistBan by androidx.compose.runtime.produceState<Pair<String, Boolean>?>(null, trackUri) {
@@ -256,34 +265,37 @@ fun SongOptionsSheet(
                     artist to api.extras.isArtistBanned(listOf(artist)).single()
                 }.getOrNull()
             }
-            MenuRow(Icons.Outlined.Block, stringResource(if (artistBan?.second == true) R.string.artist_unban else R.string.artist_ban),
-                enabled = artistBan != null) {
-                val (artist, banned) = artistBan ?: return@MenuRow
-                onDismiss()
-                io.github.thake.soundnest.parental.ParentSecurityManager.runProtected(
-                    context,
-                    io.github.thake.soundnest.parental.AppSurface.HIDDEN_SONGS_AND_BANS,
-                ) {
-                    io.github.thake.soundnest.host.android.SoundNestRuntime.scope.launch {
-                        runCatching { io.github.thake.soundnest.host.android.SoundNestRuntime.api.extras.setArtistBanned(artist, !banned) }
+            if (artistBan != null) {
+                MenuRow(Icons.Outlined.Block, stringResource(if (artistBan?.second == true) R.string.artist_unban else R.string.artist_ban)) {
+                    val (artist, banned) = artistBan ?: return@MenuRow
+                    onDismiss()
+                    io.github.thake.soundnest.parental.ParentSecurityManager.runProtected(
+                        context,
+                        io.github.thake.soundnest.parental.AppSurface.HIDDEN_SONGS_AND_BANS,
+                    ) {
+                        io.github.thake.soundnest.host.android.SoundNestRuntime.scope.launch {
+                            runCatching { io.github.thake.soundnest.host.android.SoundNestRuntime.api.extras.setArtistBanned(artist, !banned) }
+                        }
+                        toast(context.getString(if (banned) R.string.artist_unbanned else R.string.artist_banned, song.singer.substringBefore(",").trim()))
+                        io.github.thake.soundnest.di.Haptics.confirm()
                     }
-                    toast(context.getString(if (banned) R.string.artist_unbanned else R.string.artist_banned, song.singer.substringBefore(",").trim()))
-                    io.github.thake.soundnest.di.Haptics.confirm()
                 }
             }
             // An episode: in or out of Your Episodes.
-            if (song.url.startsWith("episode:")) {
+            if (canModifyLib && song.url.startsWith("episode:")) {
                 val episodeUri = "spotify:episode:" + song.url.removePrefix("episode:")
                 val saved by androidx.compose.runtime.produceState<Boolean?>(null, episodeUri) {
                     value = runCatching { io.github.thake.soundnest.host.android.SoundNestRuntime.api.library.contains(listOf(episodeUri)).single() }.getOrNull()
                 }
-                MenuRow(Icons.Outlined.Bookmark, stringResource(if (saved == true) R.string.episode_unsave else R.string.episode_save), enabled = saved != null) {
-                    val save = saved != true
-                    io.github.thake.soundnest.host.android.SoundNestRuntime.scope.launch {
-                        runCatching { io.github.thake.soundnest.host.android.SoundNestRuntime.api.podcasts.setEpisodeSaved(episodeUri, save) }
+                if (saved != null) {
+                    MenuRow(Icons.Outlined.Bookmark, stringResource(if (saved == true) R.string.episode_unsave else R.string.episode_save)) {
+                        val save = saved != true
+                        io.github.thake.soundnest.host.android.SoundNestRuntime.scope.launch {
+                            runCatching { io.github.thake.soundnest.host.android.SoundNestRuntime.api.podcasts.setEpisodeSaved(episodeUri, save) }
+                        }
+                        io.github.thake.soundnest.di.Haptics.confirm()
+                        onDismiss()
                     }
-                    io.github.thake.soundnest.di.Haptics.confirm()
-                    onDismiss()
                 }
             }
             if (nowPlaying && song.url.startsWith("episode:")) {

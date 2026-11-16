@@ -8,6 +8,7 @@
 package io.github.thake.soundnest.ui.immersive.shell
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.WindowInsets
@@ -32,6 +33,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -179,7 +182,15 @@ fun ImmersiveBottomChrome(
     // as phones do: beside the tab bar the mini player was squeezed to 200-320 dp.
     if (io.github.thake.soundnest.ui.components.windowSize().chromeInOneRow) {
         androidx.compose.foundation.layout.BoxWithConstraints(
-            modifier.fillMaxWidth().windowInsetsPadding(ImmersiveBarInsets)
+            modifier.fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        0f to Color.Transparent,
+                        0.5f to Color.Black.copy(alpha = 0.45f),
+                        1f to Color.Black.copy(alpha = 0.82f),
+                    ),
+                )
+                .windowInsetsPadding(ImmersiveBarInsets)
                 .padding(horizontal = MINI_MARGIN).padding(bottom = 2.dp),
             contentAlignment = Alignment.BottomCenter,
         ) {
@@ -218,7 +229,19 @@ fun ImmersiveBottomChrome(
     val gapPx = with(density) { CHROME_GAP.roundToPx() }
     val insetPx = with(density) { TAB_INSET.roundToPx() }
 
-    Box(modifier.fillMaxWidth().windowInsetsPadding(ImmersiveBarInsets), contentAlignment = Alignment.BottomCenter) {
+    Box(
+        modifier
+            .fillMaxWidth()
+            .background(
+                Brush.verticalGradient(
+                    0f to Color.Transparent,
+                    0.42f to Color.Black.copy(alpha = 0.50f),
+                    1f to Color.Black.copy(alpha = 0.86f),
+                ),
+            )
+            .windowInsetsPadding(ImmersiveBarInsets),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
         Layout(
             contents = listOf<@Composable () -> Unit>(
                 {

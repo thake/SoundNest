@@ -61,7 +61,7 @@ fun EqualizerScreen(navController: NavController) {
             Text(stringResource(R.string.equalizer_title), color = AppText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         }
         Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).navigationBarsPadding()) {
-            Text(stringResource(R.string.equalizer_scope), color = AppMuted, fontSize = 12.sp,
+            Text(stringResource(R.string.equalizer_scope_soundnest), color = AppMuted, fontSize = 12.sp,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
             OptionRow(
                 label = stringResource(R.string.equalizer_enable),
@@ -89,7 +89,7 @@ fun EqualizerScreen(navController: NavController) {
             Section(R.string.spatial_title)
             OptionRow(
                 label = stringResource(R.string.spatial_enable),
-                detail = stringResource(R.string.spatial_detail),
+                detail = stringResource(R.string.spatial_detail_soundnest),
                 checked = pref.spatial,
                 onChecked = { pref.setSpatial(ctx, it) },
             )
