@@ -95,6 +95,7 @@ fun ParentSettingsScreen(
     var editingSpeakerId by remember { mutableStateOf<String?>(null) }
     var editingSpeakerName by remember { mutableStateOf("") }
     var rulesSheetApprovedTab by remember { mutableStateOf<Boolean?>(null) }
+    var showAudiblePicker by remember { mutableStateOf(false) }
 
     val selectedChipColors = FilterChipDefaults.filterChipColors(
         selectedContainerColor = AppAccent,
@@ -227,7 +228,7 @@ fun ParentSettingsScreen(
             state = listState,
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = bottomBarsSpace() + 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.fillMaxSize().navigationBarsPadding(),
+            modifier = Modifier.fillMaxSize().navigationBarsPadding().testTag("parent_settings_list"),
         ) {
             // 1. Session & PIN Security
             item(key = "security") {
@@ -342,6 +343,7 @@ fun ParentSettingsScreen(
                             artists = policy.allowedArtistIds.size,
                             tracks = policy.allowedTrackIds.size,
                             shows = policy.allowedShowIds.size,
+                            audibleBooks = policy.allowedAudibleAsins.size,
                         ),
                         accentColor = AppAccent,
                         testTag = "parent_manage_approved_rules",
@@ -450,6 +452,15 @@ fun ParentSettingsScreen(
                         checked = home.showParentPicks,
                     ) { v ->
                         ParentalPolicyStore.update(context) { it.copy(homeSections = home.copy(showParentPicks = v)) }
+                    }
+                    PolicyToggleRow(
+                        title = androidx.compose.ui.res.stringResource(io.github.thake.soundnest.R.string.audible_home_pinned_toggle_title),
+                        subtitle = androidx.compose.ui.res.stringResource(io.github.thake.soundnest.R.string.audible_home_pinned_toggle_subtitle),
+                        checked = home.showParentPicks && home.showPinnedAudibleOnHome,
+                        enabled = home.showParentPicks,
+                        switchTestTag = "parent_home_pinned_audible_toggle",
+                    ) { v ->
+                        ParentalPolicyStore.update(context) { it.copy(homeSections = home.copy(showPinnedAudibleOnHome = v)) }
                     }
                     PolicyToggleRow(
                         title = "Show What's New Bell & Notifications",
@@ -569,11 +580,15 @@ fun ParentSettingsScreen(
                     }
                     PolicyToggleRow(
                         title = "Audiobooks",
-                        subtitle = "Allow Spotify audiobooks",
+                        subtitle = "Allow Spotify audiobooks & parent-approved Audible audiobooks",
                         checked = policy.allowAudiobooks,
                     ) { v ->
                         ParentalPolicyStore.update(context) { it.copy(allowAudiobooks = v) }
                     }
+                    io.github.thake.soundnest.audible.ui.AudibleParentControlsCard(
+                        audiobooksEnabled = policy.allowAudiobooks,
+                        onOpenPicker = { showAudiblePicker = true },
+                    )
                     PolicyToggleRow(
                         title = "Live Internet Radio",
                         subtitle = "Allow streaming live internet radio stations",
@@ -864,6 +879,12 @@ fun ParentSettingsScreen(
         )
     }
 
+    if (showAudiblePicker) {
+        io.github.thake.soundnest.audible.ui.AudiblePickerSheet(
+            onDismiss = { showAudiblePicker = false },
+        )
+    }
+
     editingSpeakerId?.let { speakerId ->
         AlertDialog(
             onDismissRequest = { editingSpeakerId = null },
@@ -915,8 +936,9 @@ private fun buildRuleSummaryText(
     artists: Int,
     tracks: Int,
     shows: Int,
+    audibleBooks: Int = 0,
 ): String {
-    val total = playlists + albums + artists + tracks + shows
+    val total = playlists + albums + artists + tracks + shows + audibleBooks
     if (total == 0) return "None yet · Tap to inspect"
     val parts = buildList {
         if (playlists > 0) add("$playlists playlist${if (playlists == 1) "" else "s"}")
@@ -924,6 +946,7 @@ private fun buildRuleSummaryText(
         if (artists > 0) add("$artists artist${if (artists == 1) "" else "s"}")
         if (tracks > 0) add("$tracks song${if (tracks == 1) "" else "s"}")
         if (shows > 0) add("$shows show${if (shows == 1) "" else "s"}")
+        if (audibleBooks > 0) add("$audibleBooks Audible book${if (audibleBooks == 1) "" else "s"}")
     }
     return parts.joinToString(" · ")
 }
@@ -997,6 +1020,7 @@ internal fun ManageContentRulesSheetBody(
             artists = policy.allowedArtistIds,
             tracks = policy.allowedTrackIds,
             shows = policy.allowedShowIds,
+            audibleAsins = policy.allowedAudibleAsins,
         )
     }
     val blockedEntries = remember(policy) {
@@ -1176,6 +1200,7 @@ private fun collectManagedRuleEntries(
     artists: Set<String>,
     tracks: Set<String>,
     shows: Set<String>,
+    audibleAsins: Set<String> = emptySet(),
 ): List<ManagedRuleEntry> {
     fun entriesFor(kind: String, ids: Set<String>): List<ManagedRuleEntry> =
         ids.map { id ->
@@ -1189,6 +1214,7 @@ private fun collectManagedRuleEntries(
         addAll(entriesFor("artist", artists))
         addAll(entriesFor("track", tracks))
         addAll(entriesFor("show", shows))
+        addAll(entriesFor("audible", audibleAsins))
     }
 }
 
@@ -1199,6 +1225,7 @@ private fun clearManagedRule(context: android.content.Context, kind: String, id:
         "artist" -> ParentalPolicyStore.clearArtistRule(context, id)
         "track" -> ParentalPolicyStore.clearTrackRule(context, id)
         "show" -> ParentalPolicyStore.clearShowRule(context, id)
+        "audible" -> ParentalPolicyStore.setAudibleBookAllowed(context, id, false)
     }
 }
 
@@ -1245,6 +1272,7 @@ private fun PolicyToggleRow(
     subtitle: String,
     checked: Boolean,
     enabled: Boolean = true,
+    switchTestTag: String? = null,
     onCheckedChange: (Boolean) -> Unit,
 ) {
     val alpha = if (enabled) 1f else 0.5f
@@ -1263,6 +1291,7 @@ private fun PolicyToggleRow(
             checked = checked,
             onCheckedChange = if (enabled) onCheckedChange else null,
             enabled = enabled,
+            modifier = if (switchTestTag != null) Modifier.testTag(switchTestTag) else Modifier,
         )
     }
 }

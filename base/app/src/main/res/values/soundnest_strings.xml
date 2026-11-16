@@ -845,4 +845,17 @@
     <string name="settings_player_modes_detail_soundnest" tools:ignore="MissingTranslation">When off, the player\'s bottom capsule holds only the devices button</string>
     <string name="settings_storage_media_cache_detail_soundnest" tools:ignore="MissingTranslation">Artwork and media cache kept on this phone so items load faster.</string>
     <string name="settings_storage_clear_cache_detail_soundnest" tools:ignore="MissingTranslation">%1$s: cached covers, media and AutoMix analyses.</string>
+    <!-- Audible audiobooks (second spoken-word source) -->
+    <string name="audible_section_title" tools:ignore="MissingTranslation">Audible Account (Second Audiobook Source)</string>
+    <string name="audible_section_subtitle" tools:ignore="MissingTranslation">Connect your Audible library and hand-pick individual audiobooks. Store browsing, Plus discovery, and WhisperSync write-back stay disabled.</string>
+    <string name="audible_marketplace_label" tools:ignore="MissingTranslation">Audible Marketplace</string>
+    <string name="audible_sign_in_button" tools:ignore="MissingTranslation">Sign in with Audible</string>
+    <string name="audible_manage_books_button" tools:ignore="MissingTranslation">Manage Approved Books</string>
+    <string name="audible_sync_library_button" tools:ignore="MissingTranslation">Sync Library</string>
+    <string name="audible_disconnect_button" tools:ignore="MissingTranslation">Disconnect</string>
+    <string name="audible_picker_title" tools:ignore="MissingTranslation">Approved Audible Audiobooks</string>
+    <string name="audible_picker_search_hint" tools:ignore="MissingTranslation">Search by title, author, or series</string>
+    <string name="audible_home_pinned_toggle_title" tools:ignore="MissingTranslation">Show Pinned Audible Books on Home</string>
+    <string name="audible_home_pinned_toggle_subtitle" tools:ignore="MissingTranslation">Include parent-pinned Audible audiobooks in the Parent Picks shelf on Home</string>
+    <string name="library_chip_audiobooks" tools:ignore="MissingTranslation">Audiobooks</string>
 </resources>
