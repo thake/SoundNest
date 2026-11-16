@@ -36,6 +36,7 @@ class ParentPinScreensTest {
         val app = RuntimeEnvironment.getApplication()
         io.github.thake.soundnest.di.Graph::class.java.getDeclaredField("app").apply { isAccessible = true }.set(null, app)
         ParentSecurityManager.resetForTests(app)
+        ParentalPolicyStore.resetForTests(app)
         TrustedNetworkGate.resetForTests(app)
     }
 
@@ -43,6 +44,7 @@ class ParentPinScreensTest {
     fun tearDown() {
         val app = RuntimeEnvironment.getApplication()
         ParentSecurityManager.resetForTests(app)
+        ParentalPolicyStore.resetForTests(app)
         TrustedNetworkGate.resetForTests(app)
     }
 
@@ -77,8 +79,34 @@ class ParentPinScreensTest {
 
         assertEquals(1, configuredCallbackCount)
         assertTrue(ParentSecurityManager.isPinConfigured(app))
+        assertEquals(FilterMode.FILTERED_OPEN, ParentalPolicyStore.current(app).filterMode)
         ParentSecurityManager.lockNow(app)
         assertEquals(PinVerifyResult.Verified, ParentSecurityManager.verifyPin(app, "P@ss!"))
+    }
+
+    @Test
+    fun `setup screen persists Strict Allowlist and Minimal Home when chosen during onboarding`() {
+        val app = RuntimeEnvironment.getApplication()
+        var configured = false
+
+        rule.setContent {
+            SpotuiTheme {
+                ParentPinSetupScreen(
+                    onPinConfigured = { configured = true },
+                    onSwitchOrLogout = {},
+                )
+            }
+        }
+
+        rule.onNodeWithTag("parent_setup_mode_strict_allowlist").performScrollTo().performClick()
+        rule.onNodeWithTag("parent_setup_secret").performScrollTo().performTextInput("safe2026")
+        rule.onNodeWithTag("parent_setup_confirm").performScrollTo().performTextInput("safe2026")
+        rule.onNodeWithTag("parent_setup_save").performScrollTo().performClick()
+
+        assertTrue(configured)
+        val savedPolicy = ParentalPolicyStore.current(app)
+        assertEquals(FilterMode.STRICT_ALLOWLIST, savedPolicy.filterMode)
+        assertTrue(savedPolicy.homeSections.minimalHomeMode)
     }
 
     @Test

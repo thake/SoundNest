@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- SoundNest's own texts (English default, French, Italian). -->
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="welcome_lead">Your music,</string>
-    <string name="welcome_rotate_ads">without ads.</string>
+    <string name="welcome_rotate_ads">for Spotify Free &amp; Premium.</string>
     <string name="welcome_rotate_lyrics">with word-by-word lyrics.</string>
-    <string name="welcome_rotate_clips">with the official videos.</string>
-    <string name="welcome_rotate_offline">offline, through extensions.</string>
+    <string name="welcome_rotate_clips">with safe Home &amp; speaker limits.</string>
+    <string name="welcome_rotate_offline">curated by parents, safe for kids.</string>
     <string name="welcome_login">Log in with Spotify</string>
     <string name="welcome_privacy">You sign in on Spotify\'s own page. SoundNest never sees your password.</string>
     <string name="remove_from_liked">Remove from Liked Songs</string>
@@ -209,12 +209,12 @@
     <string name="setup_continue">Continue</string>
     <string name="setup_intro_title">How SoundNest works</string>
     <string name="setup_intro_subtitle">Three things to know before you start.</string>
-    <string name="setup_intro_spotify_title">Spotify, without the ads</string>
-    <string name="setup_intro_spotify_detail">Your account, playlists and likes, played by Spotify\'s own web player. Free accounts work too.</string>
-    <string name="setup_intro_more_title">More than the official app</string>
-    <string name="setup_intro_more_detail">Word-by-word lyrics, official videos, listening stats, and two looks to choose from.</string>
-    <string name="setup_intro_ext_title">Extensions, if you want them</string>
-    <string name="setup_intro_ext_detail">Add-ons made by the community: other audio sources, downloads and more. More on them in a moment.</string>
+    <string name="setup_intro_spotify_title">Works with Spotify Free &amp; Premium</string>
+    <string name="setup_intro_spotify_detail">Your playlists, albums and liked songs play through Spotify\'s own web player.</string>
+    <string name="setup_intro_more_title">Parent-controlled filtering</string>
+    <string name="setup_intro_more_detail">Choose Filtered Open or Strict Allowlist, locked behind your Parent PIN or password.</string>
+    <string name="setup_intro_ext_title">Safe Home, lyrics &amp; two looks</string>
+    <string name="setup_intro_ext_detail">Trusted Home LAN speaker limits, synced lyrics, sleep timer, and Classic or Immersive themes.</string>
     <string name="setup_ext_title">Extensions</string>
     <string name="setup_ext_subtitle">SoundNest works as it is: it plays Spotify. Extensions are optional add-ons, made by the community, that do more.</string>
     <string name="setup_ext_audio_title">Other audio sources</string>
@@ -243,7 +243,7 @@
     <string name="smart_shuffle_on">Smart shuffle: Spotify recommendations join the shuffled playlist.</string>
     <string name="track_sort_added">Date added</string>
     <string name="settings_title">Settings</string>
-    <string name="settings_detail">Sound quality, downloads, data, battery and language</string>
+    <string name="settings_detail">Sound quality, data, battery and language</string>
     <string name="settings_section_playback">Playback</string>
     <string name="settings_section_downloads">Downloads</string>
     <string name="settings_section_data">Data and battery</string>
@@ -272,7 +272,7 @@
     <string name="quality_download_hires">FLAC Hi-Res</string>
     <string name="quality_download_hires_detail">24-bit when it exists, files about three times bigger</string>
     <string name="setup_quality_title">Sound quality</string>
-    <string name="setup_quality_subtitle">Choose how SoundNest plays and saves your music. You can change it later in Settings.</string>
+    <string name="setup_quality_subtitle">Choose how SoundNest streams your music over Wi-Fi and mobile data. You can change it later in Settings.</string>
     <string name="setup_look_title">Choose your look</string>
     <string name="setup_look_subtitle">Watch the preview, then pick the one you like.</string>
     <string name="look_classic">Classic</string>
@@ -815,4 +815,18 @@
     <string name="video_fullscreen_exit">Leave full screen</string>
     <string name="settings_automix_orpheon">New transition planner</string>
     <string name="settings_automix_orpheon_detail">Smoother blends: both songs ease into a shared tempo and back. Off: the earlier planner.</string>
+    <!-- SoundNest onboarding & connecting copy (new keys prevent stale ad-free/extension translations in values-*) -->
+    <string name="welcome_rotate_parental" tools:ignore="MissingTranslation">curated by parents, safe for kids.</string>
+    <string name="welcome_rotate_free_premium" tools:ignore="MissingTranslation">for Spotify Free &amp; Premium.</string>
+    <string name="welcome_rotate_safe_home" tools:ignore="MissingTranslation">with safe Home &amp; speaker limits.</string>
+    <string name="setup_intro_spotify_free_title" tools:ignore="MissingTranslation">Works with Spotify Free &amp; Premium</string>
+    <string name="setup_intro_spotify_free_detail" tools:ignore="MissingTranslation">Your playlists, albums and liked songs play through Spotify\'s own web player.</string>
+    <string name="setup_intro_parental_title" tools:ignore="MissingTranslation">Parent-controlled filtering</string>
+    <string name="setup_intro_parental_detail" tools:ignore="MissingTranslation">Choose Filtered Open or Strict Allowlist, locked behind your Parent PIN or password.</string>
+    <string name="setup_intro_safe_home_title" tools:ignore="MissingTranslation">Safe Home, lyrics &amp; two looks</string>
+    <string name="setup_intro_safe_home_detail" tools:ignore="MissingTranslation">Trusted Home LAN speaker limits, synced lyrics, sleep timer, and Classic or Immersive themes.</string>
+    <string name="setup_quality_streaming_subtitle" tools:ignore="MissingTranslation">Choose how SoundNest streams your music over Wi-Fi and mobile data. You can change it later in Settings.</string>
+    <string name="connecting_spotify_status" tools:ignore="MissingTranslation">Connecting to Spotify…</string>
+    <string name="connecting_spotify_detail" tools:ignore="MissingTranslation">Verifying your session and preparing your library.</string>
+    <string name="connecting_cancel_sign_in" tools:ignore="MissingTranslation">Back to sign-in</string>
 </resources>

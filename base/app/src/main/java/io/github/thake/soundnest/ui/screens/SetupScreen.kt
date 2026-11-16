@@ -44,6 +44,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -216,7 +217,7 @@ private fun QualityStep(onNext: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         SetupTitle(stringResource(R.string.setup_quality_title), Modifier.padding(horizontal = 20.dp).riseIn(0))
-        SetupSubtitle(stringResource(R.string.setup_quality_subtitle), Modifier.padding(horizontal = 20.dp).riseIn(1))
+        SetupSubtitle(stringResource(R.string.setup_quality_streaming_subtitle), Modifier.padding(horizontal = 20.dp).riseIn(1))
         Box(Modifier.riseIn(2)) { io.github.thake.soundnest.ui.components.StreamingQualityPicker(Modifier.padding(top = 8.dp)) }
         SetupButton(stringResource(R.string.setup_continue), onNext, Modifier.fillMaxWidth().padding(horizontal = 20.dp).height(50.dp).riseIn(3))
     }
@@ -232,8 +233,24 @@ private fun IntroStep(onNext: () -> Unit) {
         SetupTitle(stringResource(R.string.setup_intro_title), Modifier.riseIn(row++))
         SetupSubtitle(stringResource(R.string.setup_intro_subtitle), Modifier.riseIn(row++))
         Spacer(Modifier.height(8.dp))
-        InfoRow(Icons.Rounded.GraphicEq, stringResource(R.string.setup_intro_spotify_title), stringResource(R.string.setup_intro_spotify_detail), Modifier.riseIn(row++))
-        InfoRow(Icons.Rounded.AutoAwesome, stringResource(R.string.setup_intro_more_title), stringResource(R.string.setup_intro_more_detail), Modifier.riseIn(row++))
+        InfoRow(
+            Icons.Rounded.GraphicEq,
+            stringResource(R.string.setup_intro_spotify_free_title),
+            stringResource(R.string.setup_intro_spotify_free_detail),
+            Modifier.riseIn(row++),
+        )
+        InfoRow(
+            Icons.Rounded.Lock,
+            stringResource(R.string.setup_intro_parental_title),
+            stringResource(R.string.setup_intro_parental_detail),
+            Modifier.riseIn(row++),
+        )
+        InfoRow(
+            Icons.Rounded.AutoAwesome,
+            stringResource(R.string.setup_intro_safe_home_title),
+            stringResource(R.string.setup_intro_safe_home_detail),
+            Modifier.riseIn(row++),
+        )
         Spacer(Modifier.height(12.dp))
         Column(Modifier.riseIn(row), horizontalAlignment = Alignment.CenterHorizontally) {
             SetupButton(stringResource(R.string.setup_continue), onNext, Modifier.fillMaxWidth().height(50.dp))

@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
@@ -30,6 +31,8 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
@@ -84,6 +87,7 @@ fun ParentPinSetupScreen(
     var pin by remember { mutableStateOf("") }
     var confirmPin by remember { mutableStateOf("") }
     var showSecret by remember { mutableStateOf(false) }
+    var initialFilterMode by remember(context) { mutableStateOf(ParentalPolicyStore.current(context).filterMode) }
     val biometricSupported = remember(context) { ParentSecurityManager.isDeviceBiometricAvailable(context) }
     var enableBiometric by remember { mutableStateOf(biometricSupported) }
     val onWifi = remember(context) { TrustedNetworkGate.currentSnapshot(context).onWifi }
@@ -91,6 +95,11 @@ fun ParentPinSetupScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val transformation = if (showSecret) VisualTransformation.None else PasswordVisualTransformation()
+    val chipColors = FilterChipDefaults.filterChipColors(
+        selectedContainerColor = AppAccent,
+        selectedLabelColor = Color.Black,
+        selectedLeadingIconColor = Color.Black,
+    )
 
     Column(
         modifier = Modifier
@@ -159,6 +168,52 @@ fun ParentPinSetupScreen(
                 .testTag("parent_setup_confirm"),
         )
 
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(tone(0xFF1E1E1E), RoundedCornerShape(14.dp))
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = "Initial Filtering Mode",
+                color = AppText,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = initialFilterMode == FilterMode.FILTERED_OPEN,
+                    onClick = { initialFilterMode = FilterMode.FILTERED_OPEN },
+                    label = { Text("Filtered Open", fontWeight = if (initialFilterMode == FilterMode.FILTERED_OPEN) FontWeight.Bold else FontWeight.Normal) },
+                    leadingIcon = if (initialFilterMode == FilterMode.FILTERED_OPEN) {
+                        { Icon(Icons.Default.Check, contentDescription = null) }
+                    } else null,
+                    colors = chipColors,
+                    modifier = Modifier.testTag("parent_setup_mode_filtered_open"),
+                )
+                FilterChip(
+                    selected = initialFilterMode == FilterMode.STRICT_ALLOWLIST,
+                    onClick = { initialFilterMode = FilterMode.STRICT_ALLOWLIST },
+                    label = { Text("Strict Allowlist", fontWeight = if (initialFilterMode == FilterMode.STRICT_ALLOWLIST) FontWeight.Bold else FontWeight.Normal) },
+                    leadingIcon = if (initialFilterMode == FilterMode.STRICT_ALLOWLIST) {
+                        { Icon(Icons.Default.Check, contentDescription = null) }
+                    } else null,
+                    colors = chipColors,
+                    modifier = Modifier.testTag("parent_setup_mode_strict_allowlist"),
+                )
+            }
+            Text(
+                text = if (initialFilterMode == FilterMode.FILTERED_OPEN) {
+                    "Recommended for ages 9–16: open music catalog with explicit songs, podcasts, and blocked keywords hidden."
+                } else {
+                    "Recommended for younger kids: hides unapproved shelves and plays only playlists, albums, artists, and tracks you approve."
+                },
+                color = AppMuted,
+                fontSize = 12.sp,
+            )
+        }
+
         if (biometricSupported) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -208,6 +263,14 @@ fun ParentPinSetupScreen(
                         when (ParentSecurityManager.setupInitialPin(context, pin)) {
                             PinSetupResult.Success, PinSetupResult.AlreadyConfigured -> {
                                 ParentSecurityManager.setBiometricEnabled(context, biometricSupported && enableBiometric)
+                                ParentalPolicyStore.update(context) { current ->
+                                    val home = if (initialFilterMode == FilterMode.STRICT_ALLOWLIST) {
+                                        current.homeSections.copy(minimalHomeMode = true)
+                                    } else {
+                                        current.homeSections
+                                    }
+                                    current.copy(filterMode = initialFilterMode, homeSections = home)
+                                }
                                 if (trustCurrentWifi) {
                                     TrustedNetworkGate.trustCurrentNetwork(context)
                                 }

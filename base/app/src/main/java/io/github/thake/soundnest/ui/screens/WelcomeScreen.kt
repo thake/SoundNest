@@ -168,11 +168,10 @@ internal fun Glow(modifier: Modifier = Modifier, alpha: Float = 0.30f) {
 @Composable
 private fun Features() {
     val features = listOf(
-        // What the app is now: a player for the sources the user picks, not an ad blocker; music videos are gone.
-        stringResource(R.string.welcome_rotate_sources),
+        stringResource(R.string.welcome_rotate_parental),
+        stringResource(R.string.welcome_rotate_free_premium),
         stringResource(R.string.welcome_rotate_lyrics),
-        stringResource(R.string.welcome_rotate_mix),
-        stringResource(R.string.welcome_rotate_offline),
+        stringResource(R.string.welcome_rotate_safe_home),
     )
     var index by remember { mutableIntStateOf(0) }
     val reduce = io.github.thake.soundnest.ui.look.rememberReduceMotion()

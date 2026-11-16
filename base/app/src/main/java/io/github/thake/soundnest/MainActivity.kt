@@ -139,7 +139,13 @@ class MainActivity : AppCompatActivity() {
                                 onDone = { setupNeeded = false },
                             )
                             entry == io.github.thake.soundnest.ui.screens.Entry.APP -> App()
-                            entry == io.github.thake.soundnest.ui.screens.Entry.CONNECTING -> ConnectingScreen()
+                            entry == io.github.thake.soundnest.ui.screens.Entry.CONNECTING -> ConnectingScreen(
+                                onCancel = {
+                                    loginWait?.cancel()
+                                    connecting = false
+                                    showLogin()
+                                },
+                            )
                             else -> WelcomeScreen(onLogin = { showLogin() })
                         }
                         if (showingLogin) {
@@ -149,7 +155,13 @@ class MainActivity : AppCompatActivity() {
                                     if (load == LoginLoad.FAILED) SoundNestRuntime.host.retryLogin()
                                     else { loginProblem = false; SoundNestRuntime.host.openLogin() }
                                 })
-                                load == LoginLoad.LOADING -> ConnectingScreen()
+                                load == LoginLoad.LOADING -> ConnectingScreen(
+                                    onCancel = {
+                                        loginWait?.cancel()
+                                        connecting = false
+                                        hideLogin()
+                                    },
+                                )
                                 else -> io.github.thake.soundnest.ui.components.LoginHelpButton()
                             }
                         }
@@ -538,12 +550,47 @@ class MainActivity : AppCompatActivity() {
 
 /** Shown between Spotify's login page and the first screen. */
 @androidx.compose.runtime.Composable
-internal fun ConnectingScreen() {
+internal fun ConnectingScreen(onCancel: (() -> Unit)? = null) {
     androidx.compose.foundation.layout.Box(
         androidx.compose.ui.Modifier.fillMaxSize().background(io.github.thake.soundnest.ui.theme.AppBackground),
         contentAlignment = androidx.compose.ui.Alignment.Center,
     ) {
-        androidx.compose.material3.CircularProgressIndicator(color = io.github.thake.soundnest.ui.theme.AppAccent)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(horizontal = 32.dp),
+        ) {
+            androidx.compose.material3.CircularProgressIndicator(color = io.github.thake.soundnest.ui.theme.AppAccent)
+            Text(
+                text = stringResource(R.string.connecting_spotify_status),
+                color = io.github.thake.soundnest.ui.theme.AppText,
+                fontFamily = io.github.thake.soundnest.ui.theme.AppSans,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Text(
+                text = stringResource(R.string.connecting_spotify_detail),
+                color = io.github.thake.soundnest.ui.theme.AppMuted,
+                fontFamily = io.github.thake.soundnest.ui.theme.AppSans,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                textAlign = TextAlign.Center,
+            )
+            if (onCancel != null) {
+                androidx.compose.material3.TextButton(
+                    onClick = onCancel,
+                    modifier = Modifier.padding(top = 8.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.connecting_cancel_sign_in),
+                        color = io.github.thake.soundnest.ui.theme.AppMuted,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+        }
         // Reported: a loading that never ends after the sign-in. Past a long wait, a way to a report.
         var long by androidx.compose.runtime.remember { mutableStateOf(false) }
         androidx.compose.runtime.LaunchedEffect(Unit) { kotlinx.coroutines.delay(12_000); long = true }
