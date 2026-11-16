@@ -84,6 +84,7 @@ fun SectionHeader(
     onSeeAll: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     subtitle: String = "",
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     Row(
         modifier = modifier
@@ -107,6 +108,7 @@ fun SectionHeader(
                 )
             }
         }
+        trailing?.invoke()
         if (onSeeAll != null) {
             Text(
                 text = stringResource(R.string.immersive_shell_see_all),
@@ -158,11 +160,12 @@ fun ImmersiveShelf(
     modifier: Modifier = Modifier,
     onSeeAll: (() -> Unit)? = null,
     subtitle: String = "",
+    trailing: (@Composable () -> Unit)? = null,
     state: LazyListState = rememberLazyListState(),
     content: LazyListScope.() -> Unit,
 ) {
     Column(modifier.padding(bottom = 26.dp)) {
-        SectionHeader(title = title, onSeeAll = onSeeAll, subtitle = subtitle)
+        SectionHeader(title = title, onSeeAll = onSeeAll, subtitle = subtitle, trailing = trailing)
         ImmersiveShelfRow(state = state, content = content)
     }
 }

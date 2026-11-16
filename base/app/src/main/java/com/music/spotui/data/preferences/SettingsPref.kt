@@ -191,7 +191,9 @@ object TransitionPref {
  */
 object HideDjPref {
     private const val KEY = "hide_dj"
-    var on by androidx.compose.runtime.mutableStateOf(prefs(com.music.spotui.di.Graph.app).getBoolean(KEY, false))
+    var on by androidx.compose.runtime.mutableStateOf(
+        runCatching { prefs(com.music.spotui.di.Graph.app).getBoolean(KEY, true) }.getOrDefault(true),
+    )
         private set
 
     val hidden: Boolean get() = on

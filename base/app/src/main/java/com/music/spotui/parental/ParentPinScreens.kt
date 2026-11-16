@@ -357,7 +357,7 @@ private fun launchSystemBiometric(context: Context, onError: (String) -> Unit) {
  * Reusable Parent Security & Trusted Network controls block (embedded in Settings and `ParentSettingsScreen`).
  */
 @Composable
-fun ParentSecurityControlsSection() {
+fun ParentSecurityControlsSection(onOpenParentSettings: (() -> Unit)? = null) {
     val context = LocalContext.current
     val tick by ParentSecurityManager.sessionTick.collectAsState()
     val unlocked = remember(tick) { ParentSecurityManager.isAdminUnlocked(context) }
@@ -397,6 +397,20 @@ fun ParentSecurityControlsSection() {
                 ) {
                     Text("Unlock")
                 }
+            }
+        }
+
+        if (onOpenParentSettings != null) {
+            Button(
+                onClick = {
+                    ParentSecurityManager.runProtected(context, AppSurface.PARENT_CONTROLS) {
+                        onOpenParentSettings()
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = AppAccent, contentColor = Color.Black),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Open Parental Controls Dashboard", fontWeight = FontWeight.Bold)
             }
         }
 

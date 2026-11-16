@@ -438,8 +438,8 @@ class Api constructor(
                 val sections = feed.shelves.mapNotNull { shelf ->
                     val items = shelf.items.distinctBy { it.uri }.mapNotNull { homeItem(it, p) }
                         .distinctBy { it::class.simpleName + "|" + it.name.lowercase() }
-                    if (items.isEmpty()) null else HomeSection(title = shelf.title.orEmpty(), items = items)
-                }.distinctBy { it.title.lowercase().ifBlank { it.hashCode().toString() } }
+                    if (items.isEmpty()) null else HomeSection(title = shelf.title.orEmpty(), items = items, uri = shelf.uri.orEmpty())
+                }.distinctBy { it.uri.ifBlank { it.title.lowercase().ifBlank { it.hashCode().toString() } } }
                 val model = HomeFeedModel(greeting = feed.greeting, sections = sections)
                 if (facet.isEmpty()) { HomeCache.home = model; ScreenCache.home.write(model) } else HomeCache.facets[facet] = model
                 emit(Response.Success(model))

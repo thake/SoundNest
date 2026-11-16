@@ -139,6 +139,12 @@ internal fun ImmersiveProfileSheet(onOpen: (route: String) -> Unit, onDismiss: (
             SheetRow(stringResource(R.string.settings_title), stringResource(R.string.settings_detail)) {
                 onOpen(Routes.Settings.route)
             }
+            SheetRow("Parental Controls", "Content filters, Home sections, features, speakers & backup") {
+                com.music.spotui.parental.ParentSecurityManager.runProtected(
+                    Graph.app,
+                    com.music.spotui.parental.AppSurface.PARENT_CONTROLS,
+                ) { onOpen(Routes.ParentSettings.route) }
+            }
             SheetRow(stringResource(R.string.recap_title), stringResource(R.string.recap_detail)) {
                 onOpen(Routes.Recap.route)
             }

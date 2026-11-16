@@ -142,7 +142,11 @@ fun MyNavHost(
         }
 
         page(Routes.NewReleases.route) {
-            if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveNewReleasesScreen(navHostController) else com.music.spotui.ui.screens.NewReleasesScreen(navHostController)
+            val allowed = com.music.spotui.parental.HomeSectionFilter.isWhatsNewAllowed(com.music.spotui.parental.ParentalPolicyStore.current(context))
+            LaunchedEffect(allowed) { if (!allowed) navHostController.popBackStack() }
+            if (allowed) {
+                if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveNewReleasesScreen(navHostController) else com.music.spotui.ui.screens.NewReleasesScreen(navHostController)
+            }
         }
 
         page(Routes.Episodes.route) {
@@ -172,7 +176,11 @@ fun MyNavHost(
 
         // New releases and episodes of what the account follows (the bell on Home).
         page(Routes.WhatsNew.route) {
-            if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveWhatsNewScreen(navHostController) else com.music.spotui.ui.screens.WhatsNewScreen(navHostController)
+            val allowed = com.music.spotui.parental.HomeSectionFilter.isWhatsNewAllowed(com.music.spotui.parental.ParentalPolicyStore.current(context))
+            LaunchedEffect(allowed) { if (!allowed) navHostController.popBackStack() }
+            if (allowed) {
+                if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveWhatsNewScreen(navHostController) else com.music.spotui.ui.screens.WhatsNewScreen(navHostController)
+            }
         }
 
         page(Routes.Liked.route){
@@ -182,6 +190,10 @@ fun MyNavHost(
         // Settings: sound quality, storage, data, display, language.
         page(Routes.Settings.route){
             if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveSettingsScreen(navHostController) else com.music.spotui.ui.screens.SettingsScreen(navHostController)
+        }
+
+        page(Routes.ParentSettings.route) {
+            com.music.spotui.parental.ParentSettingsScreen(navHostController)
         }
 
         page(

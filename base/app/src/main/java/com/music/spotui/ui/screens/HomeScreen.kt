@@ -37,6 +37,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Surface
@@ -92,13 +93,17 @@ fun HomeScreen(navController: NavController){
     androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) { homeViewModel.refreshIfStale() }
     val home by homeViewModel.home.collectAsState()
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(Unit) { com.music.spotui.parental.ParentalPolicyStore.current(context) }
+    val policy by com.music.spotui.parental.ParentalPolicyStore.policyFlow.collectAsState()
+
     Surface(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(AppBackground.toArgb()))
     ) {
         val feed = (home as? Response.Success)?.data
-        val hasFeed = feed != null && feed.sections.isNotEmpty()
+        val hasFeed = feed != null && (feed.sections.isNotEmpty() || policy.homeSections.showShortcutsGrid || policy.homeSections.showParentPicks)
         // The feed fades in over the placeholder instead of replacing it in one frame.
         com.music.spotui.ui.components.LoadedFade(!hasFeed) { waiting ->
         when {
@@ -137,24 +142,32 @@ fun HomeScreen(navController: NavController){
 @Composable
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 fun HomeFeedContent(navController: NavController, feed: HomeFeedModel, facet: String = "", onFacet: (String) -> Unit = {}) {
-    // Mirror open.spotify.com exactly: sections render in the order the feed
-    // returns them. The 2-column "shortcuts" grid is only used for the UNTITLED
-    // section the web home starts with — if the feed leads with a titled section
-    // ("Jump back in", "Made For …"), it renders as a titled carousel first,
-    // not force-squeezed into the grid.
-    // With podcasts off, their shows and episodes leave the feed (and a section left empty goes).
-    // Kept between recompositions: a new list for every one of them would restart the rows below.
-    val hideDj = com.music.spotui.data.preferences.HideDjPref.hidden
-    val sections = remember(feed, hideDj) {
-        val all = feed.sections.withoutPodcastShows()
-        if (hideDj) all.withoutDj() else all
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val policy by com.music.spotui.parental.ParentalPolicyStore.policyFlow.collectAsState()
+    val revision by com.music.spotui.parental.ParentalPolicyStore.revision.collectAsState()
+    val sessionTick by com.music.spotui.parental.ParentSecurityManager.sessionTick.collectAsState()
+    val adminUnlocked = remember(sessionTick) { com.music.spotui.parental.ParentSecurityManager.isAdminUnlocked(context) }
+
+    val rawGridSection = remember(feed) { feed.sections.firstOrNull()?.takeIf { it.title.isBlank() } }
+    val rawCarousels = remember(feed, rawGridSection) { if (rawGridSection != null) feed.sections.drop(1) else feed.sections }
+    val carousels = remember(rawCarousels, policy, revision) {
+        com.music.spotui.parental.HomeSectionFilter.filterSections(
+            sections = rawCarousels,
+            policy = policy,
+            parentPicksCandidates = com.music.spotui.parental.HomeSectionFilter.cachedLibraryCandidates(),
+        )
     }
-    val gridSection = remember(sections) { sections.firstOrNull()?.takeIf { it.title.isBlank() } }
-    val carousels = remember(sections, gridSection) { if (gridSection != null) sections.drop(1) else sections }
-    val carouselKeys = remember(carousels) { uniqueKeys(carousels.map { it.title }) }
+    val carouselKeys = remember(carousels) { uniqueKeys(carousels.map { it.uri.ifBlank { it.title } }) }
     // Liked Songs leads the shortcuts when Spotify's grid does not carry it.
     val likedName = stringResource(R.string.collection_liked_songs_title)
-    val shortcuts = remember(gridSection, sections, facet, likedName) { homeShortcuts(gridSection?.items, sections.isEmpty(), facet, likedName) }
+    val shortcuts = remember(rawGridSection, feed, policy, facet, likedName) {
+        if (!policy.homeSections.showShortcutsGrid) null
+        else {
+            val filteredGrid = com.music.spotui.parental.HomeSectionFilter.filterShortcutItems(rawGridSection?.items ?: emptyList(), policy)
+            val emptyFeed = feed.sections.isEmpty() && !policy.homeSections.minimalHomeMode && policy.filterMode != com.music.spotui.parental.FilterMode.STRICT_ALLOWLIST
+            homeShortcuts(filteredGrid, emptyFeed, facet, likedName)
+        }
+    }
     // The shortcuts at the top load in the background, ready before a tap.
     androidx.compose.runtime.LaunchedEffect(shortcuts) { prefetchHomeShortcuts(shortcuts) }
 
@@ -201,7 +214,7 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel, facet: St
             }
         }
         items(carousels.size, key = { carouselKeys[it] }) { i ->
-            HomeFeedSection(navController, carousels[i])
+            HomeFeedSection(navController, carousels[i], adminUnlocked = adminUnlocked)
         }
     }
 }
@@ -255,61 +268,72 @@ private fun HomeHeaderRow(navController: NavController, facet: String, onFacet: 
             }
         }
         }
-        WhatsNewBell { navController.navigate(com.music.spotui.ui.navigation.Routes.WhatsNew.route) }
-        // B31: a separator between the profile and the options, reported missing from this
-        // header (the sheets already carry one).
-        Box(
-            modifier = Modifier
-                .padding(vertical = 10.dp)
-                .size(width = 1.dp, height = 22.dp)
-                .background(tone(0xFF3E3E3E)),
-        )
-        // Scrolls sideways if the pills don't fit, like Spotify's.
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .weight(1f)
-                .horizontalScroll(androidx.compose.foundation.rememberScrollState())
-                .padding(start = 12.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
-        ) {
-            // Spotify's home chips. Once one is picked, as in Spotify: a close chip, the picked one,
-            // and joined to it the chips it opens (Following: only what the user follows).
-            val labels = mapOf(
-                "music-chip" to stringResource(R.string.recents_content_filter_music),
-                "podcasts-chip" to stringResource(R.string.ad_category_title_podcasts),
-                "audiobooks-chip" to stringResource(R.string.audiobooks_title),
+        val policy by com.music.spotui.parental.ParentalPolicyStore.policyFlow.collectAsState()
+        val showBell = com.music.spotui.parental.HomeSectionFilter.isWhatsNewAllowed(policy)
+        val showChips = !policy.homeSections.minimalHomeMode && policy.homeSections.showFilterChips
+        if (showBell) {
+            WhatsNewBell { navController.navigate(com.music.spotui.ui.navigation.Routes.WhatsNew.route) }
+        }
+        if (showChips) {
+            // B31: a separator between the profile and the options, reported missing from this
+            // header (the sheets already carry one).
+            Box(
+                modifier = Modifier
+                    .padding(vertical = 10.dp)
+                    .size(width = 1.dp, height = 22.dp)
+                    .background(tone(0xFF3E3E3E)),
             )
-            if (facet.isEmpty()) {
-                HomePill(stringResource(R.string.filter_chip_all_label), selected = true) {}
-                HomePill(labels.getValue("music-chip")) { onFacet("music-chip") }
-                if (com.music.spotui.data.api.Features.PODCASTS) {
-                    HomePill(labels.getValue("podcasts-chip")) { onFacet("podcasts-chip") }
-                    HomePill(labels.getValue("audiobooks-chip")) { onFacet("audiobooks-chip") }
-                }
-            } else {
-                val parent = com.music.spotui.data.entity.HomeSubChips.parentOf(facet) ?: facet
-                val subs = com.music.spotui.data.entity.HomeSubChips.byParent[parent].orEmpty()
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.clip(CircleShape).background(tone(0xFF2A2A2A)).clickable { onFacet("") }.padding(8.dp),
-                ) {
-                    Icon(androidx.compose.material.icons.Icons.Filled.Close, contentDescription = stringResource(R.string.filter_chip_all_label),
-                        tint = AppText, modifier = Modifier.size(18.dp))
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    HomePill(labels[parent].orEmpty(), selected = true, shape = if (subs.isEmpty()) RoundedCornerShape(50) else JoinedStart) { onFacet(parent) }
-                    subs.forEachIndexed { i, (id, label) ->
-                        val shown = remember(id) { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }
-                        androidx.compose.animation.AnimatedVisibility(
-                            visibleState = shown,
-                            enter = androidx.compose.animation.expandHorizontally(expandFrom = Alignment.Start) + androidx.compose.animation.fadeIn(),
-                        ) {
-                            HomePill(label, selected = facet == id, shape = if (i == subs.lastIndex) JoinedEnd else RoundedCornerShape(4.dp)) { onFacet(id) }
+            // Scrolls sideways if the pills don't fit, like Spotify's.
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(androidx.compose.foundation.rememberScrollState())
+                    .padding(start = 12.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
+            ) {
+                // Spotify's home chips. Once one is picked, as in Spotify: a close chip, the picked one,
+                // and joined to it the chips it opens (Following: only what the user follows).
+                val labels = mapOf(
+                    "music-chip" to stringResource(R.string.recents_content_filter_music),
+                    "podcasts-chip" to stringResource(R.string.ad_category_title_podcasts),
+                    "audiobooks-chip" to stringResource(R.string.audiobooks_title),
+                )
+                if (facet.isEmpty()) {
+                    HomePill(stringResource(R.string.filter_chip_all_label), selected = true) {}
+                    HomePill(labels.getValue("music-chip")) { onFacet("music-chip") }
+                    if (policy.allowPodcasts) {
+                        HomePill(labels.getValue("podcasts-chip")) { onFacet("podcasts-chip") }
+                    }
+                    if (policy.allowAudiobooks) {
+                        HomePill(labels.getValue("audiobooks-chip")) { onFacet("audiobooks-chip") }
+                    }
+                } else {
+                    val parent = com.music.spotui.data.entity.HomeSubChips.parentOf(facet) ?: facet
+                    val subs = com.music.spotui.data.entity.HomeSubChips.byParent[parent].orEmpty()
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.clip(CircleShape).background(tone(0xFF2A2A2A)).clickable { onFacet("") }.padding(8.dp),
+                    ) {
+                        Icon(androidx.compose.material.icons.Icons.Filled.Close, contentDescription = stringResource(R.string.filter_chip_all_label),
+                            tint = AppText, modifier = Modifier.size(18.dp))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        HomePill(labels[parent].orEmpty(), selected = true, shape = if (subs.isEmpty()) RoundedCornerShape(50) else JoinedStart) { onFacet(parent) }
+                        subs.forEachIndexed { i, (id, label) ->
+                            val shown = remember(id) { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }
+                            androidx.compose.animation.AnimatedVisibility(
+                                visibleState = shown,
+                                enter = androidx.compose.animation.expandHorizontally(expandFrom = Alignment.Start) + androidx.compose.animation.fadeIn(),
+                            ) {
+                                HomePill(label, selected = facet == id, shape = if (i == subs.lastIndex) JoinedEnd else RoundedCornerShape(4.dp)) { onFacet(id) }
+                            }
                         }
                     }
                 }
             }
+        } else {
+            Spacer(modifier = Modifier.weight(1f))
         }
     }
 }
@@ -393,16 +417,36 @@ private fun uniqueKeys(raw: List<String>): List<String> {
 }
 
 @Composable
-private fun HomeFeedSection(navController: NavController, section: HomeSection) {
-    Text(
-        text = section.title,
-        color = AppText,
-        fontSize = 21.sp,
-        fontWeight = FontWeight.Bold,
-        maxLines = 2,
-        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-        modifier = Modifier.padding(16.dp, 20.dp, 16.dp, 4.dp),
-    )
+private fun HomeFeedSection(navController: NavController, section: HomeSection, adminUnlocked: Boolean = false) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(16.dp, 20.dp, 12.dp, 4.dp),
+    ) {
+        Text(
+            text = section.title,
+            color = AppText,
+            fontSize = 21.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 2,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        if (adminUnlocked && section.uri != com.music.spotui.parental.HomeSectionFilter.PARENT_PICKS_URI) {
+            androidx.compose.material3.IconButton(onClick = {
+                val key = com.music.spotui.parental.HomeSectionFilter.shelfKey(section)
+                com.music.spotui.parental.ParentalPolicyStore.hideHomeShelf(context, key)
+                android.widget.Toast.makeText(context, "Hidden section: ${section.title}", android.widget.Toast.LENGTH_SHORT).show()
+            }) {
+                Icon(
+                    androidx.compose.material.icons.Icons.Outlined.VisibilityOff,
+                    contentDescription = "Hide section",
+                    tint = AppMuted,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+    }
     val keys = remember(section) { uniqueKeys(section.items.map { it.name + "|" + it.imageUrl }) }
     LazyRow(contentPadding = androidx.compose.foundation.layout.PaddingValues(10.dp, 0.dp)) {
         items(section.items.size, key = { keys[it] }) { i ->
@@ -511,6 +555,18 @@ private fun ProfileSheet(onOpen: (route: String) -> Unit = {}, onDismiss: () -> 
             ) {
                 Text(stringResource(R.string.settings_title), color = AppText, fontSize = 16.sp)
                 Text(stringResource(R.string.settings_detail), color = AppMuted, fontSize = 12.sp)
+            }
+            // Parental Controls Dashboard (Parent PIN required).
+            androidx.compose.foundation.layout.Column(
+                Modifier.fillMaxWidth().clickable {
+                    com.music.spotui.parental.ParentSecurityManager.runProtected(
+                        com.music.spotui.di.Graph.app,
+                        com.music.spotui.parental.AppSurface.PARENT_CONTROLS,
+                    ) { onOpen(com.music.spotui.ui.navigation.Routes.ParentSettings.route) }
+                }.padding(horizontal = 20.dp, vertical = 10.dp),
+            ) {
+                Text("Parental Controls", color = AppAccent, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text("Content filters, Home sections, features, speakers & backup", color = AppMuted, fontSize = 12.sp)
             }
             // In-app recap: every listen on this phone, Spotify and local files.
             androidx.compose.foundation.layout.Column(

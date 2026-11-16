@@ -240,6 +240,29 @@ object TrustedNetworkGate {
         }
     }
 
+    fun replaceConfiguration(
+        context: Context,
+        requireTrustedNetwork: Boolean,
+        ssids: Set<String>,
+        bssids: Set<String>,
+        lanFingerprints: Set<String>,
+        visibilityMode: SpeakerVisibilityMode,
+        hiddenDevices: Set<String>,
+        allowedDevices: Set<String>,
+        allowJam: Boolean,
+    ) {
+        prefs(context).edit()
+            .putBoolean(KEY_REQUIRE_TRUSTED, requireTrustedNetwork)
+            .putStringSet(KEY_SSIDS, ssids.mapNotNull(::normalizeSsid).toSet())
+            .putStringSet(KEY_BSSIDS, bssids.mapNotNull(::normalizeBssid).toSet())
+            .putStringSet(KEY_LAN_FINGERPRINTS, lanFingerprints.map { it.trim() }.filter { it.isNotEmpty() }.toSet())
+            .putString(KEY_VISIBILITY_MODE, visibilityMode.name)
+            .putStringSet(KEY_HIDDEN_DEVICES, hiddenDevices.map { it.trim() }.filter { it.isNotEmpty() }.toSet())
+            .putStringSet(KEY_ALLOWED_DEVICES, allowedDevices.map { it.trim() }.filter { it.isNotEmpty() }.toSet())
+            .putBoolean(KEY_ALLOW_JAM, allowJam)
+            .apply()
+    }
+
     internal fun resetForTests(context: Context) {
         snapshotOverride = null
         prefs(context).edit().clear().apply()

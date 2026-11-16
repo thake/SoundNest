@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.rounded.NotificationsNone
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -124,21 +125,39 @@ fun ImmersiveHomeScreen(navController: NavController) {
         derivedStateOf { if (Graph.currentSongState.playingState.value) SongPlayer.nowPlaying.value.contextUri else "" }
     }
 
-    // Podcasts can be off: their shows and episodes then leave the feed.
-    val hideDj = com.music.spotui.data.preferences.HideDjPref.hidden
-    val sections = remember(feed, hideDj) {
-        val all = feed?.sections.orEmpty().withoutPodcastShows()
-        if (hideDj) all.withoutDj() else all
+    LaunchedEffect(Unit) { com.music.spotui.parental.ParentalPolicyStore.current(context) }
+    val policy by com.music.spotui.parental.ParentalPolicyStore.policyFlow.collectAsState()
+    val revision by com.music.spotui.parental.ParentalPolicyStore.revision.collectAsState()
+    val sessionTick by com.music.spotui.parental.ParentSecurityManager.sessionTick.collectAsState()
+    val adminUnlocked = remember(sessionTick) { com.music.spotui.parental.ParentSecurityManager.isAdminUnlocked(context) }
+
+    val rawGridSection = remember(feed) { feed?.sections.orEmpty().firstOrNull()?.takeIf { it.title.isBlank() } }
+    val rawCarousels = remember(feed, rawGridSection) {
+        val all = feed?.sections.orEmpty()
+        if (rawGridSection != null) all.drop(1) else all
     }
-    // Only the untitled section the web home starts with is a shortcut grid; a titled lead
-    // section is a carousel like any other.
-    val gridSection = sections.firstOrNull()?.takeIf { it.title.isBlank() }
-    val carousels = if (gridSection != null) sections.drop(1) else sections
+    val carousels = remember(rawCarousels, policy, revision) {
+        com.music.spotui.parental.HomeSectionFilter.filterSections(
+            sections = rawCarousels,
+            policy = policy,
+            parentPicksCandidates = com.music.spotui.parental.HomeSectionFilter.cachedLibraryCandidates(),
+        )
+    }
     // Liked Songs leads the shortcuts when Spotify's grid does not carry it.
     val likedName = stringResource(R.string.collection_liked_songs_title)
-    val shortcuts = remember(gridSection, sections, facet, likedName) { homeShortcuts(gridSection?.items, sections.isEmpty(), facet, likedName) }
+    val shortcuts = remember(rawGridSection, feed, policy, facet, likedName) {
+        if (!policy.homeSections.showShortcutsGrid || feed == null) null
+        else {
+            val filteredGrid = com.music.spotui.parental.HomeSectionFilter.filterShortcutItems(rawGridSection?.items ?: emptyList(), policy)
+            val emptyFeed = feed.sections.isEmpty() && !policy.homeSections.minimalHomeMode && policy.filterMode != com.music.spotui.parental.FilterMode.STRICT_ALLOWLIST
+            homeShortcuts(filteredGrid, emptyFeed, facet, likedName)
+        }
+    }
     // The shortcuts at the top load in the background, ready before a tap.
     LaunchedEffect(shortcuts) { prefetchHomeShortcuts(shortcuts) }
+
+    val showChips = !policy.homeSections.minimalHomeMode && policy.homeSections.showFilterChips
+    val showBell = com.music.spotui.parental.HomeSectionFilter.isWhatsNewAllowed(policy)
 
     Box(Modifier.fillMaxSize().background(Immersive.Page)) {
         LazyColumn(
@@ -148,21 +167,24 @@ fun ImmersiveHomeScreen(navController: NavController) {
             contentPadding = PaddingValues(top = immersiveHeaderContentPadding(), bottom = Immersive.BottomChrome),
             modifier = Modifier.fillMaxSize().immersiveHazeSource().immersiveChromeScroll(),
         ) {
-            item(key = "home:facets") {
-                ImmersiveHomeFacets(
-                    facet,
-                    labels = mapOf(
-                        "" to stringResource(R.string.filter_chip_all_label),
-                        "music-chip" to stringResource(R.string.recents_content_filter_music),
-                        "podcasts-chip" to stringResource(R.string.ad_category_title_podcasts),
-                        "audiobooks-chip" to stringResource(R.string.audiobooks_title),
-                    ),
-                    podcasts = Features.PODCASTS,
-                    select = homeViewModel::selectFacet,
-                )
+            if (showChips) {
+                item(key = "home:facets") {
+                    ImmersiveHomeFacets(
+                        facet,
+                        labels = mapOf(
+                            "" to stringResource(R.string.filter_chip_all_label),
+                            "music-chip" to stringResource(R.string.recents_content_filter_music),
+                            "podcasts-chip" to stringResource(R.string.ad_category_title_podcasts),
+                            "audiobooks-chip" to stringResource(R.string.audiobooks_title),
+                        ),
+                        podcasts = policy.allowPodcasts,
+                        audiobooks = policy.allowAudiobooks,
+                        select = homeViewModel::selectFacet,
+                    )
+                }
             }
             when {
-                feed != null && feed.sections.isNotEmpty() -> {
+                feed != null && (shortcuts != null || carousels.isNotEmpty()) -> {
                     shortcuts?.let { tiles ->
                         item(key = "home:shortcuts") {
                             // The feed fades in over its placeholder (see immersiveFeedSkeleton).
@@ -172,11 +194,12 @@ fun ImmersiveHomeScreen(navController: NavController) {
                         }
                     }
                     carousels.forEachIndexed { index, section ->
-                        item(key = "home:section:$index:${section.title}") {
+                        item(key = "home:section:$index:${section.uri.ifBlank { section.title }}") {
                             // The lead carousel gets the big cards, unless it is a row of artists.
                             val hero = index == 0 && section.items.none { it is HomeItem.Artist }
                             Box(arrivingRow()) {
-                                if (hero) HeroSection(navController, section, playingContext) else ShelfSection(navController, section, playingContext)
+                                if (hero) HeroSection(navController, section, playingContext, adminUnlocked = adminUnlocked)
+                                else ShelfSection(navController, section, playingContext, adminUnlocked = adminUnlocked)
                             }
                         }
                     }
@@ -194,7 +217,9 @@ fun ImmersiveHomeScreen(navController: NavController) {
         // The greeting, the bell and the profile disc on floating glass; the feed scrolls under it.
         ImmersiveFloatingHeader(title, collapse = rememberTopBarCollapse(listState, 24.dp)) {
             val size = LocalBarControlSize.current
-            WhatsNewBell(size) { navController.navigate(Routes.WhatsNew.route) }
+            if (showBell) {
+                WhatsNewBell(size) { navController.navigate(Routes.WhatsNew.route) }
+            }
             // The tap area is the header's full height and reaches past the disc toward the
             // title, so the small disc of the minimized bar is still easy to hit.
             Box(
@@ -269,11 +294,32 @@ private fun HomeItem.cardSubtitle(): String = when (this) {
     is HomeItem.Show -> subtitle
 }
 
+@Composable
+private fun HideShelfButton(section: HomeSection) {
+    val context = LocalContext.current
+    androidx.compose.material3.IconButton(onClick = {
+        val key = com.music.spotui.parental.HomeSectionFilter.shelfKey(section)
+        com.music.spotui.parental.ParentalPolicyStore.hideHomeShelf(context, key)
+        android.widget.Toast.makeText(context, "Hidden section: ${section.title}", android.widget.Toast.LENGTH_SHORT).show()
+    }) {
+        androidx.compose.material3.Icon(
+            androidx.compose.material.icons.Icons.Rounded.VisibilityOff,
+            contentDescription = "Hide section",
+            tint = Immersive.TextSecondary,
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
+
 /** The lead carousel: big artwork cards with the caption over a scrim, the next one peeking in. */
 @Composable
-private fun HeroSection(navController: NavController, section: HomeSection, playingContext: State<String>) {
+private fun HeroSection(navController: NavController, section: HomeSection, playingContext: State<String>, adminUnlocked: Boolean = false) {
+    val canHide = adminUnlocked && section.uri != com.music.spotui.parental.HomeSectionFilter.PARENT_PICKS_URI
     Column(Modifier.padding(bottom = 26.dp)) {
-        SectionHeader(section.title)
+        SectionHeader(
+            title = section.title,
+            trailing = if (canHide) ({ HideShelfButton(section) }) else null,
+        )
         BoxWithConstraints {
             // Measured: the card has a ceiling as well as a fraction, and the skeleton agrees.
             val cardWidth = immersiveHeroCardWidth(maxWidth)
@@ -299,9 +345,13 @@ private fun HeroSection(navController: NavController, section: HomeSection, play
 
 /** A titled row of square cards (round for artists). */
 @Composable
-private fun ShelfSection(navController: NavController, section: HomeSection, playingContext: State<String>) {
+private fun ShelfSection(navController: NavController, section: HomeSection, playingContext: State<String>, adminUnlocked: Boolean = false) {
+    val canHide = adminUnlocked && section.uri != com.music.spotui.parental.HomeSectionFilter.PARENT_PICKS_URI
     val keys = remember(section.items) { homeItemKeys(section.items) }
-    ImmersiveShelf(title = section.title) {
+    ImmersiveShelf(
+        title = section.title,
+        trailing = if (canHide) ({ HideShelfButton(section) }) else null,
+    ) {
         items(section.items.size, key = { keys[it] }) { i ->
             val item = section.items[i]
             val hint = remember(item) { { prefetchHomeItem(item) } }

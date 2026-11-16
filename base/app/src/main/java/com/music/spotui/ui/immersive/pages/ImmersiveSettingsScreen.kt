@@ -120,7 +120,7 @@ fun ImmersiveSettingsScreen(navController: NavController) {
         label = "settings pages",
     ) { p ->
         when (p) {
-            SettingsPage.Root -> SettingsRoot(open, back)
+            SettingsPage.Root -> SettingsRoot(navController, open, back)
             SettingsPage.Playback -> PlaybackPage(navController, open, back)
             SettingsPage.Lyrics -> LyricsPage(open, back)
             SettingsPage.StreamingWifi -> StreamingPage(cellular = false, back)
@@ -141,7 +141,7 @@ fun ImmersiveSettingsScreen(navController: NavController) {
 }
 
 @Composable
-private fun SettingsRoot(open: (SettingsPage) -> Unit, back: () -> Unit) {
+private fun SettingsRoot(navController: NavController, open: (SettingsPage) -> Unit, back: () -> Unit) {
     val crossfade = com.music.spotui.data.preferences.CrossfadePref.seconds
     // The search button: a field over the page, the rows of every page it finds, a tap opens one.
     var query by rememberSaveable { mutableStateOf<String?>(null) }
@@ -191,7 +191,11 @@ private fun SettingsRoot(open: (SettingsPage) -> Unit, back: () -> Unit) {
             }
         }
         immersiveGroup("parental") {
-            row { com.music.spotui.parental.ParentSecurityControlsSection() }
+            row {
+                com.music.spotui.parental.ParentSecurityControlsSection(
+                    onOpenParentSettings = { navController.navigate(com.music.spotui.ui.navigation.Routes.ParentSettings.route) },
+                )
+            }
         }
         immersiveGroup("root") {
             row { ImmersiveGroupRow(stringResource(R.string.settings_section_display), icon = Icons.Rounded.Palette, chevron = true, onClick = { open(SettingsPage.Display) }) }
@@ -738,10 +742,6 @@ private fun DisplayPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
             row {
                 ImmersiveSwitchRow(stringResource(R.string.settings_amoled_theme), checked = energy.blackPreference,
                     onChecked = app.myspoti.power.EnergySettings::setBlackBackground, detail = stringResource(R.string.settings_amoled_theme_subtitle))
-            }
-            row {
-                ImmersiveSwitchRow(stringResource(R.string.settings_hide_dj_title), checked = com.music.spotui.data.preferences.HideDjPref.on,
-                    onChecked = { com.music.spotui.data.preferences.HideDjPref.set(ctx, it) }, detail = stringResource(R.string.settings_hide_dj_detail))
             }
             if (look == com.music.spotui.data.preferences.Look.CLASSIC) {
                 row {

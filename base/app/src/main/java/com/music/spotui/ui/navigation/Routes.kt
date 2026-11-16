@@ -38,6 +38,7 @@ sealed class Routes(
     /** The "What's New" feed behind the bell on Home. */
     object WhatsNew : Routes(0, "WhatsNew", "whatsnew")
     object Settings : Routes(0, "Settings", "settings")
+    object ParentSettings : Routes(0, "ParentSettings", "parentsettings")
 }
 
 /** Builds a Browse-category route carrying the search genre and a display title. */

@@ -40,6 +40,8 @@ import androidx.compose.material.icons.outlined.GroupRemove
 import androidx.compose.material.icons.outlined.PersonRemove
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.QrCode2
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -210,6 +212,31 @@ fun PlaylistOptionsSheet(
                 OptionRow(Icons.Outlined.ContentCopy, stringResource(R.string.copy_link)) { SpotifyCode.copyLink(context, page.uri); onDismiss() }
                 // The Web Player offers it only where canCancelMembership is true (a collaborator, not the owner).
                 if (page.canLeave) OptionRow(Icons.AutoMirrored.Outlined.Logout, stringResource(R.string.playlist_leave)) { leavingPlaylist = true }
+            }
+            if (page.uri.startsWith("spotify:playlist:") && com.music.spotui.parental.ParentSecurityManager.isAdminUnlocked(context)) {
+                val policy = com.music.spotui.parental.ParentalPolicyStore.current(context)
+                val normPl = com.music.spotui.parental.ParentalPolicyStore.normalizeSpotifyId(page.uri)
+                val allowed = normPl in policy.allowedPlaylistIds
+                val blocked = normPl in policy.blockedPlaylistIds
+                androidx.compose.material3.HorizontalDivider(color = AppText.copy(alpha = 0.08f), modifier = Modifier.padding(vertical = 4.dp))
+                OptionRow(
+                    Icons.Outlined.CheckCircle,
+                    if (allowed) "Parent: Remove Playlist from Allowlist" else "Parent: Allow Playlist (Parent Picks)",
+                ) {
+                    if (allowed) com.music.spotui.parental.ParentalPolicyStore.clearPlaylistRule(context, normPl)
+                    else com.music.spotui.parental.ParentalPolicyStore.allowPlaylist(context, normPl)
+                    android.widget.Toast.makeText(context, if (allowed) "Removed playlist from allowlist" else "Playlist added to allowlist", android.widget.Toast.LENGTH_SHORT).show()
+                    onDismiss()
+                }
+                OptionRow(
+                    Icons.Outlined.Block,
+                    if (blocked) "Parent: Unblock Playlist" else "Parent: Block Playlist",
+                ) {
+                    if (blocked) com.music.spotui.parental.ParentalPolicyStore.clearPlaylistRule(context, normPl)
+                    else com.music.spotui.parental.ParentalPolicyStore.blockPlaylist(context, normPl)
+                    android.widget.Toast.makeText(context, if (blocked) "Playlist unblocked" else "Playlist blocked", android.widget.Toast.LENGTH_SHORT).show()
+                    onDismiss()
+                }
             }
         }
     }

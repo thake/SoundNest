@@ -97,13 +97,19 @@ private val JoinedEnd = RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp, 
  * follows), which slide out of it. A label Spotify sent is shown as it came (in the app's language).
  */
 @Composable
-internal fun ImmersiveHomeFacets(facet: String, labels: Map<String, String>, podcasts: Boolean, select: (String) -> Unit) {
+internal fun ImmersiveHomeFacets(
+    facet: String,
+    labels: Map<String, String>,
+    podcasts: Boolean,
+    audiobooks: Boolean = podcasts,
+    select: (String) -> Unit,
+) {
     val parent = com.music.spotui.data.entity.HomeSubChips.parentOf(facet) ?: facet
     val subs = com.music.spotui.data.entity.HomeSubChips.byParent[parent].orEmpty()
     ImmersiveChipRow {
         if (facet.isEmpty()) {
             ImmersiveChip(labels[""].orEmpty(), selected = true) {}
-            for (id in listOfNotNull("music-chip", "podcasts-chip".takeIf { podcasts }, "audiobooks-chip".takeIf { podcasts })) {
+            for (id in listOfNotNull("music-chip", "podcasts-chip".takeIf { podcasts }, "audiobooks-chip".takeIf { audiobooks })) {
                 ImmersiveChip(labels[id].orEmpty(), selected = false) { select(id) }
             }
             return@ImmersiveChipRow

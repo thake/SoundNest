@@ -33,6 +33,7 @@ object HomeSubChips {
 data class HomeSection(
     val title: String,
     val items: List<HomeItem>,
+    val uri: String = "",
 )
 
 /**

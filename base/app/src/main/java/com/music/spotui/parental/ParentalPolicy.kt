@@ -25,6 +25,21 @@ enum class FilterMode {
 }
 
 @Serializable
+data class HomeSectionConfig(
+    val minimalHomeMode: Boolean = false,
+    val showShortcutsGrid: Boolean = true,
+    val showWhatsNewBell: Boolean = true,
+    val showFilterChips: Boolean = true,
+    val showDjCard: Boolean = false,
+    val showParentPicks: Boolean = true,
+    val showChartsAndTrending: Boolean = true,
+    val showMixesAndMadeForYou: Boolean = true,
+    val showNewReleases: Boolean = true,
+    val showRecents: Boolean = true,
+    val hiddenShelfKeys: Set<String> = emptySet(),
+)
+
+@Serializable
 data class ParentalPolicy(
     val filterMode: FilterMode = FilterMode.FILTERED_OPEN,
     val blockExplicit: Boolean = true,
@@ -51,6 +66,7 @@ data class ParentalPolicy(
     val allowExtraLyricSources: Boolean = false,
     val allowAutoplayAndRadio: Boolean = true,
     val readOnlySpotifyLibrary: Boolean = false,
+    val homeSections: HomeSectionConfig = HomeSectionConfig(),
 ) {
     /**
      * Autoplay, Smart Shuffle, Track/Artist Radio, Playlist Extender, and Browse Categories
@@ -137,6 +153,7 @@ object ParentalPolicyStore {
             LyricsApi.extraSourcesOff = !extraAllowed
             if (!policy.allowLyrics || !extraAllowed) LyricsApi.forgetAll()
         }
+        runCatching { com.music.spotui.data.preferences.HideDjPref.set(context, !policy.homeSections.showDjCard) }
         runCatching {
             Api.HomeCache.home = null
             Api.HomeCache.facets.clear()
@@ -306,6 +323,20 @@ object ParentalPolicyStore {
 
     fun removeBlockedRegex(context: Context, pattern: String) {
         update(context) { it.copy(blockedRegexPatterns = it.blockedRegexPatterns - pattern.trim()) }
+    }
+
+    fun hideHomeShelf(context: Context, shelfKey: String) {
+        val cleaned = shelfKey.trim().takeIf { it.isNotEmpty() } ?: return
+        update(context) {
+            it.copy(homeSections = it.homeSections.copy(hiddenShelfKeys = it.homeSections.hiddenShelfKeys + cleaned))
+        }
+    }
+
+    fun unhideHomeShelf(context: Context, shelfKey: String) {
+        val cleaned = shelfKey.trim().takeIf { it.isNotEmpty() } ?: return
+        update(context) {
+            it.copy(homeSections = it.homeSections.copy(hiddenShelfKeys = it.homeSections.hiddenShelfKeys - cleaned))
+        }
     }
 
     @Synchronized

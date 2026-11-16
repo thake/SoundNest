@@ -176,7 +176,9 @@ fun SettingsScreen(navController: NavController) {
             }
         }
         Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).navigationBarsPadding()) {
-            com.music.spotui.parental.ParentSecurityControlsSection()
+            com.music.spotui.parental.ParentSecurityControlsSection(
+                onOpenParentSettings = { navController.navigate(com.music.spotui.ui.navigation.Routes.ParentSettings.route) },
+            )
             HorizontalDivider(color = tone(0xFF2A2A2A))
             if (tab == 0) {
             Section(R.string.settings_section_playback)
@@ -378,12 +380,6 @@ fun SettingsScreen(navController: NavController) {
                 detail = stringResource(R.string.settings_solid_nav_detail),
                 checked = com.music.spotui.data.preferences.SolidNavBar.on,
                 onChecked = { com.music.spotui.data.preferences.SolidNavBar.set(ctx, it) },
-            )
-            OptionRow(
-                label = stringResource(R.string.settings_hide_dj_title),
-                detail = stringResource(R.string.settings_hide_dj_detail),
-                checked = com.music.spotui.data.preferences.HideDjPref.on,
-                onChecked = { com.music.spotui.data.preferences.HideDjPref.set(ctx, it) },
             )
             // Material You: the wallpaper's accent (Android 12+), in place of the one picked below.
             if (com.music.spotui.data.preferences.DynamicColorPref.available) OptionRow(

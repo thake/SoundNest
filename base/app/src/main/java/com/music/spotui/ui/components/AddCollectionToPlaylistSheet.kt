@@ -27,6 +27,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddCircleOutline
+import androidx.compose.material.icons.outlined.Block
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.QrCode2
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
@@ -199,6 +201,30 @@ fun AlbumOptionsSheet(albumUri: String, name: String, known: com.music.spotui.da
             }
             if (albumUri.startsWith("spotify:album:")) OptionRow(Icons.Outlined.ContentCopy, stringResource(R.string.copy_link)) {
                 SpotifyCode.copyLink(linkContext, albumUri); onDismiss()
+            }
+            if (albumUri.startsWith("spotify:album:") && com.music.spotui.parental.ParentSecurityManager.isAdminUnlocked(linkContext)) {
+                val policy = com.music.spotui.parental.ParentalPolicyStore.current(linkContext)
+                val normAlbum = com.music.spotui.parental.ParentalPolicyStore.normalizeSpotifyId(albumUri)
+                val allowed = normAlbum in policy.allowedAlbumIds
+                val blocked = normAlbum in policy.blockedAlbumIds
+                OptionRow(
+                    Icons.Outlined.CheckCircle,
+                    if (allowed) "Parent: Remove Album from Allowlist" else "Parent: Allow Album (Parent Picks)",
+                ) {
+                    if (allowed) com.music.spotui.parental.ParentalPolicyStore.clearAlbumRule(linkContext, normAlbum)
+                    else com.music.spotui.parental.ParentalPolicyStore.allowAlbum(linkContext, normAlbum)
+                    Toast.makeText(linkContext, if (allowed) "Removed album from allowlist" else "Album added to allowlist", Toast.LENGTH_SHORT).show()
+                    onDismiss()
+                }
+                OptionRow(
+                    Icons.Outlined.Block,
+                    if (blocked) "Parent: Unblock Album" else "Parent: Block Album",
+                ) {
+                    if (blocked) com.music.spotui.parental.ParentalPolicyStore.clearAlbumRule(linkContext, normAlbum)
+                    else com.music.spotui.parental.ParentalPolicyStore.blockAlbum(linkContext, normAlbum)
+                    Toast.makeText(linkContext, if (blocked) "Album unblocked" else "Album blocked", Toast.LENGTH_SHORT).show()
+                    onDismiss()
+                }
             }
         }
     }

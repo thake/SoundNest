@@ -88,11 +88,14 @@ object NewReleaseNotifier {
         val now = System.currentTimeMillis()
         if (now - prefs.getLong(KEY_AT, 0L) in 0 until GAP_MS) return
         val policy = com.music.spotui.parental.ParentalPolicyStore.current(context)
+        val whatsNewAllowed = com.music.spotui.parental.HomeSectionFilter.isWhatsNewAllowed(policy)
+        if (!whatsNewAllowed) return
         val feed = MyspotiRuntime.api.home.whatsNew(0, 30).items
         val seen = prefs.getString(KEY_SEEN, null)?.split('\n')?.filter { it.isNotBlank() }
         val fresh = if (seen == null) emptyList() else filterCandidateReleases(
             releases = feed.filter { it.uri !in seen },
             policy = policy,
+            whatsNewEnabled = whatsNewAllowed,
         )
         prefs.edit()
             .putString(KEY_SEEN, (feed.map { it.uri } + seen.orEmpty()).distinct().take(SEEN_KEPT).joinToString("\n"))

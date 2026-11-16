@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -97,6 +98,31 @@ fun ArtistOptionsSheet(artistId: String, artistName: String, artistImage: String
                         Toast.LENGTH_SHORT,
                     ).show()
                     com.music.spotui.di.Haptics.confirm()
+                }
+            }
+            if (artistId.isNotBlank() && com.music.spotui.parental.ParentSecurityManager.isAdminUnlocked(context)) {
+                val policy = com.music.spotui.parental.ParentalPolicyStore.current(context)
+                val normArtist = com.music.spotui.parental.ParentalPolicyStore.normalizeSpotifyId(artistId)
+                val allowed = normArtist in policy.allowedArtistIds
+                val blocked = normArtist in policy.blockedArtistIds
+                HorizontalDivider(color = tone(0xFF3E3E3E), thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
+                ArtistMenuRow(
+                    Icons.Default.Check,
+                    if (allowed) "Parent: Remove Artist from Allowlist" else "Parent: Allow Artist",
+                ) {
+                    if (allowed) com.music.spotui.parental.ParentalPolicyStore.clearArtistRule(context, normArtist)
+                    else com.music.spotui.parental.ParentalPolicyStore.allowArtist(context, normArtist)
+                    Toast.makeText(context, if (allowed) "Removed artist from allowlist" else "Artist added to allowlist", Toast.LENGTH_SHORT).show()
+                    onDismiss()
+                }
+                ArtistMenuRow(
+                    Icons.Default.Block,
+                    if (blocked) "Parent: Unblock Artist" else "Parent: Block Artist",
+                ) {
+                    if (blocked) com.music.spotui.parental.ParentalPolicyStore.clearArtistRule(context, normArtist)
+                    else com.music.spotui.parental.ParentalPolicyStore.blockArtist(context, normArtist)
+                    Toast.makeText(context, if (blocked) "Artist unblocked" else "Artist blocked", Toast.LENGTH_SHORT).show()
+                    onDismiss()
                 }
             }
             Spacer(Modifier.height(12.dp))
