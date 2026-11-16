@@ -1,6 +1,15 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 package io.github.thake.soundnest.parental
 
+import io.github.thake.soundnest.api.Album
+import io.github.thake.soundnest.api.Episode
+import io.github.thake.soundnest.api.MediaKind
+import io.github.thake.soundnest.api.RecentItem
+import io.github.thake.soundnest.api.RecentSection
+import io.github.thake.soundnest.api.TopContent
+import io.github.thake.soundnest.api.Track
+import io.github.thake.soundnest.api.WhatsNewItem
+import io.github.thake.soundnest.api.canonicalUri
 import io.github.thake.soundnest.data.api.Api
 import io.github.thake.soundnest.data.entity.AlbumsModel
 import io.github.thake.soundnest.data.entity.ArtistsModel
@@ -140,7 +149,7 @@ object ParentalFilterEngine {
     private fun isContextAllowlisted(contextUri: String?, policy: ParentalPolicy): Boolean {
         if (contextUri.isNullOrBlank()) return false
         if (contextUri == "spotify:collection:tracks") return false // Liked Songs filters per-track in strict mode
-        val parts = contextUri.split(':')
+        val parts = canonicalUri(contextUri).split(':')
         if (parts.size < 3 || parts[0] != "spotify") return false
         val kind = parts[1]
         val id = parts.last()
@@ -309,6 +318,225 @@ object ParentalFilterEngine {
             policy = policy,
         )
 
+    fun isApiTrackAllowed(
+        track: Track,
+        policy: ParentalPolicy,
+        parentContextUri: String? = null,
+    ): Boolean {
+        val trackId = ParentalPolicyStore.normalizeSpotifyId(track.uri)
+        val albumId = track.album?.uri?.let(ParentalPolicyStore::normalizeSpotifyId).orEmpty()
+        val artistIds = track.artists.map { ParentalPolicyStore.normalizeSpotifyId(it.uri) }.filter { it.isNotEmpty() }
+        val artistsText = track.artists.joinToString(", ") { it.name }
+        val albumName = track.album?.name.orEmpty()
+
+        if (trackId.isNotEmpty() && trackId in policy.blockedTrackIds) return false
+        if (trackId.isNotEmpty() && trackId in policy.allowedTrackIds) return true
+
+        if (artistIds.any { it in policy.blockedArtistIds }) return false
+        if (albumId.isNotEmpty() && albumId in policy.blockedAlbumIds) return false
+        if (policy.blockExplicit && track.explicit) return false
+        if (matchesBlockedText(policy, track.name, albumName, artistsText)) return false
+
+        return when (policy.filterMode) {
+            FilterMode.FILTERED_OPEN -> true
+            FilterMode.STRICT_ALLOWLIST ->
+                (albumId.isNotEmpty() && albumId in policy.allowedAlbumIds) ||
+                    artistIds.any { it in policy.allowedArtistIds } ||
+                    isContextAllowlisted(parentContextUri, policy)
+        }
+    }
+
+    fun isApiAlbumAllowed(album: Album, policy: ParentalPolicy): Boolean =
+        isAlbumAllowed(
+            albumId = album.uri,
+            name = album.name,
+            artists = album.artists.joinToString(", ") { it.name },
+            artistIds = album.artists.map { it.uri },
+            policy = policy,
+        )
+
+    fun isApiEpisodeAllowed(
+        episode: Episode,
+        policy: ParentalPolicy,
+        parentContextUri: String? = null,
+    ): Boolean {
+        if (!policy.allowPodcasts) return false
+        val episodeId = ParentalPolicyStore.normalizeSpotifyId(episode.uri)
+        val showId = episode.show?.uri?.let(ParentalPolicyStore::normalizeSpotifyId).orEmpty()
+        val showName = episode.show?.name.orEmpty()
+
+        if (episodeId.isNotEmpty() && episodeId in policy.blockedTrackIds) return false
+        if (showId.isNotEmpty() && showId in policy.blockedShowIds) return false
+        if (episodeId.isNotEmpty() && episodeId in policy.allowedTrackIds) return true
+        if (policy.blockExplicit && episode.explicit) return false
+        if (matchesBlockedText(policy, episode.name, showName, episode.description.orEmpty())) return false
+
+        return when (policy.filterMode) {
+            FilterMode.FILTERED_OPEN -> true
+            FilterMode.STRICT_ALLOWLIST ->
+                (showId.isNotEmpty() && showId in policy.allowedShowIds) ||
+                    isContextAllowlisted(parentContextUri, policy)
+        }
+    }
+
+    fun isWhatsNewItemAllowed(item: WhatsNewItem, policy: ParentalPolicy): Boolean {
+        item.album?.let { return isApiAlbumAllowed(it, policy) }
+        item.episode?.let { return isApiEpisodeAllowed(it, policy) }
+        return false
+    }
+
+    /**
+     * Filters items from `home.whatsNew(offset, limit)` ("From artists you follow"), whose
+     * entries are [Album] records carrying `spotify:album:*`, `spotify:show:*`, or `spotify:episode:*` URIs.
+     */
+    fun isFollowedReleaseAllowed(release: Album, policy: ParentalPolicy): Boolean {
+        val creators = release.artists.joinToString(", ") { it.name }
+        return when (MediaKind.of(release.uri)) {
+            MediaKind.SHOW -> isShowAllowed(
+                showId = release.uri,
+                name = release.name,
+                publisher = creators,
+                isAudiobook = false,
+                policy = policy,
+            )
+            MediaKind.EPISODE -> {
+                if (!policy.allowPodcasts) return false
+                val epId = ParentalPolicyStore.normalizeSpotifyId(release.uri)
+                val showIds = release.artists.map { ParentalPolicyStore.normalizeSpotifyId(it.uri) }.filter { it.isNotEmpty() }
+                if (epId.isNotEmpty() && epId in policy.blockedTrackIds) return false
+                if (showIds.any { it in policy.blockedShowIds }) return false
+                if (epId.isNotEmpty() && epId in policy.allowedTrackIds) return true
+                if (matchesBlockedText(policy, release.name, creators)) return false
+                when (policy.filterMode) {
+                    FilterMode.FILTERED_OPEN -> true
+                    FilterMode.STRICT_ALLOWLIST -> showIds.any { it in policy.allowedShowIds }
+                }
+            }
+            MediaKind.AUDIOBOOK, MediaKind.CHAPTER -> isShowAllowed(
+                showId = release.uri,
+                name = release.name,
+                publisher = creators,
+                isAudiobook = true,
+                policy = policy,
+            )
+            else -> isApiAlbumAllowed(release, policy)
+        }
+    }
+
+    fun filterTopContent(top: TopContent, policy: ParentalPolicy): TopContent {
+        val artists = top.artists.filter { isArtistAllowed(artistId = it.uri, name = it.name, policy = policy) }
+        val tracks = top.tracks.filter { isApiTrackAllowed(it, policy) }
+        return top.copy(
+            artists = artists,
+            tracks = tracks,
+            artistTotal = if (artists.size == top.artists.size) top.artistTotal else artists.size,
+            trackTotal = if (tracks.size == top.tracks.size) top.trackTotal else tracks.size,
+        )
+    }
+
+    fun isRecentItemAllowed(
+        item: RecentItem,
+        policy: ParentalPolicy,
+        parentContextUri: String? = null,
+    ): Boolean {
+        val uri = canonicalUri(item.uri)
+        val kind = if (item.kind != MediaKind.UNKNOWN) item.kind else MediaKind.of(uri)
+        val id = ParentalPolicyStore.normalizeSpotifyId(uri)
+        val subtitle = item.subtitle.orEmpty()
+        return when (kind) {
+            MediaKind.TRACK -> {
+                if (id.isNotEmpty() && id in policy.blockedTrackIds) return false
+                if (id.isNotEmpty() && id in policy.allowedTrackIds) return true
+                if (policy.blockExplicit && item.explicit) return false
+                if (matchesBlockedText(policy, item.title, subtitle)) return false
+                when (policy.filterMode) {
+                    FilterMode.FILTERED_OPEN -> true
+                    FilterMode.STRICT_ALLOWLIST -> isContextAllowlisted(parentContextUri, policy)
+                }
+            }
+            MediaKind.ALBUM -> isAlbumAllowed(
+                albumId = id,
+                name = item.title,
+                artists = subtitle,
+                explicit = item.explicit,
+                policy = policy,
+            )
+            MediaKind.ARTIST -> isArtistAllowed(
+                artistId = id,
+                name = item.title,
+                policy = policy,
+            )
+            MediaKind.PLAYLIST -> isPlaylistAllowed(
+                playlistId = id,
+                name = item.title,
+                subtitleOrOwner = subtitle,
+                policy = policy,
+            )
+            MediaKind.SHOW -> isShowAllowed(
+                showId = id,
+                name = item.title,
+                publisher = subtitle,
+                isAudiobook = false,
+                policy = policy,
+            )
+            MediaKind.EPISODE -> {
+                if (!policy.allowPodcasts) return false
+                if (id.isNotEmpty() && id in policy.blockedTrackIds) return false
+                if (id.isNotEmpty() && id in policy.allowedTrackIds) return true
+                if (policy.blockExplicit && item.explicit) return false
+                if (matchesBlockedText(policy, item.title, subtitle)) return false
+                when (policy.filterMode) {
+                    FilterMode.FILTERED_OPEN -> true
+                    FilterMode.STRICT_ALLOWLIST -> isContextAllowlisted(parentContextUri, policy)
+                }
+            }
+            MediaKind.AUDIOBOOK, MediaKind.CHAPTER -> {
+                if (!policy.allowAudiobooks) return false
+                if (id.isNotEmpty() && (id in policy.blockedShowIds || id in policy.blockedTrackIds)) return false
+                if (id.isNotEmpty() && (id in policy.allowedShowIds || id in policy.allowedTrackIds)) return true
+                if (policy.blockExplicit && item.explicit) return false
+                if (matchesBlockedText(policy, item.title, subtitle)) return false
+                when (policy.filterMode) {
+                    FilterMode.FILTERED_OPEN -> true
+                    FilterMode.STRICT_ALLOWLIST -> isContextAllowlisted(parentContextUri, policy)
+                }
+            }
+            MediaKind.COLLECTION -> when {
+                uri == "spotify:collection:your-episodes" || "episode" in uri.lowercase() -> policy.allowPodcasts
+                uri == "spotify:collection:tracks" || ":collection" in uri -> true
+                else -> !matchesBlockedText(policy, item.title, subtitle) && policy.filterMode == FilterMode.FILTERED_OPEN
+            }
+            MediaKind.USER -> false
+            MediaKind.GENRE -> policy.effectiveAllowAutoplayAndRadio && !matchesBlockedText(policy, item.title, subtitle)
+            MediaKind.FOLDER -> !matchesBlockedText(policy, item.title)
+            MediaKind.UNKNOWN ->
+                !matchesBlockedText(policy, item.title, subtitle) &&
+                    (!policy.blockExplicit || !item.explicit) &&
+                    policy.filterMode == FilterMode.FILTERED_OPEN
+        }
+    }
+
+    fun filterRecentSections(sections: List<RecentSection>, policy: ParentalPolicy): List<RecentSection> =
+        sections.mapNotNull { section ->
+            val filteredGroups = section.groups.mapNotNull { group ->
+                if (!group.music && !policy.allowPodcasts && !policy.allowAudiobooks) return@mapNotNull null
+                if (!isRecentItemAllowed(group.context, policy)) return@mapNotNull null
+                val contextUri = canonicalUri(group.context.uri)
+                val allowedPlays = group.plays.filter { play ->
+                    isRecentItemAllowed(play, policy, parentContextUri = contextUri)
+                }
+                if (group.plays.isNotEmpty() && allowedPlays.isEmpty()) return@mapNotNull null
+                val dropped = group.plays.size - allowedPlays.size
+                val adjustedCount = if (dropped > 0) {
+                    (group.count - dropped).coerceAtLeast(allowedPlays.size.coerceAtLeast(1))
+                } else {
+                    group.count
+                }
+                group.copy(plays = allowedPlays, count = adjustedCount)
+            }
+            if (filteredGroups.isEmpty()) null else RecentSection(section.dayMs, filteredGroups)
+        }
+
     fun filterHomeItem(item: HomeItem, policy: ParentalPolicy): HomeItem? = when (item) {
         is HomeItem.Album -> item.takeIf { isAlbumAllowed(it.id, it.name, it.artists.ifBlank { it.subtitle }, policy = policy) }
         is HomeItem.Artist -> item.takeIf { isArtistAllowed(it.id, it.name, policy = policy) }
@@ -341,3 +569,4 @@ object ParentalFilterEngine {
         }
     }
 }
+

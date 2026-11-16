@@ -99,8 +99,10 @@ internal class WhatsNewFeed {
  */
 @Composable
 internal fun rememberWhatsNewFeed(content: WhatsNewContent, attempt: Int): WhatsNewFeed {
+    val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+    val effectiveContent = if (!policy.allowPodcasts && content != WhatsNewContent.MUSIC) WhatsNewContent.MUSIC else content
     val feed = remember { WhatsNewFeed() }
-    LaunchedEffect(content, attempt) {
+    LaunchedEffect(effectiveContent, attempt, policy) {
         feed.failure = null
         feed.sections = null
         // The whole feed at once (a few months, 72 entries on a real account): "New" and
@@ -110,11 +112,12 @@ internal fun rememberWhatsNewFeed(content: WhatsNewContent, attempt: Int): Whats
             var offset: Int? = 0
             while (offset != null && items.size < MAX_ITEMS) {
                 val current: Int = offset
-                val page = SoundNestRuntime.api.home.whatsNewFeed(current, PAGE, content)
+                val page = SoundNestRuntime.api.home.whatsNewFeed(current, PAGE, effectiveContent)
                 items += page.items
                 offset = page.nextOffset?.takeIf { it > current }
             }
             items.distinctBy { it.id }
+                .filter { io.github.thake.soundnest.parental.ParentalFilterEngine.isWhatsNewItemAllowed(it, policy) }
         }
             .onSuccess { items ->
                 // Split before marking: what was unseen stays under "New" on this visit.
@@ -260,8 +263,12 @@ internal fun whatsNewDate(item: WhatsNewItem): String {
  */
 @Composable
 fun WhatsNewScreen(navController: NavController) {
+    val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
     var content by remember { mutableStateOf(WhatsNewContent.ALL) }
     var attempt by remember { mutableStateOf(0) }
+    LaunchedEffect(policy.allowPodcasts) {
+        if (!policy.allowPodcasts && content == WhatsNewContent.PODCASTS) content = WhatsNewContent.ALL
+    }
     val feed = rememberWhatsNewFeed(content, attempt)
 
     Column(Modifier.fillMaxSize().background(io.github.thake.soundnest.ui.theme.AppBackground).statusBarsPadding()) {
@@ -286,15 +293,17 @@ fun WhatsNewScreen(navController: NavController) {
             stringResource(R.string.whats_new_subtitle),
             color = AppMuted, fontSize = 13.sp, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp),
         )
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-        ) {
-            FilterPill(stringResource(R.string.recents_filter_music), content == WhatsNewContent.MUSIC) {
-                content = content.toggled(WhatsNewContent.MUSIC)
-            }
-            FilterPill(stringResource(R.string.recents_filter_podcasts), content == WhatsNewContent.PODCASTS) {
-                content = content.toggled(WhatsNewContent.PODCASTS)
+        if (policy.allowPodcasts) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+            ) {
+                FilterPill(stringResource(R.string.recents_filter_music), content == WhatsNewContent.MUSIC) {
+                    content = content.toggled(WhatsNewContent.MUSIC)
+                }
+                FilterPill(stringResource(R.string.recents_filter_podcasts), content == WhatsNewContent.PODCASTS) {
+                    content = content.toggled(WhatsNewContent.PODCASTS)
+                }
             }
         }
         val sections = feed.sections

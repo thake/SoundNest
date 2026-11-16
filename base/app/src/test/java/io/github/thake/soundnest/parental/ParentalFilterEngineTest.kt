@@ -194,6 +194,195 @@ class ParentalFilterEngineTest {
         assertFalse("abc123" in updated.blockedTrackIds)
     }
 
+    @Test
+    fun `filterRecentSections drops explicit plays unapproved contexts and podcasts on shared accounts`() {
+        val approvedPl = "plApproved111"
+        val unapprovedPl = "plUnapproved222"
+        val entries = listOf(
+            io.github.thake.soundnest.api.RecentEntry(
+                item = io.github.thake.soundnest.api.RecentItem(
+                    uri = "spotify:playlist:$approvedPl",
+                    kind = io.github.thake.soundnest.api.MediaKind.PLAYLIST,
+                    title = "Family Mix",
+                    subtitle = "Parent",
+                    images = emptyList(),
+                    playedAtMs = 1000L,
+                ),
+                childrenGroup = "g1",
+                groupCount = 2,
+                music = true,
+            ),
+            io.github.thake.soundnest.api.RecentEntry(
+                item = io.github.thake.soundnest.api.RecentItem(
+                    uri = "spotify:track:cleanTrack1",
+                    kind = io.github.thake.soundnest.api.MediaKind.TRACK,
+                    title = "Clean Song",
+                    subtitle = "Clean Artist",
+                    images = emptyList(),
+                    explicit = false,
+                ),
+                group = "g1",
+                music = true,
+            ),
+            io.github.thake.soundnest.api.RecentEntry(
+                item = io.github.thake.soundnest.api.RecentItem(
+                    uri = "spotify:track:explicitTrack2",
+                    kind = io.github.thake.soundnest.api.MediaKind.TRACK,
+                    title = "Explicit Song",
+                    subtitle = "Adult Artist",
+                    images = emptyList(),
+                    explicit = true,
+                ),
+                group = "g1",
+                music = true,
+            ),
+            io.github.thake.soundnest.api.RecentEntry(
+                item = io.github.thake.soundnest.api.RecentItem(
+                    uri = "spotify:playlist:$unapprovedPl",
+                    kind = io.github.thake.soundnest.api.MediaKind.PLAYLIST,
+                    title = "Late Night Club",
+                    subtitle = "Spotify",
+                    images = emptyList(),
+                    playedAtMs = 1000L,
+                ),
+                childrenGroup = "g2",
+                groupCount = 1,
+                music = true,
+            ),
+            io.github.thake.soundnest.api.RecentEntry(
+                item = io.github.thake.soundnest.api.RecentItem(
+                    uri = "spotify:track:clubTrack3",
+                    kind = io.github.thake.soundnest.api.MediaKind.TRACK,
+                    title = "Club Track",
+                    subtitle = "DJ",
+                    images = emptyList(),
+                ),
+                group = "g2",
+                music = true,
+            ),
+            io.github.thake.soundnest.api.RecentEntry(
+                item = io.github.thake.soundnest.api.RecentItem(
+                    uri = "spotify:show:trueCrimeShow",
+                    kind = io.github.thake.soundnest.api.MediaKind.SHOW,
+                    title = "True Crime Podcast",
+                    subtitle = "Host",
+                    images = emptyList(),
+                    playedAtMs = 1000L,
+                ),
+                music = false,
+            ),
+        )
+        val rawSections = io.github.thake.soundnest.api.groupRecents(entries)
+
+        val strictPolicy = ParentalPolicy(
+            filterMode = FilterMode.STRICT_ALLOWLIST,
+            blockExplicit = true,
+            allowPodcasts = false,
+            allowAudiobooks = true, // Audiobooks enabled must NOT let podcast shows through!
+            allowedPlaylistIds = setOf(approvedPl),
+        )
+
+        val filtered = ParentalFilterEngine.filterRecentSections(rawSections, strictPolicy)
+        assertEquals(1, filtered.size)
+        assertEquals(1, filtered[0].groups.size)
+        val group = filtered[0].groups[0]
+        assertEquals("spotify:playlist:$approvedPl", group.context.uri)
+        assertEquals(listOf("spotify:track:cleanTrack1"), group.plays.map { it.uri })
+        assertEquals(1, group.count)
+    }
+
+    @Test
+    fun `filterTopContent WhatsNew and followed releases enforce explicit blocklists and strict allowlists`() {
+        val allowedArtist = "mozart111"
+        val blockedArtist = "blockedRapper999"
+        val top = io.github.thake.soundnest.api.TopContent(
+            artists = listOf(
+                io.github.thake.soundnest.api.Artist("spotify:artist:$allowedArtist", "Mozart", emptyList()),
+                io.github.thake.soundnest.api.Artist("spotify:artist:$blockedArtist", "Blocked Rapper", emptyList()),
+            ),
+            tracks = listOf(
+                io.github.thake.soundnest.api.Track(
+                    uri = "spotify:track:tClean",
+                    name = "Piano Sonata",
+                    durationMs = 180_000L,
+                    artists = listOf(io.github.thake.soundnest.api.ArtistRef("spotify:artist:$allowedArtist", "Mozart")),
+                    album = io.github.thake.soundnest.api.AlbumRef("spotify:album:a1", "Classics"),
+                    explicit = false,
+                ),
+                io.github.thake.soundnest.api.Track(
+                    uri = "spotify:track:tExp",
+                    name = "Explicit Hit",
+                    durationMs = 180_000L,
+                    artists = listOf(io.github.thake.soundnest.api.ArtistRef("spotify:artist:other", "Other")),
+                    album = io.github.thake.soundnest.api.AlbumRef("spotify:album:a2", "Hits"),
+                    explicit = true,
+                ),
+            ),
+            artistTotal = 2,
+            trackTotal = 2,
+        )
+
+        val openPolicy = ParentalPolicy(
+            filterMode = FilterMode.FILTERED_OPEN,
+            blockExplicit = true,
+            blockedArtistIds = setOf(blockedArtist),
+            allowPodcasts = false,
+        )
+        val filteredTopOpen = ParentalFilterEngine.filterTopContent(top, openPolicy)
+        assertEquals(listOf("spotify:artist:$allowedArtist"), filteredTopOpen.artists.map { it.uri })
+        assertEquals(listOf("spotify:track:tClean"), filteredTopOpen.tracks.map { it.uri })
+        assertEquals(1, filteredTopOpen.artistTotal)
+        assertEquals(1, filteredTopOpen.trackTotal)
+
+        // WhatsNew episodes are blocked when allowPodcasts == false, while allowed artist albums pass
+        val albumItem = io.github.thake.soundnest.api.WhatsNewItem(
+            id = "wn1",
+            state = io.github.thake.soundnest.api.WhatsNewState.NEW,
+            album = io.github.thake.soundnest.api.Album(
+                uri = "spotify:album:alb1",
+                name = "Symphony No. 40",
+                artists = listOf(io.github.thake.soundnest.api.ArtistRef("spotify:artist:$allowedArtist", "Mozart")),
+                images = emptyList(),
+                type = "ALBUM",
+                releaseDate = "2026-05-01",
+                trackCount = 4,
+            ),
+        )
+        val episodeItem = io.github.thake.soundnest.api.WhatsNewItem(
+            id = "wn2",
+            state = io.github.thake.soundnest.api.WhatsNewState.NEW,
+            episode = io.github.thake.soundnest.api.Episode(
+                uri = "spotify:episode:ep1",
+                name = "Podcast Episode",
+                description = "Talk",
+                durationMs = 600_000L,
+                releaseDate = "2026-05-01",
+                images = emptyList(),
+                show = io.github.thake.soundnest.api.AlbumRef("spotify:show:sh1", "Some Show"),
+                playedPositionMs = 0L,
+                played = false,
+                explicit = false,
+                playable = true,
+                previewUrl = null,
+            ),
+        )
+        assertTrue(ParentalFilterEngine.isWhatsNewItemAllowed(albumItem, openPolicy))
+        assertFalse(ParentalFilterEngine.isWhatsNewItemAllowed(episodeItem, openPolicy))
+
+        // Followed releases in NewReleasesScreen can carry spotify:show:* URIs and must obey allowPodcasts
+        val followedShowAsAlbum = io.github.thake.soundnest.api.Album(
+            uri = "spotify:show:sh1",
+            name = "Followed Podcast",
+            artists = emptyList(),
+            images = emptyList(),
+            type = "SHOW",
+            releaseDate = "2026-05-01",
+            trackCount = 1,
+        )
+        assertFalse(ParentalFilterEngine.isFollowedReleaseAllowed(followedShowAsAlbum, openPolicy))
+        assertTrue(ParentalFilterEngine.isFollowedReleaseAllowed(albumItem.album!!, openPolicy))
+    }
+
     private fun song(
         id: String,
         title: String = "Clean Title",

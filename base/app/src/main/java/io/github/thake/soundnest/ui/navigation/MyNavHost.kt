@@ -257,7 +257,7 @@ fun MyNavHost(
             "${Routes.Episode.route}/{eId}?name={name}",
             arguments = listOf(navArgument("name") { defaultValue = "" }),
         ) { navBackStackEntry ->
-            val allowed = io.github.thake.soundnest.parental.FeatureGates.canUsePodcasts(context) || io.github.thake.soundnest.parental.FeatureGates.canUseAudiobooks(context)
+            val allowed = io.github.thake.soundnest.parental.FeatureGates.canUsePodcasts(context)
             LaunchedEffect(allowed) { if (!allowed) navHostController.popBackStack() }
             if (allowed) {
                 val eId = navBackStackEntry.arguments?.getString("eId")

@@ -93,10 +93,11 @@ internal fun StatsTabs(tab: Int, onTab: (Int) -> Unit) {
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 internal fun SpotifyStatsTab(navController: NavController) {
+    val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
     var range by rememberSaveable { mutableIntStateOf(0) }
     var attempt by remember { mutableIntStateOf(0) }
     val timeRange = rangeLabels[range].first
-    val state by produceState<Result<TopContent>?>(TopStats.cached(timeRange)?.let { Result.success(it) }, timeRange, attempt) {
+    val state by produceState<Result<TopContent>?>(TopStats.cached(timeRange)?.let { Result.success(it) }, timeRange, attempt, policy) {
         value = runCatching { TopStats.get(timeRange, force = attempt > 0) }
     }
     val top = state?.getOrNull()

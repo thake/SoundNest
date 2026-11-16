@@ -91,6 +91,7 @@ private const val YOUR_EPISODES_URI = "spotify:collection:your-episodes"
  */
 @Composable
 fun RecentlyPlayedScreen(navController: NavController) {
+    val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
     var entries by remember { mutableStateOf<List<RecentEntry>?>(null) }
     var failure by remember { mutableStateOf<String?>(null) }
     // Spotify's list holds thousands of rows: the next pages load as the end comes into view.
@@ -99,6 +100,10 @@ fun RecentlyPlayedScreen(navController: NavController) {
     var podcasts by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(emptySet<String>()) }
     val listState = rememberLazyListState()
+
+    LaunchedEffect(policy.allowPodcasts) {
+        if (!policy.allowPodcasts && podcasts) podcasts = false
+    }
 
     LaunchedEffect(Unit) {
         runCatching { SoundNestRuntime.api.recents.recentEntries(0, PAGE) }
@@ -127,11 +132,16 @@ fun RecentlyPlayedScreen(navController: NavController) {
         loadingMore = false
     }
 
-    // Grouping runs on the raw rows, then the pill drops what the tab does not show: a heading
-    // whose rows are all gone disappears with them.
-    val sections = remember(entries, podcasts) {
-        groupRecents(entries.orEmpty()).mapNotNull { section ->
-            val groups = section.groups.filter { it.music != podcasts }
+    // Grouping runs on the raw rows, then parental policy and the active pill drop disallowed or
+    // non-matching contexts and child plays.
+    val sections = remember(entries, podcasts, policy) {
+        val policyFiltered = io.github.thake.soundnest.parental.ParentalFilterEngine.filterRecentSections(
+            groupRecents(entries.orEmpty()),
+            policy,
+        )
+        val showPodcastTab = podcasts && policy.allowPodcasts
+        policyFiltered.mapNotNull { section ->
+            val groups = section.groups.filter { it.music != showPodcastTab }
             if (groups.isEmpty()) null else RecentSection(section.dayMs, groups)
         }
     }
@@ -154,12 +164,14 @@ fun RecentlyPlayedScreen(navController: NavController) {
                 overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp),
             )
         }
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-        ) {
-            Pill(stringResource(R.string.recents_filter_music), selected = !podcasts) { podcasts = false }
-            Pill(stringResource(R.string.recents_filter_podcasts), selected = podcasts) { podcasts = true }
+        if (policy.allowPodcasts) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+            ) {
+                Pill(stringResource(R.string.recents_filter_music), selected = !podcasts) { podcasts = false }
+                Pill(stringResource(R.string.recents_filter_podcasts), selected = podcasts) { podcasts = true }
+            }
         }
         when {
             entries == null && failure != null -> Text(

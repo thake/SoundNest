@@ -105,16 +105,19 @@ internal fun ReleaseTile.route(): String = when (kind) {
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 fun NewReleasesScreen(navController: NavController) {
-    val followed by produceState<List<ReleaseTile>?>(null) {
+    val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+    val followed by produceState<List<ReleaseTile>?>(null, policy) {
         value = runCatching {
-            SoundNestRuntime.api.home.whatsNew(0, 50).items.map { a ->
-                ReleaseTile(a.uri.substringAfterLast(':'), a.name, a.artists.joinToString(", ") { it.name },
-                    a.images.best(300)?.url.orEmpty(), listOfNotNull(a.type.lowercase().replaceFirstChar { it.uppercase() }, a.releaseDate?.take(10)).joinToString(" • "),
-                    a.uri.split(':').getOrElse(1) { "album" })
-            }
+            SoundNestRuntime.api.home.whatsNew(0, 50).items
+                .filter { io.github.thake.soundnest.parental.ParentalFilterEngine.isFollowedReleaseAllowed(it, policy) }
+                .map { a ->
+                    ReleaseTile(a.uri.substringAfterLast(':'), a.name, a.artists.joinToString(", ") { it.name },
+                        a.images.best(300)?.url.orEmpty(), listOfNotNull(a.type.lowercase().replaceFirstChar { it.uppercase() }, a.releaseDate?.take(10)).joinToString(" • "),
+                        a.uri.split(':').getOrElse(1) { "album" })
+                }
         }.getOrDefault(emptyList())
     }
-    val latest by produceState<List<ReleaseTile>?>(null) {
+    val latest by produceState<List<ReleaseTile>?>(null, policy) {
         value = runCatching {
             Graph.api.newReleases().map { ReleaseTile(it.spotifyId, it.name, it.artists, it.coverUri, it.artists) }
         }.getOrDefault(emptyList())

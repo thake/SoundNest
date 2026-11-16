@@ -79,10 +79,20 @@ class ShowViewModel constructor(
         filter.value = PodcastPrefs.filter(showId)
         viewModelScope.launch(Dispatchers.IO) {
             repository.provideShowPage(showId).collect { response ->
+                val loaded = (response as? Response.Success)?.data
+                if (loaded != null) {
+                    val pol = io.github.thake.soundnest.parental.ParentalPolicyStore.current()
+                    val gateOpen = if (loaded.audiobook) pol.allowAudiobooks else pol.allowPodcasts
+                    if (!gateOpen || !io.github.thake.soundnest.parental.ParentalFilterEngine.isShowAllowed(loaded.show, pol)) {
+                        _page.value = Response.Error("Blocked by Parental Controls")
+                        showKey = null
+                        return@collect
+                    }
+                }
                 _page.value = response
                 // A failed page may be loaded again (Try again, or opening it anew).
                 if (response is Response.Error) showKey = null
-                val loaded = (response as? Response.Success)?.data ?: return@collect
+                if (loaded == null) return@collect
                 following.value = loaded.show.saved || SongPlayer.library["spotify:show:$showId"] == true
                 if (!loaded.audiobook && loaded.items.isNotEmpty()) {
                     PodcastPrefs.markOpened(showId, loaded.items.maxOf { it.releaseDate }, following.value)

@@ -105,6 +105,7 @@ private val ChevronRing = Color.White.copy(alpha = 0.35f)
  */
 @Composable
 fun ImmersiveRecentlyPlayedScreen(navController: NavController) {
+    val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
     var entries by remember { mutableStateOf<List<RecentEntry>?>(null) }
     var failure by remember { mutableStateOf<String?>(null) }
     // The list holds thousands of rows: the next pages load as the end comes into view.
@@ -118,6 +119,10 @@ fun ImmersiveRecentlyPlayedScreen(navController: NavController) {
     var generation by remember { mutableStateOf(0) }
     val listState = rememberLazyListState()
     val reduceMotion = rememberReduceMotion()
+
+    LaunchedEffect(policy.allowPodcasts) {
+        if (!policy.allowPodcasts && podcasts) podcasts = false
+    }
 
     LaunchedEffect(generation) {
         failure = null
@@ -147,11 +152,16 @@ fun ImmersiveRecentlyPlayedScreen(navController: NavController) {
         loadingMore = false
     }
 
-    // Grouping runs on the raw rows, then the pill drops what the tab does not show: a heading
-    // whose rows are all gone disappears with them.
-    val sections = remember(entries, podcasts) {
-        groupRecents(entries.orEmpty()).mapNotNull { section ->
-            val groups = section.groups.filter { it.music != podcasts }
+    // Grouping runs on the raw rows, then parental policy and the active pill drop disallowed or
+    // non-matching contexts and child plays.
+    val sections = remember(entries, podcasts, policy) {
+        val policyFiltered = io.github.thake.soundnest.parental.ParentalFilterEngine.filterRecentSections(
+            groupRecents(entries.orEmpty()),
+            policy,
+        )
+        val showPodcastTab = podcasts && policy.allowPodcasts
+        policyFiltered.mapNotNull { section ->
+            val groups = section.groups.filter { it.music != showPodcastTab }
             if (groups.isEmpty()) null else RecentSection(section.dayMs, groups)
         }
     }
@@ -164,10 +174,12 @@ fun ImmersiveRecentlyPlayedScreen(navController: NavController) {
             modifier = Modifier.fillMaxSize().immersiveHazeSource(),
         ) {
             immersiveLargeTitle(title)
-            item(key = "recents:pills", contentType = "pills") {
-                ImmersiveChipRow {
-                    ImmersiveChip(stringResource(R.string.recents_filter_music), selected = !podcasts) { podcasts = false }
-                    ImmersiveChip(stringResource(R.string.recents_filter_podcasts), selected = podcasts) { podcasts = true }
+            if (policy.allowPodcasts) {
+                item(key = "recents:pills", contentType = "pills") {
+                    ImmersiveChipRow {
+                        ImmersiveChip(stringResource(R.string.recents_filter_music), selected = !podcasts) { podcasts = false }
+                        ImmersiveChip(stringResource(R.string.recents_filter_podcasts), selected = podcasts) { podcasts = true }
+                    }
                 }
             }
             when {

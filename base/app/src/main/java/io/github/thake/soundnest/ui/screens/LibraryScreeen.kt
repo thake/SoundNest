@@ -129,6 +129,8 @@ fun LibraryScreen(navController: NavController) {
     val account by libraryViewModel.account.collectAsState()
     var showAccount by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    io.github.thake.soundnest.parental.ParentalPolicyStore.current(context)
+    val policy by io.github.thake.soundnest.parental.ParentalPolicyStore.policyFlow.collectAsState()
     androidx.compose.runtime.LaunchedEffect(Unit) { io.github.thake.soundnest.data.api.ProfileCache.ensure(context) }
     // Spotify-style layout toggle: rows or a 3-column grid, persisted across runs.
     var gridView by remember { mutableStateOf(isLibraryGridView(context)) }
@@ -136,6 +138,11 @@ fun LibraryScreen(navController: NavController) {
     var searchQuery by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
     // The filter chips under the title; the chosen one is kept while the screen is open.
     var chip by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(io.github.thake.soundnest.data.local.LibraryChip.ALL) }
+    androidx.compose.runtime.LaunchedEffect(policy.allowPodcasts) {
+        if (!policy.allowPodcasts && chip == io.github.thake.soundnest.data.local.LibraryChip.PODCASTS) {
+            chip = io.github.thake.soundnest.data.local.LibraryChip.ALL
+        }
+    }
 
     if (showAccount) {
         AccountSheet(
@@ -213,7 +220,7 @@ fun LibraryScreen(navController: NavController) {
             }
         }
 
-        LibraryChipRow(chip) { chip = io.github.thake.soundnest.data.local.LibraryChips.toggle(chip, it) }
+        LibraryChipRow(chip, allowPodcasts = policy.allowPodcasts) { chip = io.github.thake.soundnest.data.local.LibraryChips.toggle(chip, it) }
 
         // Grid/list switch, like the icon at the top-right of Spotify's library.
         Row(
@@ -370,7 +377,11 @@ fun LibraryScreen(navController: NavController) {
 
 /** Playlists / By me / Artists / Albums / Podcasts / Songs: one chip chosen at a time; the chosen one again clears it. */
 @Composable
-private fun LibraryChipRow(chosen: io.github.thake.soundnest.data.local.LibraryChip, onTap: (io.github.thake.soundnest.data.local.LibraryChip) -> Unit) {
+private fun LibraryChipRow(
+    chosen: io.github.thake.soundnest.data.local.LibraryChip,
+    allowPodcasts: Boolean = true,
+    onTap: (io.github.thake.soundnest.data.local.LibraryChip) -> Unit,
+) {
     val chips = listOf(
         io.github.thake.soundnest.data.local.LibraryChip.PLAYLISTS to R.string.library_chip_playlists,
         io.github.thake.soundnest.data.local.LibraryChip.BY_ME to R.string.library_chip_by_me,
@@ -378,7 +389,7 @@ private fun LibraryChipRow(chosen: io.github.thake.soundnest.data.local.LibraryC
         io.github.thake.soundnest.data.local.LibraryChip.ALBUMS to R.string.library_chip_albums,
         io.github.thake.soundnest.data.local.LibraryChip.PODCASTS to R.string.library_chip_podcasts,
         io.github.thake.soundnest.data.local.LibraryChip.SONGS to R.string.library_chip_songs,
-    )
+    ).filter { (c, _) -> c != io.github.thake.soundnest.data.local.LibraryChip.PODCASTS || allowPodcasts }
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier

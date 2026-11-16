@@ -2,6 +2,10 @@
 package io.github.thake.soundnest.parental
 
 import android.content.Context
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import io.github.thake.soundnest.data.api.Api
 import io.github.thake.soundnest.data.api.GeniusMeaning
 import io.github.thake.soundnest.data.api.LyricsApi
@@ -17,6 +21,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+
+@Composable
+fun rememberParentalPolicy(): ParentalPolicy {
+    val context = LocalContext.current
+    ParentalPolicyStore.current(context)
+    val policy by ParentalPolicyStore.policyFlow.collectAsState()
+    return policy
+}
 
 @Serializable
 enum class FilterMode {

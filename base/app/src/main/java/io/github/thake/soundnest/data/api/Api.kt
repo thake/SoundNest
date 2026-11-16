@@ -548,6 +548,7 @@ class Api constructor(
         val rows = ArrayList<SongsModel>()
         var failure: Throwable? = null
         var audiobook = false
+        var sawPodcastEpisodes = false
         var book: io.github.thake.soundnest.api.Audiobook? = null
 
         if (pol.allowPodcasts) {
@@ -556,6 +557,7 @@ class Api constructor(
                 loop@ for (page in 0 until MAX_EPISODE_PAGES) {
                     val p = api.podcasts.episodes(uri, offset, 50)
                     if (p.items.isEmpty()) break@loop
+                    sawPodcastEpisodes = true
                     rows += p.items.map(::episodeSong).filter {
                         io.github.thake.soundnest.parental.ParentalFilterEngine.isTrackAllowed(it, pol, parentContextUri = uri, isAudiobookChapter = false)
                     }
@@ -573,7 +575,7 @@ class Api constructor(
             }
         }
 
-        if (rows.isEmpty() && pol.allowAudiobooks) {
+        if (!sawPodcastEpisodes && head == null && rows.isEmpty() && pol.allowAudiobooks) {
             // A book: its chapters come from queryBookChapters, not from the episodes query.
             audiobook = true
             book = runCatching { api.podcasts.audiobook(uri) }.getOrNull()
@@ -602,6 +604,10 @@ class Api constructor(
         if (rows.isEmpty() && failure != null) {
             Log.e("Api", "getShowPage failed", failure)
             emit(Response.Error(failure.message ?: "error"))
+            return@flow
+        }
+        if ((audiobook && book == null && rows.isEmpty()) || (!audiobook && head == null && rows.isEmpty())) {
+            emit(Response.Error(context.getString(R.string.page_load_failed)))
             return@flow
         }
         val finalPage = pageOf(showId, head, book, rows, audiobook)

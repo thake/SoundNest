@@ -20,12 +20,21 @@ object TopStats {
 
     suspend fun get(range: TimeRange, force: Boolean = false): TopContent = lock.withLock {
         val now = System.currentTimeMillis()
-        cache[range]?.takeIf { !force && now - it.first < TTL_MS }?.second
+        val raw = cache[range]?.takeIf { !force && now - it.first < TTL_MS }?.second
             ?: SoundNestRuntime.api.users.top(range, LIMIT).also { cache[range] = now to it }
+        io.github.thake.soundnest.parental.ParentalFilterEngine.filterTopContent(
+            raw,
+            io.github.thake.soundnest.parental.ParentalPolicyStore.current(),
+        )
     }
 
     /** What is cached, without asking Spotify. */
-    fun cached(range: TimeRange): TopContent? = cache[range]?.second
+    fun cached(range: TimeRange): TopContent? = cache[range]?.second?.let { raw ->
+        io.github.thake.soundnest.parental.ParentalFilterEngine.filterTopContent(
+            raw,
+            io.github.thake.soundnest.parental.ParentalPolicyStore.current(),
+        )
+    }
 
     /** Forgets every answer (sign-out: they belong to one account). */
     fun clear() = cache.clear()

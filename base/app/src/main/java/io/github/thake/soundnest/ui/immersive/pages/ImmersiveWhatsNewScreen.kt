@@ -75,8 +75,12 @@ import io.github.thake.soundnest.ui.screens.whatsNewSubtitle
  */
 @Composable
 fun ImmersiveWhatsNewScreen(navController: NavController) {
+    val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
     var content by rememberSaveable { mutableStateOf(WhatsNewContent.ALL) }
     var attempt by rememberSaveable { mutableStateOf(0) }
+    androidx.compose.runtime.LaunchedEffect(policy.allowPodcasts) {
+        if (!policy.allowPodcasts && content == WhatsNewContent.PODCASTS) content = WhatsNewContent.ALL
+    }
     val feed = rememberWhatsNewFeed(content, attempt)
     val listState = rememberLazyListState()
     val title = stringResource(R.string.whats_new_title)
@@ -89,13 +93,15 @@ fun ImmersiveWhatsNewScreen(navController: NavController) {
             modifier = Modifier.fillMaxSize().immersiveHazeSource(),
         ) {
             immersiveLargeTitle(title, subtitle = subtitle)
-            item(key = "whatsnew:pills", contentType = "pills") {
-                ImmersiveChipRow {
-                    ImmersiveChip(stringResource(R.string.recents_filter_music), selected = content == WhatsNewContent.MUSIC) {
-                        content = content.toggled(WhatsNewContent.MUSIC)
-                    }
-                    ImmersiveChip(stringResource(R.string.recents_filter_podcasts), selected = content == WhatsNewContent.PODCASTS) {
-                        content = content.toggled(WhatsNewContent.PODCASTS)
+            if (policy.allowPodcasts) {
+                item(key = "whatsnew:pills", contentType = "pills") {
+                    ImmersiveChipRow {
+                        ImmersiveChip(stringResource(R.string.recents_filter_music), selected = content == WhatsNewContent.MUSIC) {
+                            content = content.toggled(WhatsNewContent.MUSIC)
+                        }
+                        ImmersiveChip(stringResource(R.string.recents_filter_podcasts), selected = content == WhatsNewContent.PODCASTS) {
+                            content = content.toggled(WhatsNewContent.PODCASTS)
+                        }
                     }
                 }
             }

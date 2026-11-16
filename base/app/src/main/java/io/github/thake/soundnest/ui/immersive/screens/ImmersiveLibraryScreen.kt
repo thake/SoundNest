@@ -179,8 +179,13 @@ fun ImmersiveLibraryScreen(navController: NavController) {
     var searchActive by rememberSaveable { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var kind by rememberSaveable { mutableStateOf(LibraryChip.ALL) }
+    io.github.thake.soundnest.parental.ParentalPolicyStore.current(context)
+    val policy by io.github.thake.soundnest.parental.ParentalPolicyStore.policyFlow.collectAsState()
+    LaunchedEffect(policy.allowPodcasts) {
+        if (!policy.allowPodcasts && kind == LibraryChip.PODCASTS) kind = LibraryChip.ALL
+    }
     // The shows are only read once the Podcasts chip is chosen.
-    LaunchedEffect(kind) { if (kind == LibraryChip.PODCASTS) vm.loadFollowedShows() }
+    LaunchedEffect(kind, policy.allowPodcasts) { if (kind == LibraryChip.PODCASTS && policy.allowPodcasts) vm.loadFollowedShows() }
 
     if (showAccount) {
         ImmersiveAccountSheet(
@@ -448,10 +453,15 @@ private fun LibraryHeader(
                 modifier = Modifier.padding(horizontal = Immersive.Gutter).padding(top = 4.dp, bottom = 4.dp),
             )
         }
+        val context = LocalContext.current
+        io.github.thake.soundnest.parental.ParentalPolicyStore.current(context)
+        val policy by io.github.thake.soundnest.parental.ParentalPolicyStore.policyFlow.collectAsState()
         ImmersiveChipRow {
-            LibraryChipLabels.forEach { (k, label) ->
-                ImmersiveChip(stringResource(label), selected = k == kind) { onKind(k) }
-            }
+            LibraryChipLabels
+                .filter { (k, _) -> k != LibraryChip.PODCASTS || policy.allowPodcasts }
+                .forEach { (k, label) ->
+                    ImmersiveChip(stringResource(label), selected = k == kind) { onKind(k) }
+                }
         }
     }
 }
