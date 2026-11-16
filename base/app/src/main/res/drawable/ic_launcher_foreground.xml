@@ -1,14 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Placeholder mark while Orpheon's icon is being made: a loading indicator, eight dots fading round. -->
+<!-- SoundNest adaptive launcher foreground: protective nest arc cradling three musical soundwave bars. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp" android:height="108dp"
-    android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#1ED760" android:fillAlpha="1.00" android:pathData="M49.80,37.00a4.20,4.20 0,1 0,8.40,0a4.20,4.20 0,1 0,-8.40,0z" />
-    <path android:fillColor="#1ED760" android:fillAlpha="0.89" android:pathData="M62.07,41.98a3.95,3.95 0,1 0,7.90,0a3.95,3.95 0,1 0,-7.90,0z" />
-    <path android:fillColor="#1ED760" android:fillAlpha="0.78" android:pathData="M67.30,54.00a3.70,3.70 0,1 0,7.40,0a3.70,3.70 0,1 0,-7.40,0z" />
-    <path android:fillColor="#1ED760" android:fillAlpha="0.67" android:pathData="M62.57,66.02a3.45,3.45 0,1 0,6.90,0a3.45,3.45 0,1 0,-6.90,0z" />
-    <path android:fillColor="#1ED760" android:fillAlpha="0.56" android:pathData="M50.80,71.00a3.20,3.20 0,1 0,6.40,0a3.20,3.20 0,1 0,-6.40,0z" />
-    <path android:fillColor="#1ED760" android:fillAlpha="0.45" android:pathData="M39.03,66.02a2.95,2.95 0,1 0,5.90,0a2.95,2.95 0,1 0,-5.90,0z" />
-    <path android:fillColor="#1ED760" android:fillAlpha="0.34" android:pathData="M34.30,54.00a2.70,2.70 0,1 0,5.40,0a2.70,2.70 0,1 0,-5.40,0z" />
-    <path android:fillColor="#1ED760" android:fillAlpha="0.23" android:pathData="M39.53,41.98a2.45,2.45 0,1 0,4.90,0a2.45,2.45 0,1 0,-4.90,0z" />
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer warm protective nest arc -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M31,56 C31,71 41.3,78 54,78 C66.7,78 77,71 77,56"
+        android:strokeColor="#22C55E"
+        android:strokeLineCap="round"
+        android:strokeWidth="5.5" />
+    <!-- Inner secondary nest cradle -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M38,60 C39.5,68.5 46,72.5 54,72.5 C62,72.5 68.5,68.5 70,60"
+        android:strokeAlpha="0.72"
+        android:strokeColor="#38BDF8"
+        android:strokeLineCap="round"
+        android:strokeWidth="3.8" />
+    <!-- Three musical soundwave bars nestled inside -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M43,43 L43,57"
+        android:strokeColor="#22C55E"
+        android:strokeLineCap="round"
+        android:strokeWidth="5.5" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M54,33 L54,60"
+        android:strokeColor="#38BDF8"
+        android:strokeLineCap="round"
+        android:strokeWidth="5.8" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M65,40 L65,57"
+        android:strokeColor="#22C55E"
+        android:strokeLineCap="round"
+        android:strokeWidth="5.5" />
 </vector>

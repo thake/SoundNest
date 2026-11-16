@@ -8,7 +8,7 @@ plugins {
 }
 
 android {
-    namespace = "app.myspoti.engine.android"
+    namespace = "io.github.thake.soundnest.engine.android"
     compileSdk = 37
 
     defaultConfig {

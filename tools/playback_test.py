@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Playback scenarios on a phone (debug build app.orpheon.beta.dev, signed in).
+"""Playback scenarios on a phone (debug build io.github.thake.soundnest.beta.dev, signed in).
 
 usage: tools/playback_test.py [--serial S] [--only name,name] [--skip name,name] [--playlist URI]
 
@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cdp  # noqa: E402
 
 ADB = cdp.ADB
-PKG = "app.orpheon.beta.dev"
+PKG = "io.github.thake.soundnest.beta.dev"
 OTHERS = ["app.orpheon.beta", "app.myspoti", "com.spotify.music"]
 PLAYLIST = "spotify:playlist:5G7gcsU1CbvqYJYFawDRZa"
 BAD = [
@@ -299,7 +299,7 @@ def key(code):
 
 
 def test(cmd, **extras):
-    args = ["shell", "am", "broadcast", "-a", "app.myspoti.TEST", "-p", PKG, "--es", "cmd", cmd]
+    args = ["shell", "am", "broadcast", "-a", "io.github.thake.soundnest.TEST", "-p", PKG, "--es", "cmd", cmd]
     for k, v in extras.items():
         args += (["--el", k, str(v)] if isinstance(v, int) else ["--es", k, shlex.quote(v)])
     adb(*args)

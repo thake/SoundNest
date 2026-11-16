@@ -5,24 +5,24 @@
         <!-- Debug builds only: tools/playback_test.py drives the player through it. DUMP is held
              by the adb shell, not by other apps. -->
         <receiver
-            android:name="com.music.spotui.di.TestControlReceiver"
+            android:name="io.github.thake.soundnest.di.TestControlReceiver"
             android:exported="true"
             android:permission="android.permission.DUMP">
             <intent-filter>
-                <action android:name="app.myspoti.TEST" />
+                <action android:name="io.github.thake.soundnest.TEST" />
             </intent-filter>
         </receiver>
         <!-- Debug builds only: the Connect consent page on its own (see ConsentProbeActivity). -->
         <activity
-            android:name="com.music.spotui.connect.ConsentProbeActivity"
+            android:name="io.github.thake.soundnest.connect.ConsentProbeActivity"
             android:exported="true"
             android:permission="android.permission.DUMP"
-            android:theme="@style/Theme.Orpheon" />
+            android:theme="@style/Theme.SoundNest" />
         <!-- Debug builds only: the queue panel over a made-up queue (see QueueProbeActivity). -->
         <activity
-            android:name="com.music.spotui.di.QueueProbeActivity"
+            android:name="io.github.thake.soundnest.di.QueueProbeActivity"
             android:exported="true"
             android:permission="android.permission.DUMP"
-            android:theme="@style/Theme.Orpheon" />
+            android:theme="@style/Theme.SoundNest" />
     </application>
 </manifest>

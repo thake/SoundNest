@@ -20,7 +20,7 @@ val automixLab = findProperty("automixLab") != null
 /** The ABIs a release has an APK for, and how they are named in it. */
 val RELEASE_ABIS = listOf("arm64-v8a", "armeabi-v7a")
 val ABI_NAMES = mapOf("arm64-v8a" to "ARMv8", "armeabi-v7a" to "ARMv7")
-val APK_NAME = "OrpheonKids"
+val APK_NAME = "SoundNest"
 
 android {
     testOptions {
@@ -29,14 +29,14 @@ android {
             all { it.systemProperty("roborazzi.test.record", "true") }
         }
     }
-    namespace = "app.myspoti.engine"
+    namespace = "io.github.thake.soundnest"
     compileSdk = 37
 
     val version = (findProperty("appVersionName") as String?) ?: "1.0.0"
     val beta = findProperty("appVersionName") == null || version.contains("-beta")
     defaultConfig {
-        applicationId = if (automixLab) "io.github.thake.orpheonkids.automixlab" else if (beta) "io.github.thake.orpheonkids.beta" else "io.github.thake.orpheonkids"
-        manifestPlaceholders["appLabel"] = if (automixLab) "Orpheon Kids Mix Lab" else if (beta) "Orpheon Kids Beta" else "Orpheon Kids"
+        applicationId = if (automixLab) "io.github.thake.soundnest.automixlab" else if (beta) "io.github.thake.soundnest.beta" else "io.github.thake.soundnest"
+        manifestPlaceholders["appLabel"] = if (automixLab) "SoundNest Mix Lab" else if (beta) "SoundNest Beta" else "SoundNest"
         // Force CLI disabled outside debug builds.
         manifestPlaceholders["cliEnabled"] = "false"
         minSdk = 29
@@ -56,20 +56,20 @@ android {
     }
 
     // Release key from the CI secrets (env), else keystore/keystore.properties.
-    val envStore = System.getenv("MYSPOTI_KEYSTORE")
+    val envStore = System.getenv("SOUNDNEST_KEYSTORE")
     val hasReleaseKey = envStore != null || keystorePropertiesFile.exists()
     // A stable release (a version without "-beta", given by CI) is never signed with the debug key:
     // without the release key the build stops. Local builds (no version) and -PoverDev are not stable releases.
     val stableRelease = !beta && findProperty("overDev") == null
     if (stableRelease && !hasReleaseKey && gradle.startParameter.taskNames.any { Regex("(assemble|bundle|package|install)Release").containsMatchIn(it) })
-        throw GradleException("A stable release needs the release key: set MYSPOTI_KEYSTORE (CI) or add keystore/keystore.properties.")
+        throw GradleException("A stable release needs the release key: set SOUNDNEST_KEYSTORE (CI) or add keystore/keystore.properties.")
     signingConfigs {
         create("release") {
             if (envStore != null) {
                 storeFile = file(envStore)
-                storePassword = System.getenv("MYSPOTI_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("MYSPOTI_KEY_ALIAS")
-                keyPassword = System.getenv("MYSPOTI_KEY_PASSWORD")
+                storePassword = System.getenv("SOUNDNEST_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("SOUNDNEST_KEY_ALIAS")
+                keyPassword = System.getenv("SOUNDNEST_KEY_PASSWORD")
             } else if (keystorePropertiesFile.exists()) {
                 storeFile = rootProject.file("keystore/${keystoreProperties.getProperty("storeFile")}")
                 storePassword = keystoreProperties.getProperty("storePassword")
@@ -83,7 +83,7 @@ android {
         debug {
             // Installs next to the release apps (own data, own sign-in).
             if (!automixLab) applicationIdSuffix = ".dev"
-            manifestPlaceholders["appLabel"] = if (automixLab) "Orpheon Kids Mix Lab" else "Orpheon Kids dev"
+            manifestPlaceholders["appLabel"] = if (automixLab) "SoundNest Mix Lab" else "SoundNest dev"
             manifestPlaceholders["cliEnabled"] = "true"
         }
         release {
@@ -92,7 +92,7 @@ android {
             signingConfig = signingConfigs.getByName(if (hasReleaseKey) "release" else "debug")
             if (findProperty("overDev") != null && !automixLab) {
                 applicationIdSuffix = ".dev"
-                manifestPlaceholders["appLabel"] = "Orpheon Kids dev"
+                manifestPlaceholders["appLabel"] = "SoundNest dev"
             }
             manifestPlaceholders["cliEnabled"] = "false"
             isMinifyEnabled = true

@@ -1,11 +1,11 @@
 # The Web Player page calls the host through this @JavascriptInterface on WebViews without
 # web message listeners (PlayerChannel.kt).
--keepclassmembers class app.myspoti.host.android.PlayerChannel {
+-keepclassmembers class io.github.thake.soundnest.host.android.PlayerChannel {
     @android.webkit.JavascriptInterface <methods>;
 }
 # Bundled resources read by name (bridge script, GraphQL operation table).
--keep class app.myspoti.spotify.bridge.BridgeScript { *; }
--keep class app.myspoti.spotify.gql.GqlOps { *; }
+-keep class io.github.thake.soundnest.spotify.bridge.BridgeScript { *; }
+-keep class io.github.thake.soundnest.spotify.gql.GqlOps { *; }
 -dontwarn javax.annotation.concurrent.GuardedBy
 -keepclassmembers enum * { *; }
 -keepclassmembers class * implements java.io.Serializable { *; }
@@ -37,9 +37,8 @@
     <init>(...);
 }
 
-# Native UI (Spotui port) + Spotify data layer
--keep class com.metrolist.spotify.models.** { *; }
--keep class com.music.spotui.data.entity.** { *; }
+# SoundNest UI & Spotify data layer
+-keep class io.github.thake.soundnest.data.entity.** { *; }
 -keepclassmembers @kotlinx.serialization.Serializable class ** { *; }
 -dontwarn org.slf4j.**
 -dontwarn org.conscrypt.**

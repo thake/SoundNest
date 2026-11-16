@@ -1,6 +1,6 @@
-# Builds and tests every push / pull request; a "v*" tag publishes signed APKs (arm64-v8a, armeabi-v7a)
-# as a GitHub release (the app's update check reads those releases).
-name: Android
+# Builds and tests every push / pull request; a "v*" tag publishes signed SoundNest APKs (arm64-v8a, armeabi-v7a)
+# as a GitHub release.
+name: SoundNest Android CI
 
 on:
   push:
@@ -32,11 +32,10 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
-      # Unit tests of every module that has them: the Android modules (app, host-android) run
-      # testDebugUnitTest, the JVM modules (extensions, api-spotify, host-cdp) run test.
-      # The live tests in host-cdp skip themselves without a browser to drive.
+      # Unit tests across all modules (Android + JVM + KMP).
+      # Live browser tests in host-cdp and on-demand DocScreenshotTest skip automatically during CI unit test runs.
       - name: Unit tests
-        run: ./gradlew :app:testDebugUnitTest :host-android:testDebugUnitTest :engine:jvmTest :api-spotify:test :host-cdp:test
+        run: ./gradlew :api:test :api-spotify:test :automix:test :engine:jvmTest :engine-android:testDebugUnitTest :host-android:testDebugUnitTest :host-cdp:test :app:testDebugUnitTest
 
       - name: Test reports
         if: ${{ failure() }}
@@ -56,7 +55,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         with:
-          name: myspoti-debug
+          name: soundnest-debug
           path: base/app/build/outputs/apk/debug/*.apk
           retention-days: 14
 
@@ -69,7 +68,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0  # the previous tag, for a beta's notes
+          fetch-depth: 0
 
       - uses: actions/setup-java@v6
         with:
@@ -82,37 +81,33 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
-      # Strict semver tags, so Obtainium and the app compare versions right: "v2.2.1-beta.1" (a beta
-      # of the next version, above the last stable) or "v2.2.1". See tools/check_tag.py.
       - name: Tag format
         working-directory: .
         run: python3 tools/check_tag.py "$GITHUB_REF_NAME"
 
       # Two keys, one per channel (they install side by side as two apps):
-      # betas ("v2.0.0-beta.3") use MYSPOTI_KEYSTORE_BASE64, MYSPOTI_KEYSTORE_PASSWORD,
-      # MYSPOTI_KEY_ALIAS, MYSPOTI_KEY_PASSWORD; releases use the same names with
-      # MYSPOTI_STABLE_ in front. Keep each key for good, or installed apps cannot update.
+      # betas ("v1.0.0-beta.1") use SOUNDNEST_KEYSTORE_BASE64, SOUNDNEST_KEYSTORE_PASSWORD,
+      # SOUNDNEST_KEY_ALIAS, SOUNDNEST_KEY_PASSWORD; releases use the same names with
+      # SOUNDNEST_STABLE_ in front.
       - name: Signing key
         env:
           BETA: ${{ contains(github.ref_name, '-') }}
-          BETA_KEYSTORE: ${{ secrets.MYSPOTI_KEYSTORE_BASE64 }}
-          STABLE_KEYSTORE: ${{ secrets.MYSPOTI_STABLE_KEYSTORE_BASE64 }}
+          BETA_KEYSTORE: ${{ secrets.SOUNDNEST_KEYSTORE_BASE64 }}
+          STABLE_KEYSTORE: ${{ secrets.SOUNDNEST_STABLE_KEYSTORE_BASE64 }}
         run: |
-          if [ "$BETA" = "true" ]; then KEYSTORE_BASE64="$BETA_KEYSTORE"; NAME=MYSPOTI_KEYSTORE_BASE64; else KEYSTORE_BASE64="$STABLE_KEYSTORE"; NAME=MYSPOTI_STABLE_KEYSTORE_BASE64; fi
+          if [ "$BETA" = "true" ]; then KEYSTORE_BASE64="$BETA_KEYSTORE"; NAME=SOUNDNEST_KEYSTORE_BASE64; else KEYSTORE_BASE64="$STABLE_KEYSTORE"; NAME=SOUNDNEST_STABLE_KEYSTORE_BASE64; fi
           test -n "$KEYSTORE_BASE64" || { echo "::error::$NAME secret missing"; exit 1; }
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
 
       - name: Release APK
         env:
-          MYSPOTI_KEYSTORE: ${{ runner.temp }}/release.jks
-          MYSPOTI_KEYSTORE_PASSWORD: ${{ contains(github.ref_name, '-') && secrets.MYSPOTI_KEYSTORE_PASSWORD || secrets.MYSPOTI_STABLE_KEYSTORE_PASSWORD }}
-          MYSPOTI_KEY_ALIAS: ${{ contains(github.ref_name, '-') && secrets.MYSPOTI_KEY_ALIAS || secrets.MYSPOTI_STABLE_KEY_ALIAS }}
-          MYSPOTI_KEY_PASSWORD: ${{ contains(github.ref_name, '-') && secrets.MYSPOTI_KEY_PASSWORD || secrets.MYSPOTI_STABLE_KEY_PASSWORD }}
+          SOUNDNEST_KEYSTORE: ${{ runner.temp }}/release.jks
+          SOUNDNEST_KEYSTORE_PASSWORD: ${{ contains(github.ref_name, '-') && secrets.SOUNDNEST_KEYSTORE_PASSWORD || secrets.SOUNDNEST_STABLE_KEYSTORE_PASSWORD }}
+          SOUNDNEST_KEY_ALIAS: ${{ contains(github.ref_name, '-') && secrets.SOUNDNEST_KEY_ALIAS || secrets.SOUNDNEST_STABLE_KEY_ALIAS }}
+          SOUNDNEST_KEY_PASSWORD: ${{ contains(github.ref_name, '-') && secrets.SOUNDNEST_KEY_PASSWORD || secrets.SOUNDNEST_STABLE_KEY_PASSWORD }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          # One build, every APK (ABI splits), same versionCode, named by :app:collectApks:
-          # Orpheon-<version>-ARMv8.apk, -ARMv7.apk, -universal.apk, -TV.apk (betas: Orpheon-Beta-...).
-          # The app's update check picks this phone's one (UpdateChecker.apkAsset).
+          # Named by :app:collectApks: SoundNest-<version>-ARMv8.apk, -ARMv7.apk, -universal.apk (betas: SoundNest-Beta-...).
           ./gradlew assembleRelease :app:collectApks \
             -PappVersionName="$VERSION" \
             -PappVersionCode="$((1000 + GITHUB_RUN_NUMBER))"

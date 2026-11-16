@@ -22,7 +22,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "OrpheonKids"
+rootProject.name = "SoundNest"
 include(":app")
 include(":api")
 include(":automix")
