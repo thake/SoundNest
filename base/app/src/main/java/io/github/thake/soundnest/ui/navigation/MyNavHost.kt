@@ -97,8 +97,9 @@ fun MyNavHost(
         }
 
         page(Routes.LocalFiles.route){
-            val allowed = io.github.thake.soundnest.parental.FeatureGates.canUseLocalFiles(context)
-            LaunchedEffect(allowed) { if (!allowed) navHostController.popBackStack() }
+            val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+            val allowed = policy.allowLocalFiles
+            LaunchedEffect(allowed) { if (!allowed) blockAndPop(context, navHostController) }
             if (allowed) {
                 if (isImmersive()) io.github.thake.soundnest.ui.immersive.pages.ImmersiveLocalFilesScreen(navHostController) else io.github.thake.soundnest.ui.screens.LocalFilesScreen(navHostController)
             }
@@ -106,8 +107,9 @@ fun MyNavHost(
 
         // Live Radio (see io.github.thake.soundnest.radio): plays through LocalPlayer, as a Local Files song does.
         page(Routes.LiveRadio.route){
-            val allowed = io.github.thake.soundnest.parental.FeatureGates.canUseLiveRadio(context)
-            LaunchedEffect(allowed) { if (!allowed) navHostController.popBackStack() }
+            val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+            val allowed = policy.allowLiveRadio
+            LaunchedEffect(allowed) { if (!allowed) blockAndPop(context, navHostController) }
             if (allowed) {
                 if (isImmersive()) io.github.thake.soundnest.radio.ui.ImmersiveLiveRadioScreen(navHostController) else io.github.thake.soundnest.radio.ui.LiveRadioScreen(navHostController)
             }
@@ -142,24 +144,27 @@ fun MyNavHost(
         }
 
         page(Routes.NewReleases.route) {
-            val allowed = io.github.thake.soundnest.parental.HomeSectionFilter.isWhatsNewAllowed(io.github.thake.soundnest.parental.ParentalPolicyStore.current(context))
-            LaunchedEffect(allowed) { if (!allowed) navHostController.popBackStack() }
+            val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+            val allowed = io.github.thake.soundnest.parental.HomeSectionFilter.isWhatsNewAllowed(policy)
+            LaunchedEffect(allowed) { if (!allowed) blockAndPop(context, navHostController) }
             if (allowed) {
                 if (isImmersive()) io.github.thake.soundnest.ui.immersive.pages.ImmersiveNewReleasesScreen(navHostController) else io.github.thake.soundnest.ui.screens.NewReleasesScreen(navHostController)
             }
         }
 
         page(Routes.Episodes.route) {
-            val allowed = io.github.thake.soundnest.parental.FeatureGates.canUsePodcasts(context)
-            LaunchedEffect(allowed) { if (!allowed) navHostController.popBackStack() }
+            val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+            val allowed = policy.allowPodcasts
+            LaunchedEffect(allowed) { if (!allowed) blockAndPop(context, navHostController) }
             if (allowed) {
                 if (isImmersive()) io.github.thake.soundnest.ui.immersive.pages.ImmersiveEpisodesScreen(navHostController) else io.github.thake.soundnest.ui.screens.EpisodesScreen(navHostController)
             }
         }
 
         page(Routes.NewEpisodes.route) {
-            val allowed = io.github.thake.soundnest.parental.FeatureGates.canUsePodcasts(context)
-            LaunchedEffect(allowed) { if (!allowed) navHostController.popBackStack() }
+            val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+            val allowed = policy.allowPodcasts
+            LaunchedEffect(allowed) { if (!allowed) blockAndPop(context, navHostController) }
             if (allowed) {
                 if (isImmersive()) io.github.thake.soundnest.ui.immersive.pages.ImmersiveNewEpisodesScreen(navHostController) else io.github.thake.soundnest.ui.screens.NewEpisodesScreen(navHostController)
             }
@@ -176,8 +181,9 @@ fun MyNavHost(
 
         // New releases and episodes of what the account follows (the bell on Home).
         page(Routes.WhatsNew.route) {
-            val allowed = io.github.thake.soundnest.parental.HomeSectionFilter.isWhatsNewAllowed(io.github.thake.soundnest.parental.ParentalPolicyStore.current(context))
-            LaunchedEffect(allowed) { if (!allowed) navHostController.popBackStack() }
+            val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+            val allowed = io.github.thake.soundnest.parental.HomeSectionFilter.isWhatsNewAllowed(policy)
+            LaunchedEffect(allowed) { if (!allowed) blockAndPop(context, navHostController) }
             if (allowed) {
                 if (isImmersive()) io.github.thake.soundnest.ui.immersive.pages.ImmersiveWhatsNewScreen(navHostController) else io.github.thake.soundnest.ui.screens.WhatsNewScreen(navHostController)
             }
@@ -200,8 +206,9 @@ fun MyNavHost(
             "${Routes.Category.route}/{genre}?title={title}",
             arguments = listOf(navArgument("title") { defaultValue = "" }),
         ) { navBackStackEntry ->
-            val allowed = io.github.thake.soundnest.parental.FeatureGates.canUseAutoplayAndRadio(context)
-            LaunchedEffect(allowed) { if (!allowed) navHostController.popBackStack() }
+            val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+            val allowed = policy.effectiveAllowAutoplayAndRadio
+            LaunchedEffect(allowed) { if (!allowed) blockAndPop(context, navHostController) }
             if (allowed) {
                 val genre = navBackStackEntry.arguments?.getString("genre").orEmpty()
                 val title = navBackStackEntry.arguments?.getString("title").orEmpty()
@@ -244,8 +251,9 @@ fun MyNavHost(
             "${Routes.Show.route}/{sId}?name={name}",
             arguments = listOf(navArgument("name") { defaultValue = "" }),
         ) { navBackStackEntry ->
-            val allowed = io.github.thake.soundnest.parental.FeatureGates.canUsePodcasts(context) || io.github.thake.soundnest.parental.FeatureGates.canUseAudiobooks(context)
-            LaunchedEffect(allowed) { if (!allowed) navHostController.popBackStack() }
+            val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+            val allowed = policy.allowPodcasts || policy.allowAudiobooks
+            LaunchedEffect(allowed) { if (!allowed) blockAndPop(context, navHostController) }
             if (allowed) {
                 val sId = navBackStackEntry.arguments?.getString("sId")
                 val name = navBackStackEntry.arguments?.getString("name").orEmpty()
@@ -257,8 +265,9 @@ fun MyNavHost(
             "${Routes.Episode.route}/{eId}?name={name}",
             arguments = listOf(navArgument("name") { defaultValue = "" }),
         ) { navBackStackEntry ->
-            val allowed = io.github.thake.soundnest.parental.FeatureGates.canUsePodcasts(context)
-            LaunchedEffect(allowed) { if (!allowed) navHostController.popBackStack() }
+            val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+            val allowed = policy.allowPodcasts
+            LaunchedEffect(allowed) { if (!allowed) blockAndPop(context, navHostController) }
             if (allowed) {
                 val eId = navBackStackEntry.arguments?.getString("eId")
                 val name = navBackStackEntry.arguments?.getString("name").orEmpty()
@@ -307,6 +316,11 @@ fun MyNavHost(
 private val tabRoutes = setOf(Routes.Home.route, Routes.Search.route, Routes.Library.route)
 // Full-height sheets over the current page (the official player / queue).
 private val sheetRoutes = setOf(Routes.Player.route, Routes.Queue.route)
+
+private fun blockAndPop(context: android.content.Context, navHostController: NavHostController) {
+    android.widget.Toast.makeText(context, "Blocked by Parental Controls", android.widget.Toast.LENGTH_SHORT).show()
+    navHostController.popBackStack()
+}
 
 private fun isTabSwitch(from: NavBackStackEntry, to: NavBackStackEntry) =
     from.destination.route in tabRoutes && to.destination.route in tabRoutes

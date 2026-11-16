@@ -215,14 +215,19 @@ class ContextViewModel(
 
     /** Asks Spotify for songs that fit [p] (its name when it is empty), [refresh] for new ones. */
     fun loadRecs(p: ContextPageModel, refresh: Boolean = false) {
+        if (!io.github.thake.soundnest.parental.FeatureGates.canUseAutoplayAndRadio()) {
+            recs.value = emptyList()
+            return
+        }
         if (recsJob?.isActive == true) return
         if (!refresh && recs.value != null) return
         recsJob = viewModelScope.launch(Dispatchers.IO) {
+            val policy = io.github.thake.soundnest.parental.ParentalPolicyStore.current()
             val inList = p.tracks.mapTo(HashSet()) { it.spotifyTrackId }
             val skip = (inList + recsSeen).map { "spotify:track:$it" }
             val got = runCatching { SoundNestRuntime.api.playlists.recommended(p.uri, limit = RECS_COUNT, skip = skip) }
                 .getOrDefault(emptyList()).map(api::songOf)
-                .filter { it.spotifyTrackId !in inList && it.spotifyTrackId !in recsSeen }
+                .filter { it.spotifyTrackId !in inList && it.spotifyTrackId !in recsSeen && io.github.thake.soundnest.parental.ParentalFilterEngine.isTrackAllowed(it, policy) }
             got.forEach { recsSeen += it.spotifyTrackId }
             recs.value = got
         }
@@ -567,6 +572,12 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
     val isThisContext = np.contextUri == p.uri || ((p.type == "liked" || p.type == "liked-artist") && np.contextUri.contains(":collection"))
     val saved by vm.savedUris
     val contextSaved by vm.contextSaved
+    val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+    LaunchedEffect(policy.effectiveAllowAutoplayAndRadio) {
+        if (!policy.effectiveAllowAutoplayAndRadio && SmartShuffle.on.value == p.uri) {
+            SmartShuffle.on.value = null
+        }
+    }
 
     var tintTarget by remember { mutableStateOf(Palette.cachedSecond(p.coverUri) ?: tone(0xFF3A3A3A)) }
     LaunchedEffect(p.coverUri) {
@@ -896,7 +907,7 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
                                 modifier = Modifier.size(io.github.thake.soundnest.ui.components.MinTouch).pressable(0.9f) { moving = !moving }.wrapContentSize().size(26.dp))
                         }
                         Spacer(Modifier.weight(1f))
-                        val smart = SmartShuffle.on.value == p.uri
+                        val smart = policy.effectiveAllowAutoplayAndRadio && SmartShuffle.on.value == p.uri
                         // The glyph and its dot light up in a short fade instead of in one frame.
                         val shuffleLit = shuffle || smart
                         val shuffleTint by androidx.compose.animation.animateColorAsState(
@@ -929,7 +940,7 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
                                             vm.play(p, p.tracks.random(), sort)
                                         }
                                         smart -> { SmartShuffle.on.value = null; playerVm.updateShuffleState(false) }
-                                        shuffle && (p.type == "playlist" || p.type == "liked") -> {
+                                        shuffle && policy.effectiveAllowAutoplayAndRadio && SmartShuffle.canPlay(p.uri) -> {
                                             SmartShuffle.on.value = p.uri
                                             android.widget.Toast.makeText(context, context.getString(R.string.smart_shuffle_on), android.widget.Toast.LENGTH_SHORT).show()
                                             if (isThisContext) vm.playSmart(p, p.tracks.firstOrNull { it.id == currentSongId })
@@ -1053,7 +1064,7 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
             ) }
         }
         // "Recommended songs", as under an own playlist in the official apps (an empty one too).
-        if (p.type == "playlist" && vm.editableContext.value && find.isBlank()) recommendedItems(vm, p, ctx, currentSongId)
+        if (p.type == "playlist" && vm.editableContext.value && find.isBlank() && policy.effectiveAllowAutoplayAndRadio) recommendedItems(vm, p, ctx, currentSongId)
         // Phone files added to this Spotify playlist on this phone (Spotify can't hold them).
         if (p.type == "playlist") {
             val playlistId = p.uri.substringAfterLast(":")
@@ -1075,7 +1086,7 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
                 }
             }
         }
-        if (p.type == "album") item(key = "similar") { SimilarAlbums(navController, p.tracks.firstOrNull()?.spotifyTrackId.orEmpty(), p.uri) }
+        if (p.type == "album" && policy.effectiveAllowAutoplayAndRadio) item(key = "similar") { SimilarAlbums(navController, p.tracks.firstOrNull()?.spotifyTrackId.orEmpty(), p.uri) }
         item { Spacer(Modifier.height(io.github.thake.soundnest.ui.components.bottomBarsSpace())) }
     }
     }

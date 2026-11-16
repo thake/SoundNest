@@ -72,11 +72,18 @@ fun SettingsScreen(
 ) {
     val energy by io.github.thake.soundnest.power.EnergySettings.state.collectAsStateWithLifecycle()
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
     // A page inside Settings (Transitions and AutoMix's options): its own screen, back returns to the tab.
     var sub by androidx.compose.runtime.saveable.rememberSaveable(initialSub) { mutableStateOf(initialSub) }
     androidx.activity.compose.BackHandler(enabled = sub != null) { sub = null }
     // One tab per group (see below); kept up here so a search hit can open one.
     var tab by androidx.compose.runtime.saveable.rememberSaveable(initialTab) { mutableStateOf(initialTab) }
+    val visibleTabOrder = remember(policy.allowLyrics) {
+        TAB_ORDER.filter { it != TAB_LYRICS || policy.allowLyrics }
+    }
+    androidx.compose.runtime.LaunchedEffect(policy.allowLyrics, tab) {
+        if (tab == TAB_LYRICS && !policy.allowLyrics) tab = 0
+    }
     // Settings' search: null while closed.
     var query by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     androidx.activity.compose.BackHandler(enabled = query != null) { query = null }
@@ -108,7 +115,8 @@ fun SettingsScreen(
             )
             androidx.compose.runtime.LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
             if (q.isNotBlank()) {
-                val hits = SettingsSearch.search(SettingsSearch.classic, q) { ctx.getString(it) }
+                val allowedEntries = SettingsSearch.filterForPolicy(SettingsSearch.classic, policy)
+                val hits = SettingsSearch.search(allowedEntries, q) { ctx.getString(it) }
                 Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).navigationBarsPadding()) {
                     if (hits.isEmpty()) Text(stringResource(R.string.settings_search_empty), color = AppMuted, fontSize = 14.sp,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp))
@@ -153,15 +161,16 @@ fun SettingsScreen(
             R.string.accounts_title,
             R.string.settings_section_library,
         )
+        val selectedIndex = visibleTabOrder.indexOf(tab).coerceAtLeast(0)
         androidx.compose.material3.ScrollableTabRow(
-            selectedTabIndex = TAB_ORDER.indexOf(tab).coerceAtLeast(0), containerColor = Color.Transparent, contentColor = AppText, edgePadding = 12.dp,
+            selectedTabIndex = selectedIndex, containerColor = Color.Transparent, contentColor = AppText, edgePadding = 12.dp,
             indicator = { positions ->
                 androidx.compose.material3.TabRowDefaults.SecondaryIndicator(
-                    Modifier.tabIndicatorOffset(positions[TAB_ORDER.indexOf(tab).coerceAtLeast(0)]), color = io.github.thake.soundnest.ui.theme.AppAccent)
+                    Modifier.tabIndicatorOffset(positions[selectedIndex.coerceAtMost(positions.lastIndex)]), color = io.github.thake.soundnest.ui.theme.AppAccent)
             },
             divider = { HorizontalDivider(color = tone(0xFF2A2A2A)) },
         ) {
-            TAB_ORDER.forEach { i ->
+            visibleTabOrder.forEach { i ->
                 androidx.compose.material3.Tab(
                     selected = tab == i,
                     onClick = {
@@ -180,20 +189,22 @@ fun SettingsScreen(
             }
         }
         Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).navigationBarsPadding()) {
-            io.github.thake.soundnest.parental.ParentSecurityControlsSection(
-                onOpenParentSettings = { navController.navigate(io.github.thake.soundnest.ui.navigation.Routes.ParentSettings.route) },
-            )
-            HorizontalDivider(color = tone(0xFF2A2A2A))
             if (tab == 0) {
+                io.github.thake.soundnest.parental.CompactParentalControlsRow(
+                    onOpenParentSettings = { navController.navigate(io.github.thake.soundnest.ui.navigation.Routes.ParentSettings.route) },
+                )
+                HorizontalDivider(color = tone(0xFF2A2A2A))
             Section(R.string.settings_section_playback)
             StreamingQualityPicker(title = R.string.quality_streaming_wifi_title)
             StreamingQualityPicker(cellular = true, title = R.string.quality_streaming_cell_title)
-            OptionRow(
-                label = stringResource(R.string.settings_autoplay_title),
-                detail = stringResource(R.string.settings_autoplay_detail),
-                checked = io.github.thake.soundnest.data.preferences.AutoplayPref.on,
-                onChecked = { io.github.thake.soundnest.data.preferences.AutoplayPref.set(ctx, it) },
-            )
+            if (policy.effectiveAllowAutoplayAndRadio) {
+                OptionRow(
+                    label = stringResource(R.string.settings_autoplay_title),
+                    detail = stringResource(R.string.settings_autoplay_detail),
+                    checked = io.github.thake.soundnest.data.preferences.AutoplayPref.on,
+                    onChecked = { io.github.thake.soundnest.data.preferences.AutoplayPref.set(ctx, it) },
+                )
+            }
             OptionRow(
                 label = stringResource(R.string.myspoti_shuffle_title),
                 detail = stringResource(R.string.myspoti_shuffle_detail),
@@ -226,13 +237,15 @@ fun SettingsScreen(
                 checked = keepPlaying,
                 onChecked = { keepPlaying = it; io.github.thake.soundnest.host.android.PlaybackService.setKeepsPlayingOnClose(ctx, it) },
             )
-            var headsetSkip by remember { mutableStateOf(io.github.thake.soundnest.host.android.PlaybackService.skipsOnEpisodes(ctx)) }
-            OptionRow(
-                label = stringResource(R.string.settings_headset_skip_title),
-                detail = stringResource(R.string.settings_headset_skip_detail),
-                checked = headsetSkip,
-                onChecked = { headsetSkip = it; io.github.thake.soundnest.host.android.PlaybackService.setSkipsOnEpisodes(ctx, it) },
-            )
+            if (policy.allowPodcasts || policy.allowAudiobooks) {
+                var headsetSkip by remember { mutableStateOf(io.github.thake.soundnest.host.android.PlaybackService.skipsOnEpisodes(ctx)) }
+                OptionRow(
+                    label = stringResource(R.string.settings_headset_skip_title),
+                    detail = stringResource(R.string.settings_headset_skip_detail),
+                    checked = headsetSkip,
+                    onChecked = { headsetSkip = it; io.github.thake.soundnest.host.android.PlaybackService.setSkipsOnEpisodes(ctx, it) },
+                )
+            }
             Section(R.string.settings_section_data)
             OptionRow(
                 label = stringResource(R.string.energy_saver_title),
@@ -272,25 +285,31 @@ fun SettingsScreen(
             if (tab == TAB_LIBRARY) {
             // What the library shows and what it tells about.
             Section(R.string.settings_section_library)
-            OptionRow(
-                label = stringResource(R.string.settings_release_notify),
-                detail = stringResource(R.string.settings_release_notify_detail),
-                checked = io.github.thake.soundnest.data.NewReleaseNotifier.on,
-                onChecked = { io.github.thake.soundnest.data.NewReleaseNotifier.setOn(ctx, it) },
-            )
-            OptionRow(
-                label = stringResource(R.string.settings_local_files_shown),
-                detail = stringResource(R.string.settings_local_files_shown_detail),
-                checked = io.github.thake.soundnest.data.preferences.LocalFilesPref.shown,
-                onChecked = { io.github.thake.soundnest.data.preferences.LocalFilesPref.set(ctx, it) },
-            )
-            // Live Radio: adds the pinned Library row under Local Files (see io.github.thake.soundnest.radio).
-            OptionRow(
-                label = stringResource(R.string.live_radio_settings_title),
-                detail = stringResource(R.string.live_radio_settings_detail),
-                checked = io.github.thake.soundnest.radio.RadioFeaturePref.on,
-                onChecked = { io.github.thake.soundnest.radio.RadioFeaturePref.set(ctx, it) },
-            )
+            if (io.github.thake.soundnest.parental.HomeSectionFilter.isWhatsNewAllowed(policy)) {
+                OptionRow(
+                    label = stringResource(R.string.settings_release_notify),
+                    detail = stringResource(R.string.settings_release_notify_detail),
+                    checked = io.github.thake.soundnest.data.NewReleaseNotifier.on,
+                    onChecked = { io.github.thake.soundnest.data.NewReleaseNotifier.setOn(ctx, it) },
+                )
+            }
+            if (policy.allowLocalFiles) {
+                OptionRow(
+                    label = stringResource(R.string.settings_local_files_shown),
+                    detail = stringResource(R.string.settings_local_files_shown_detail),
+                    checked = io.github.thake.soundnest.data.preferences.LocalFilesPref.shown,
+                    onChecked = { io.github.thake.soundnest.data.preferences.LocalFilesPref.set(ctx, it) },
+                )
+            }
+            if (policy.allowLiveRadio) {
+                // Live Radio: adds the pinned Library row under Local Files (see io.github.thake.soundnest.radio).
+                OptionRow(
+                    label = stringResource(R.string.live_radio_settings_title),
+                    detail = stringResource(R.string.live_radio_settings_detail),
+                    checked = io.github.thake.soundnest.radio.RadioFeaturePref.on,
+                    onChecked = { io.github.thake.soundnest.radio.RadioFeaturePref.set(ctx, it) },
+                )
+            }
             // Songs marked "Not interested": Parent PIN required so kids cannot unhide songs.
             Column(
                 Modifier.fillMaxWidth().clickable {
@@ -304,7 +323,7 @@ fun SettingsScreen(
                 Text(stringResource(R.string.hidden_songs_detail), color = AppMuted, fontSize = 12.sp)
             }
             }
-            if (tab == TAB_LYRICS) {
+            if (tab == TAB_LYRICS && policy.allowLyrics) {
             // Lyrics: word by word (karaoke) first, or line by line with Spotify's first.
             Section(R.string.settings_section_lyrics)
             var wordSync by remember { mutableStateOf(io.github.thake.soundnest.data.preferences.isLyricsWordSync(ctx)) }
@@ -319,27 +338,31 @@ fun SettingsScreen(
                     io.github.thake.soundnest.data.api.LyricsApi.forgetAll()
                 },
             )
-            // NetEase and Genius after Spotify and LRCLIB (also in the lyrics' own menu).
-            var lyricsExtra by remember { mutableStateOf(io.github.thake.soundnest.data.preferences.isLyricsExtraSources(ctx)) }
-            OptionRow(
-                label = stringResource(R.string.lyrics_extra_title),
-                detail = stringResource(R.string.lyrics_extra_summary),
-                checked = lyricsExtra,
-                onChecked = {
-                    lyricsExtra = it
-                    io.github.thake.soundnest.data.preferences.setLyricsExtraSources(ctx, it)
-                    io.github.thake.soundnest.data.api.LyricsApi.extraSources = it
-                    io.github.thake.soundnest.data.api.LyricsApi.extraSourcesOff = !it
-                    io.github.thake.soundnest.data.api.LyricsApi.forgetAll()
-                },
-            )
-            // Genius: the meaning of songs and the notes on their lines, and its lyrics as a last resort.
-            OptionRow(
-                label = stringResource(R.string.settings_genius_title),
-                detail = stringResource(R.string.settings_genius_detail),
-                checked = io.github.thake.soundnest.data.preferences.GeniusPref.on,
-                onChecked = { io.github.thake.soundnest.data.preferences.GeniusPref.set(ctx, it) },
-            )
+            if (policy.allowExtraLyricSources) {
+                // NetEase and Genius after Spotify and LRCLIB (also in the lyrics' own menu).
+                var lyricsExtra by remember { mutableStateOf(io.github.thake.soundnest.data.preferences.isLyricsExtraSources(ctx)) }
+                OptionRow(
+                    label = stringResource(R.string.lyrics_extra_title),
+                    detail = stringResource(R.string.lyrics_extra_summary),
+                    checked = lyricsExtra,
+                    onChecked = {
+                        lyricsExtra = it
+                        io.github.thake.soundnest.data.preferences.setLyricsExtraSources(ctx, it)
+                        io.github.thake.soundnest.data.api.LyricsApi.extraSources = it
+                        io.github.thake.soundnest.data.api.LyricsApi.extraSourcesOff = !it
+                        io.github.thake.soundnest.data.api.LyricsApi.forgetAll()
+                    },
+                )
+            }
+            if (policy.allowGeniusMeanings) {
+                // Genius: the meaning of songs and the notes on their lines, and its lyrics as a last resort.
+                OptionRow(
+                    label = stringResource(R.string.settings_genius_title),
+                    detail = stringResource(R.string.settings_genius_detail),
+                    checked = io.github.thake.soundnest.data.preferences.GeniusPref.on,
+                    onChecked = { io.github.thake.soundnest.data.preferences.GeniusPref.set(ctx, it) },
+                )
+            }
             OptionRow(
                 label = stringResource(R.string.settings_lyrics_keep_awake_title),
                 detail = stringResource(R.string.settings_lyrics_keep_awake_detail),
@@ -636,8 +659,10 @@ private fun TransitionsRow() {
         }
         OptionRow(stringResource(R.string.settings_automix_album_order), stringResource(R.string.settings_automix_album_order_detail),
             checked = automix.albumOrder, onChecked = automix::changeAlbumOrder)
-        OptionRow(stringResource(R.string.settings_automix_podcasts), stringResource(R.string.settings_automix_podcasts_detail),
-            checked = automix.mixPodcasts, onChecked = automix::changeMixPodcasts)
+        if (io.github.thake.soundnest.parental.rememberParentalPolicy().allowPodcasts) {
+            OptionRow(stringResource(R.string.settings_automix_podcasts), stringResource(R.string.settings_automix_podcasts_detail),
+                checked = automix.mixPodcasts, onChecked = automix::changeMixPodcasts)
+        }
         OptionRow(stringResource(R.string.settings_automix_harmonic), stringResource(R.string.settings_automix_harmonic_detail),
             checked = automix.harmonic, onChecked = automix::changeHarmonic)
         OptionRow(stringResource(R.string.settings_automix_eq), stringResource(R.string.settings_automix_eq_detail),

@@ -123,6 +123,7 @@ object ParentalPolicyStore {
             val loaded = loadFromDisk(context)
             _policyFlow.value = loaded
             initialized = true
+            syncRuntimeFlags(context.applicationContext, loaded)
         }
         return _policyFlow.value
     }
@@ -155,6 +156,9 @@ object ParentalPolicyStore {
         runCatching { RadioFeaturePref.set(context, policy.allowLiveRadio) }
         runCatching { LocalFilesPref.set(context, policy.allowLocalFiles) }
         runCatching { AutoplayPref.set(context, policy.effectiveAllowAutoplayAndRadio) }
+        if (!HomeSectionFilter.isWhatsNewAllowed(policy)) {
+            runCatching { io.github.thake.soundnest.data.NewReleaseNotifier.setOn(context, false) }
+        }
         val geniusAllowed = policy.allowLyrics && policy.allowGeniusMeanings
         runCatching { GeniusPref.set(context, geniusAllowed) }
         if (!geniusAllowed) runCatching { GeniusMeaning.forget() }

@@ -233,7 +233,7 @@ fun ImmersiveSearchScreen(navController: NavController) {
                             runtime.scope.launch { runCatching { runtime.api.search.clearRecent() } }
                         },
                     )
-                } else {
+                } else if (tiles.isNotEmpty()) {
                     item(key = "search:browse-header") { SectionHeader(stringResource(R.string.browse_all)) }
                     items(tiles.chunked(browseCols), key = { row -> "browse:" + row.first().key }) { row ->
                         BrowseTileRow(row = row, columns = browseCols) { tile ->

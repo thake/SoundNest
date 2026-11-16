@@ -711,16 +711,29 @@ private data class BrowseTile(val key: String, val title: String, val color: Col
 
 @Composable
 fun BrowseAllSection(onCategoryClick: (genre: String, title: String) -> Unit) {
+    val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
     val newReleases = stringResource(R.string.browse_new_releases)
-    // Spotify's real categories (the Web Player's "Browse all"), New releases first.
-    val tiles by androidx.compose.runtime.produceState(initialValue = emptyList<BrowseTile>()) {
-        val categories = runCatching { io.github.thake.soundnest.host.android.SoundNestRuntime.api.home.categories() }.getOrDefault(emptyList())
-        value = listOf(BrowseTile(NEW_RELEASES_GENRE, newReleases, Color(0xFFE8115B), "")) +
-            categories.filter { io.github.thake.soundnest.data.api.Features.PODCASTS || !it.title.contains("odcast", ignoreCase = true) }.map { c ->
-                val color = runCatching { Color(android.graphics.Color.parseColor(c.color ?: "#333333")) }.getOrDefault(tone(0xFF333333))
-                BrowseTile(c.uri, c.title, color, c.images.firstOrNull()?.url.orEmpty())
-            }
+    // Spotify's real categories (the Web Player's "Browse all"), New releases first when allowed.
+    val tiles by androidx.compose.runtime.produceState(initialValue = emptyList<BrowseTile>(), key1 = policy) {
+        val headerTiles = if (io.github.thake.soundnest.parental.HomeSectionFilter.isWhatsNewAllowed(policy)) {
+            listOf(BrowseTile(NEW_RELEASES_GENRE, newReleases, Color(0xFFE8115B), ""))
+        } else {
+            emptyList()
+        }
+        val categoryTiles = if (policy.effectiveAllowAutoplayAndRadio) {
+            val categories = runCatching { io.github.thake.soundnest.host.android.SoundNestRuntime.api.home.categories() }.getOrDefault(emptyList())
+            categories
+                .filter { (policy.allowPodcasts || !it.title.contains("odcast", ignoreCase = true)) && !io.github.thake.soundnest.parental.ParentalFilterEngine.matchesBlockedText(policy, it.title) }
+                .map { c ->
+                    val color = runCatching { Color(android.graphics.Color.parseColor(c.color ?: "#333333")) }.getOrDefault(tone(0xFF333333))
+                    BrowseTile(c.uri, c.title, color, c.images.firstOrNull()?.url.orEmpty())
+                }
+        } else {
+            emptyList()
+        }
+        value = headerTiles + categoryTiles
     }
+    if (tiles.isEmpty()) return
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = stringResource(R.string.browse_all),

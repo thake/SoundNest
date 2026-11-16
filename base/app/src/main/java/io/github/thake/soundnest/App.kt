@@ -3,12 +3,16 @@ package io.github.thake.soundnest
 import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.github.thake.soundnest.ui.navigation.MainBottomNavigation
 import io.github.thake.soundnest.ui.navigation.MyNavHost
@@ -103,6 +107,19 @@ fun App() {
             }
             if (immersive) ImmersiveShell(navController)
             else io.github.thake.soundnest.ui.navigation.PlayerOverlay(navController)
+            val navBackStackEntry by navController.currentBackStackEntryAsState()
+            val currentRoute = navBackStackEntry?.destination?.route
+            if (currentRoute != io.github.thake.soundnest.ui.navigation.Routes.ParentSettings.route) {
+                io.github.thake.soundnest.parental.ParentAdminSessionBanner(
+                    onOpenParentSettings = {
+                        navController.navigateSingleTop(io.github.thake.soundnest.ui.navigation.Routes.ParentSettings.route)
+                    },
+                    modifier = Modifier
+                        .align(androidx.compose.ui.Alignment.TopCenter)
+                        .statusBarsPadding()
+                        .padding(top = 6.dp),
+                )
+            }
             io.github.thake.soundnest.ui.components.HiddenSongUndo()
             io.github.thake.soundnest.parental.ParentPinPromptHost()
         }

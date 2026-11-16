@@ -51,20 +51,30 @@ internal const val ImmersiveNewReleasesGenre = "new-releases"
 /** One "Browse all" tile: a category's title, colour and artwork. */
 internal data class BrowseTile(val key: String, val title: String, val color: Color, val image: String)
 
-/** The catalogue's categories, "New releases" first. Empty until they have loaded. */
+/** The catalogue's categories, "New releases" first when allowed. Empty until loaded or if restricted. */
 @Composable
 internal fun rememberBrowseTiles(): List<BrowseTile> {
+    val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
     val newReleases = stringResource(R.string.browse_new_releases)
-    val tiles by produceState(initialValue = emptyList<BrowseTile>()) {
-        val categories = runCatching { SoundNestRuntime.api.home.categories() }.getOrDefault(emptyList())
-        value = listOf(BrowseTile(ImmersiveNewReleasesGenre, newReleases, Color(0xFFE8115B), "")) +
+    val tiles by produceState(initialValue = emptyList<BrowseTile>(), key1 = policy) {
+        val headerTiles = if (io.github.thake.soundnest.parental.HomeSectionFilter.isWhatsNewAllowed(policy)) {
+            listOf(BrowseTile(ImmersiveNewReleasesGenre, newReleases, Color(0xFFE8115B), ""))
+        } else {
+            emptyList()
+        }
+        val categoryTiles = if (policy.effectiveAllowAutoplayAndRadio) {
+            val categories = runCatching { SoundNestRuntime.api.home.categories() }.getOrDefault(emptyList())
             categories
-                .filter { Features.PODCASTS || !it.title.contains("odcast", ignoreCase = true) }
+                .filter { (policy.allowPodcasts || !it.title.contains("odcast", ignoreCase = true)) && !io.github.thake.soundnest.parental.ParentalFilterEngine.matchesBlockedText(policy, it.title) }
                 .map { c ->
                     val color = runCatching { Color(android.graphics.Color.parseColor(c.color ?: "#333333")) }
                         .getOrDefault(Color(0xFF333333))
                     BrowseTile(c.uri, c.title, color, c.images.firstOrNull()?.url.orEmpty())
                 }
+        } else {
+            emptyList()
+        }
+        value = headerTiles + categoryTiles
     }
     return tiles
 }

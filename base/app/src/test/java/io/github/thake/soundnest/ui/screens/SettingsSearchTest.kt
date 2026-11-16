@@ -38,4 +38,36 @@ class SettingsSearchTest {
         assertEquals("2", place(SettingsSearch.classic, io.github.thake.soundnest.R.string.settings_storage_clear_cache))
         assertEquals("6", place(SettingsSearch.classic, io.github.thake.soundnest.R.string.live_radio_settings_title))
     }
+
+    @Test fun filterForPolicyHidesRowsDisabledByParentalPolicy() {
+        val R = io.github.thake.soundnest.R::class.java
+        val defaultPolicy = io.github.thake.soundnest.parental.ParentalPolicy()
+        val defaultTitles = SettingsSearch.filterForPolicy(SettingsSearch.classic, defaultPolicy).map { it.title }.toSet()
+        // Defaults: Autoplay & Lyrics & WhatsNew on; Podcasts, Audiobooks, LocalFiles, LiveRadio, Genius, ExtraLyrics off.
+        assertTrue(io.github.thake.soundnest.R.string.settings_autoplay_title in defaultTitles)
+        assertTrue(io.github.thake.soundnest.R.string.lyrics_word_sync_title in defaultTitles)
+        assertFalse(io.github.thake.soundnest.R.string.settings_local_files_shown in defaultTitles)
+        assertFalse(io.github.thake.soundnest.R.string.live_radio_settings_title in defaultTitles)
+        assertFalse(io.github.thake.soundnest.R.string.settings_genius_title in defaultTitles)
+        assertFalse(io.github.thake.soundnest.R.string.lyrics_extra_title in defaultTitles)
+        assertFalse(io.github.thake.soundnest.R.string.settings_automix_podcasts in defaultTitles)
+        assertFalse(io.github.thake.soundnest.R.string.settings_headset_skip_title in defaultTitles)
+
+        // Strict Allowlist + Lyrics disabled hides Autoplay, New release notify, and all Lyrics rows.
+        val strictNoLyrics = defaultPolicy.copy(
+            filterMode = io.github.thake.soundnest.parental.FilterMode.STRICT_ALLOWLIST,
+            allowLyrics = false,
+            allowLocalFiles = true,
+            allowPodcasts = true,
+            homeSections = defaultPolicy.homeSections.copy(showNewReleases = false),
+        )
+        val strictTitles = SettingsSearch.filterForPolicy(SettingsSearch.immersive, strictNoLyrics).map { it.title }.toSet()
+        assertFalse(io.github.thake.soundnest.R.string.settings_autoplay_title in strictTitles)
+        assertFalse(io.github.thake.soundnest.R.string.settings_release_notify in strictTitles)
+        assertFalse(io.github.thake.soundnest.R.string.settings_section_lyrics in strictTitles)
+        assertFalse(io.github.thake.soundnest.R.string.lyrics_word_sync_title in strictTitles)
+        assertTrue(io.github.thake.soundnest.R.string.settings_local_files_shown in strictTitles)
+        assertTrue(io.github.thake.soundnest.R.string.settings_automix_podcasts in strictTitles)
+        assertTrue(io.github.thake.soundnest.R.string.settings_headset_skip_title in strictTitles)
+    }
 }

@@ -236,7 +236,13 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
     val isThisContext = np.contextUri == p.uri || (isLiked && np.contextUri.contains(":collection"))
     val contextSaved by vm.contextSaved
     val savedTracks by vm.savedUris
-    val smart = SmartShuffle.on.value == p.uri
+    val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+    LaunchedEffect(policy.effectiveAllowAutoplayAndRadio) {
+        if (!policy.effectiveAllowAutoplayAndRadio && SmartShuffle.on.value == p.uri) {
+            SmartShuffle.on.value = null
+        }
+    }
+    val smart = policy.effectiveAllowAutoplayAndRadio && SmartShuffle.on.value == p.uri
     val tapper = rememberTrackTapper()
 
     // The wash behind the header: the cover's second colour, the Classic page's own extraction.
@@ -571,7 +577,7 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
                 }
             }
             // "Recommended songs", as under an own playlist in the official apps (an empty one too).
-            if (p.type == "playlist" && vm.editableContext.value && find.isBlank()) immersiveRecommended(vm, p, context, currentSongId)
+            if (p.type == "playlist" && vm.editableContext.value && find.isBlank() && policy.effectiveAllowAutoplayAndRadio) immersiveRecommended(vm, p, context, currentSongId)
             // An album: "More like this", albums close to its first song.
             // Under an album's songs: its release date, label and copyright lines.
             if (p.type == "album" && p.footer.isNotEmpty() && find.isBlank()) item(key = "album-footer") {
@@ -581,7 +587,7 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
                     }
                 }
             }
-            if (p.type == "album") item(key = "similar") {
+            if (p.type == "album" && policy.effectiveAllowAutoplayAndRadio) item(key = "similar") {
                 SimilarAlbums(navController, p.tracks.firstOrNull()?.spotifyTrackId.orEmpty(), p.uri)
             }
         }
@@ -793,7 +799,7 @@ private fun ContextHeader(
                     modifier = Modifier.weight(1f, fill = false).widthIn(max = 240.dp).fillMaxWidth(),
                 )
             }
-            val canSmart = SmartShuffle.canPlay(p.uri)
+            val canSmart = io.github.thake.soundnest.parental.rememberParentalPolicy().effectiveAllowAutoplayAndRadio && SmartShuffle.canPlay(p.uri)
             if (p.type != "liked" || canSmart || moving != null) {
                 Spacer(Modifier.height(14.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {

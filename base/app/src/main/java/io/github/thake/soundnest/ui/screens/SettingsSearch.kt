@@ -50,7 +50,6 @@ internal object SettingsSearch {
         SettingsEntry(R.string.settings_system_font_title, R.string.settings_system_font_detail, "Display"),
         SettingsEntry(R.string.settings_liquid_glass_title, R.string.settings_liquid_glass_detail, "Display"),
         SettingsEntry(R.string.settings_amoled_theme, R.string.settings_amoled_theme_subtitle, "Display"),
-        SettingsEntry(R.string.settings_hide_dj_title, R.string.settings_hide_dj_detail, "Display"),
         SettingsEntry(R.string.settings_player_lyrics_card_title, R.string.settings_player_lyrics_card_detail, "Display"),
         SettingsEntry(R.string.settings_player_source_title, R.string.settings_player_source_detail, "Display"),
         SettingsEntry(R.string.settings_player_capsule_title, R.string.settings_player_capsule_detail, "Display"),
@@ -95,7 +94,6 @@ internal object SettingsSearch {
         SettingsEntry(R.string.settings_player_lyrics_card_title, R.string.settings_player_lyrics_card_detail, "3"),
         SettingsEntry(R.string.settings_player_source_title, R.string.settings_player_source_detail, "3"),
         SettingsEntry(R.string.settings_solid_nav_title, R.string.settings_solid_nav_detail, "3"),
-        SettingsEntry(R.string.settings_hide_dj_title, R.string.settings_hide_dj_detail, "3"),
         SettingsEntry(R.string.settings_dynamic_color_title, R.string.settings_dynamic_color_detail, "3"),
         SettingsEntry(R.string.settings_system_font_title, R.string.settings_system_font_detail, "3"),
         SettingsEntry(R.string.settings_section_playback, 0, "0"),
@@ -126,6 +124,35 @@ internal object SettingsSearch {
         SettingsEntry(R.string.settings_automix_mobile_data, R.string.settings_automix_mobile_data_detail, "transitions"),
         SettingsEntry(R.string.settings_automix_cache, 0, "transitions"),
     )
+
+    private val lyricsTitles = setOf(
+        R.string.settings_section_lyrics,
+        R.string.lyrics_word_sync_title,
+        R.string.lyrics_extra_title,
+        R.string.settings_genius_title,
+        R.string.settings_lyrics_keep_awake_title,
+        R.string.lyrics_romanization,
+        R.string.lyrics_translation_title,
+    )
+
+    /** Filters out Kid Settings rows whose corresponding parent FeatureGate is disabled. */
+    fun filterForPolicy(
+        entries: List<SettingsEntry>,
+        policy: io.github.thake.soundnest.parental.ParentalPolicy,
+    ): List<SettingsEntry> = entries.filter { entry ->
+        when (entry.title) {
+            R.string.settings_autoplay_title -> policy.effectiveAllowAutoplayAndRadio
+            R.string.settings_release_notify -> io.github.thake.soundnest.parental.HomeSectionFilter.isWhatsNewAllowed(policy)
+            R.string.settings_local_files_shown -> policy.allowLocalFiles
+            R.string.live_radio_settings_title -> policy.allowLiveRadio
+            R.string.lyrics_extra_title -> policy.allowLyrics && policy.allowExtraLyricSources
+            R.string.settings_genius_title -> policy.allowLyrics && policy.allowGeniusMeanings
+            R.string.settings_automix_podcasts -> policy.allowPodcasts
+            R.string.settings_headset_skip_title -> policy.allowPodcasts || policy.allowAudiobooks
+            in lyricsTitles -> policy.allowLyrics
+            else -> true
+        }
+    }
 
     /** Lower case, without accents, so "lecture" finds "Lecture" and "ecran" finds "écran". */
     fun normalize(text: String): String =

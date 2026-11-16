@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
@@ -675,3 +676,138 @@ internal fun ChangeParentPinDialog(onDismiss: () -> Unit) {
         },
     )
 }
+
+/**
+ * Compact, single-row entry point for Kid Settings (shown only on the root/first Settings page)
+ * so Parental Controls never monopolize vertical space on every Settings tab.
+ */
+@Composable
+fun CompactParentalControlsRow(onOpenParentSettings: () -> Unit) {
+    val context = LocalContext.current
+    val tick by ParentSecurityManager.sessionTick.collectAsState()
+    val unlocked = remember(tick) { ParentSecurityManager.isAdminUnlocked(context) }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                ParentSecurityManager.runProtected(context, AppSurface.PARENT_CONTROLS) {
+                    onOpenParentSettings()
+                }
+            }
+            .padding(horizontal = 20.dp, vertical = 12.dp)
+            .testTag("compact_parental_controls_row"),
+    ) {
+        Icon(
+            imageVector = Icons.Default.Lock,
+            contentDescription = null,
+            tint = AppAccent,
+            modifier = Modifier.padding(end = 14.dp),
+        )
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = "Parental Controls",
+                color = AppText,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = if (unlocked) "Parent Mode active · Tap to edit rules" else "Filters, Home layout, speakers & PIN",
+                color = if (unlocked) AppAccent else AppMuted,
+                fontSize = 12.sp,
+            )
+        }
+        if (unlocked) {
+            TextButton(
+                onClick = { ParentSecurityManager.lockNow(context) },
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+            ) {
+                Text("Lock", color = AppAccent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            }
+        }
+        Icon(
+            imageVector = androidx.compose.material.icons.Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = AppMuted,
+        )
+    }
+}
+
+/**
+ * Global floating status pill shown across the main app whenever the 5-minute Parent Mode session
+ * is active (outside `ParentSettingsScreen`), giving parents a live countdown and 1-tap Lock.
+ */
+@Composable
+fun ParentAdminSessionBanner(
+    onOpenParentSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val tick by ParentSecurityManager.sessionTick.collectAsState()
+    var remainingMs by remember(tick) { mutableLongStateOf(ParentSecurityManager.adminRemainingMs(context)) }
+
+    LaunchedEffect(tick, remainingMs > 0L) {
+        while (remainingMs > 0L) {
+            delay(1_000L)
+            val next = ParentSecurityManager.adminRemainingMs(context)
+            remainingMs = next
+            if (next <= 0L) {
+                ParentSecurityManager.lockNow(context)
+                break
+            }
+        }
+    }
+
+    if (remainingMs <= 0L) return
+
+    val totalSec = ((remainingMs + 999L) / 1000L).coerceAtLeast(1L)
+    val mins = totalSec / 60L
+    val secs = totalSec % 60L
+    val timerText = "%d:%02d".format(mins, secs)
+    val accent = if (io.github.thake.soundnest.ui.navigation.isImmersive()) {
+        io.github.thake.soundnest.ui.immersive.Immersive.Accent
+    } else {
+        AppAccent
+    }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier
+            .background(Color(0xEE181818), RoundedCornerShape(50))
+            .padding(start = 12.dp, end = 6.dp, top = 5.dp, bottom = 5.dp)
+            .testTag("global_parent_mode_banner"),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.clickable(onClick = onOpenParentSettings),
+        ) {
+            Icon(
+                imageVector = Icons.Default.Lock,
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.height(15.dp),
+            )
+            Text(
+                text = "Parent Mode · $timerText",
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        Text(
+            text = "Lock",
+            color = Color.Black,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .background(accent, RoundedCornerShape(50))
+                .clickable { ParentSecurityManager.lockNow(context) }
+                .padding(horizontal = 10.dp, vertical = 4.dp)
+                .testTag("global_parent_mode_lock"),
+        )
+    }
+}
+

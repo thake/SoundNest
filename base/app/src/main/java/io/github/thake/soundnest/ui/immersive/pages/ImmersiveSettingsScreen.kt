@@ -33,6 +33,7 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -150,10 +151,13 @@ fun ImmersiveSettingsScreen(
 @Composable
 private fun SettingsRoot(navController: NavController, open: (SettingsPage) -> Unit, back: () -> Unit) {
     val crossfade = io.github.thake.soundnest.data.preferences.CrossfadePref.seconds
+    val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+    val secTick by io.github.thake.soundnest.parental.ParentSecurityManager.sessionTick.collectAsState()
     // The search button: a field over the page, the rows of every page it finds, a tap opens one.
     var query by rememberSaveable { mutableStateOf<String?>(null) }
     BackHandler(enabled = query != null) { query = null }
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    val unlocked = remember(secTick) { io.github.thake.soundnest.parental.ParentSecurityManager.isAdminUnlocked(ctx) }
     val focus = remember { androidx.compose.ui.focus.FocusRequester() }
     ImmersivePage(
         title = stringResource(R.string.settings_title), onBack = back,
@@ -172,7 +176,11 @@ private fun SettingsRoot(navController: NavController, open: (SettingsPage) -> U
                 androidx.compose.runtime.LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
             }
             if (q.isNotBlank()) {
-                val hits = io.github.thake.soundnest.ui.screens.SettingsSearch.search(io.github.thake.soundnest.ui.screens.SettingsSearch.immersive, q) { ctx.getString(it) }
+                val allowedEntries = io.github.thake.soundnest.ui.screens.SettingsSearch.filterForPolicy(
+                    io.github.thake.soundnest.ui.screens.SettingsSearch.immersive,
+                    policy,
+                )
+                val hits = io.github.thake.soundnest.ui.screens.SettingsSearch.search(allowedEntries, q) { ctx.getString(it) }
                     .filter { runCatching { SettingsPage.valueOf(it.place) }.isSuccess }
                 if (hits.isEmpty()) immersiveBlock("search:none") { Text(stringResource(R.string.settings_search_empty), style = io.github.thake.soundnest.ui.immersive.Immersive.Subhead) }
                 immersiveGroup("search:hits") {
@@ -199,8 +207,18 @@ private fun SettingsRoot(navController: NavController, open: (SettingsPage) -> U
         }
         immersiveGroup("parental") {
             row {
-                io.github.thake.soundnest.parental.ParentSecurityControlsSection(
-                    onOpenParentSettings = { navController.navigate(io.github.thake.soundnest.ui.navigation.Routes.ParentSettings.route) },
+                ImmersiveGroupRow(
+                    title = "Parental Controls",
+                    detail = if (unlocked) "Parent Mode active · Tap to edit rules" else "Filters, Home layout, speakers & PIN",
+                    detailColor = if (unlocked) Immersive.Accent else Immersive.TextSecondary,
+                    icon = androidx.compose.material.icons.Icons.Rounded.Lock,
+                    chevron = true,
+                    onClick = {
+                        io.github.thake.soundnest.parental.ParentSecurityManager.runProtected(
+                            ctx,
+                            io.github.thake.soundnest.parental.AppSurface.PARENT_CONTROLS,
+                        ) { navController.navigate(io.github.thake.soundnest.ui.navigation.Routes.ParentSettings.route) }
+                    },
                 )
             }
         }
@@ -214,7 +232,9 @@ private fun SettingsRoot(navController: NavController, open: (SettingsPage) -> U
                 )
             }
             row { ImmersiveGroupRow(stringResource(R.string.settings_section_library), icon = Icons.Rounded.LibraryMusic, chevron = true, onClick = { open(SettingsPage.Library) }) }
-            row { ImmersiveGroupRow(stringResource(R.string.settings_section_lyrics), icon = Icons.Rounded.Lyrics, chevron = true, onClick = { open(SettingsPage.Lyrics) }) }
+            if (policy.allowLyrics) {
+                row { ImmersiveGroupRow(stringResource(R.string.settings_section_lyrics), icon = Icons.Rounded.Lyrics, chevron = true, onClick = { open(SettingsPage.Lyrics) }) }
+            }
         }
         immersiveGroup("more") {
             row { ImmersiveGroupRow(stringResource(R.string.settings_section_data), icon = Icons.Rounded.SignalCellularAlt, chevron = true, onClick = { open(SettingsPage.Data) }) }
@@ -249,6 +269,7 @@ private fun transitionValue(crossfade: Int): String = when (io.github.thake.soun
 @Composable
 private fun PlaybackPage(navController: NavController, open: (SettingsPage) -> Unit, back: () -> Unit) {
     val ctx = LocalContext.current
+    val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
     val wifi = getStreamingQuality(ctx, false)
     val cell = getStreamingQuality(ctx, true)
     val label = { q: StreamingQuality -> StreamingChoices.first { it.first == q }.second }
@@ -261,13 +282,15 @@ private fun PlaybackPage(navController: NavController, open: (SettingsPage) -> U
             row { ImmersiveGroupRow(stringResource(R.string.quality_streaming_cell_title), value = stringResource(label(cell)), chevron = true, onClick = { open(SettingsPage.StreamingCell) }) }
         }
         immersiveGroup("playback") {
-            row {
-                ImmersiveSwitchRow(
-                    stringResource(R.string.settings_autoplay_title),
-                    checked = io.github.thake.soundnest.data.preferences.AutoplayPref.on,
-                    onChecked = { io.github.thake.soundnest.data.preferences.AutoplayPref.set(ctx, it) },
-                    detail = stringResource(R.string.settings_autoplay_detail),
-                )
+            if (policy.effectiveAllowAutoplayAndRadio) {
+                row {
+                    ImmersiveSwitchRow(
+                        stringResource(R.string.settings_autoplay_title),
+                        checked = io.github.thake.soundnest.data.preferences.AutoplayPref.on,
+                        onChecked = { io.github.thake.soundnest.data.preferences.AutoplayPref.set(ctx, it) },
+                        detail = stringResource(R.string.settings_autoplay_detail),
+                    )
+                }
             }
             row {
                 ImmersiveSwitchRow(
@@ -310,12 +333,14 @@ private fun PlaybackPage(navController: NavController, open: (SettingsPage) -> U
                     detail = stringResource(R.string.settings_keep_playing_detail),
                 )
             }
-            row {
-                ImmersiveSwitchRow(
-                    stringResource(R.string.settings_headset_skip_title), checked = headsetSkip,
-                    onChecked = { headsetSkip = it; io.github.thake.soundnest.host.android.PlaybackService.setSkipsOnEpisodes(ctx, it) },
-                    detail = stringResource(R.string.settings_headset_skip_detail),
-                )
+            if (policy.allowPodcasts || policy.allowAudiobooks) {
+                row {
+                    ImmersiveSwitchRow(
+                        stringResource(R.string.settings_headset_skip_title), checked = headsetSkip,
+                        onChecked = { headsetSkip = it; io.github.thake.soundnest.host.android.PlaybackService.setSkipsOnEpisodes(ctx, it) },
+                        detail = stringResource(R.string.settings_headset_skip_detail),
+                    )
+                }
             }
         }
     }
@@ -325,32 +350,39 @@ private fun PlaybackPage(navController: NavController, open: (SettingsPage) -> U
 @Composable
 private fun LibraryPage(navController: NavController, back: () -> Unit) {
     val ctx = LocalContext.current
+    val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
     ImmersivePage(title = stringResource(R.string.settings_section_library), onBack = back) {
         immersiveGroup("library") {
-            row {
-                ImmersiveSwitchRow(
-                    stringResource(R.string.settings_release_notify),
-                    checked = io.github.thake.soundnest.data.NewReleaseNotifier.on,
-                    onChecked = { io.github.thake.soundnest.data.NewReleaseNotifier.setOn(ctx, it) },
-                    detail = stringResource(R.string.settings_release_notify_detail),
-                )
+            if (io.github.thake.soundnest.parental.HomeSectionFilter.isWhatsNewAllowed(policy)) {
+                row {
+                    ImmersiveSwitchRow(
+                        stringResource(R.string.settings_release_notify),
+                        checked = io.github.thake.soundnest.data.NewReleaseNotifier.on,
+                        onChecked = { io.github.thake.soundnest.data.NewReleaseNotifier.setOn(ctx, it) },
+                        detail = stringResource(R.string.settings_release_notify_detail),
+                    )
+                }
             }
-            row {
-                ImmersiveSwitchRow(
-                    stringResource(R.string.settings_local_files_shown),
-                    checked = io.github.thake.soundnest.data.preferences.LocalFilesPref.shown,
-                    onChecked = { io.github.thake.soundnest.data.preferences.LocalFilesPref.set(ctx, it) },
-                    detail = stringResource(R.string.settings_local_files_shown_detail),
-                )
+            if (policy.allowLocalFiles) {
+                row {
+                    ImmersiveSwitchRow(
+                        stringResource(R.string.settings_local_files_shown),
+                        checked = io.github.thake.soundnest.data.preferences.LocalFilesPref.shown,
+                        onChecked = { io.github.thake.soundnest.data.preferences.LocalFilesPref.set(ctx, it) },
+                        detail = stringResource(R.string.settings_local_files_shown_detail),
+                    )
+                }
             }
-            // Live Radio: adds the pinned Library row under Local Files (see io.github.thake.soundnest.radio).
-            row {
-                ImmersiveSwitchRow(
-                    stringResource(R.string.live_radio_settings_title),
-                    checked = io.github.thake.soundnest.radio.RadioFeaturePref.on,
-                    onChecked = { io.github.thake.soundnest.radio.RadioFeaturePref.set(ctx, it) },
-                    detail = stringResource(R.string.live_radio_settings_detail),
-                )
+            if (policy.allowLiveRadio) {
+                // Live Radio: adds the pinned Library row under Local Files (see io.github.thake.soundnest.radio).
+                row {
+                    ImmersiveSwitchRow(
+                        stringResource(R.string.live_radio_settings_title),
+                        checked = io.github.thake.soundnest.radio.RadioFeaturePref.on,
+                        onChecked = { io.github.thake.soundnest.radio.RadioFeaturePref.set(ctx, it) },
+                        detail = stringResource(R.string.live_radio_settings_detail),
+                    )
+                }
             }
             // Songs marked "Not interested": Parent PIN required so kids cannot unhide songs.
             row {
@@ -373,6 +405,10 @@ private fun LibraryPage(navController: NavController, back: () -> Unit) {
 @Composable
 private fun LyricsPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
     val ctx = LocalContext.current
+    val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+    androidx.compose.runtime.LaunchedEffect(policy.allowLyrics) {
+        if (!policy.allowLyrics) back()
+    }
     var wordSync by remember { mutableStateOf(io.github.thake.soundnest.data.preferences.isLyricsWordSync(ctx)) }
     var lyricsExtra by remember { mutableStateOf(io.github.thake.soundnest.data.preferences.isLyricsExtraSources(ctx)) }
     ImmersivePage(title = stringResource(R.string.settings_section_lyrics), onBack = back) {
@@ -390,28 +426,32 @@ private fun LyricsPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
                     detail = stringResource(if (wordSync) R.string.lyrics_word_sync_on else R.string.lyrics_word_sync_off),
                 )
             }
-            // NetEase and Genius after Spotify and LRCLIB (also in the lyrics' own menu).
-            row {
-                ImmersiveSwitchRow(
-                    stringResource(R.string.lyrics_extra_title), checked = lyricsExtra,
-                    onChecked = {
-                        lyricsExtra = it
-                        io.github.thake.soundnest.data.preferences.setLyricsExtraSources(ctx, it)
-                        io.github.thake.soundnest.data.api.LyricsApi.extraSources = it
-                        io.github.thake.soundnest.data.api.LyricsApi.extraSourcesOff = !it
-                        io.github.thake.soundnest.data.api.LyricsApi.forgetAll()
-                    },
-                    detail = stringResource(R.string.lyrics_extra_summary),
-                )
+            if (policy.allowExtraLyricSources) {
+                // NetEase and Genius after Spotify and LRCLIB (also in the lyrics' own menu).
+                row {
+                    ImmersiveSwitchRow(
+                        stringResource(R.string.lyrics_extra_title), checked = lyricsExtra,
+                        onChecked = {
+                            lyricsExtra = it
+                            io.github.thake.soundnest.data.preferences.setLyricsExtraSources(ctx, it)
+                            io.github.thake.soundnest.data.api.LyricsApi.extraSources = it
+                            io.github.thake.soundnest.data.api.LyricsApi.extraSourcesOff = !it
+                            io.github.thake.soundnest.data.api.LyricsApi.forgetAll()
+                        },
+                        detail = stringResource(R.string.lyrics_extra_summary),
+                    )
+                }
             }
-            // Genius: the meaning of songs and the notes on their lines, and its lyrics as a last resort.
-            row {
-                ImmersiveSwitchRow(
-                    stringResource(R.string.settings_genius_title),
-                    checked = io.github.thake.soundnest.data.preferences.GeniusPref.on,
-                    onChecked = { io.github.thake.soundnest.data.preferences.GeniusPref.set(ctx, it) },
-                    detail = stringResource(R.string.settings_genius_detail),
-                )
+            if (policy.allowGeniusMeanings) {
+                // Genius: the meaning of songs and the notes on their lines, and its lyrics as a last resort.
+                row {
+                    ImmersiveSwitchRow(
+                        stringResource(R.string.settings_genius_title),
+                        checked = io.github.thake.soundnest.data.preferences.GeniusPref.on,
+                        onChecked = { io.github.thake.soundnest.data.preferences.GeniusPref.set(ctx, it) },
+                        detail = stringResource(R.string.settings_genius_detail),
+                    )
+                }
             }
             row {
                 ImmersiveSwitchRow(
@@ -480,6 +520,7 @@ private fun CrossfadePage(back: () -> Unit) {
     val cacheBytes by androidx.compose.runtime.produceState<Long?>(null, cacheRefresh) {
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { automix.cacheBytes() }
     }
+    val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
     ImmersivePage(title = stringResource(R.string.settings_transitions_title), onBack = back) {
         immersiveGroup("mode", footerRes = R.string.settings_transitions_detail) {
             for ((m, title, detail) in listOf(
@@ -552,9 +593,11 @@ private fun CrossfadePage(back: () -> Unit) {
                 ImmersiveSwitchRow(stringResource(R.string.settings_automix_album_order), checked = automix.albumOrder,
                     onChecked = automix::changeAlbumOrder, detail = stringResource(R.string.settings_automix_album_order_detail))
             }
-            row {
-                ImmersiveSwitchRow(stringResource(R.string.settings_automix_podcasts), checked = automix.mixPodcasts,
-                    onChecked = automix::changeMixPodcasts, detail = stringResource(R.string.settings_automix_podcasts_detail))
+            if (policy.allowPodcasts) {
+                row {
+                    ImmersiveSwitchRow(stringResource(R.string.settings_automix_podcasts), checked = automix.mixPodcasts,
+                        onChecked = automix::changeMixPodcasts, detail = stringResource(R.string.settings_automix_podcasts_detail))
+                }
             }
             row {
                 ImmersiveSwitchRow(stringResource(R.string.settings_automix_orpheon), checked = automix.orpheon,

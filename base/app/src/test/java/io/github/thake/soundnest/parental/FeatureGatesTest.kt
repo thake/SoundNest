@@ -151,4 +151,28 @@ class FeatureGatesTest {
         assertEquals("My Kid Mix", stored.first().name)
         assertEquals(1, stored.first().items.size)
     }
+
+    @Test
+    fun `parent policy updates automatically sync underlying kid runtime preferences`() {
+        // Defaults keep LocalFiles, LiveRadio, Genius off while Autoplay is on
+        assertTrue(io.github.thake.soundnest.data.preferences.AutoplayPref.on)
+        assertFalse(io.github.thake.soundnest.data.preferences.LocalFilesPref.shown)
+        assertFalse(io.github.thake.soundnest.radio.RadioFeaturePref.on)
+        assertFalse(io.github.thake.soundnest.data.preferences.GeniusPref.on)
+
+        // Enabling parent gates turns the runtime flags on without requiring a hidden kid switch
+        ParentalPolicyStore.update(context) {
+            it.copy(
+                allowLocalFiles = true,
+                allowLiveRadio = true,
+                allowLyrics = true,
+                allowGeniusMeanings = true,
+                filterMode = FilterMode.STRICT_ALLOWLIST,
+            )
+        }
+        assertFalse(io.github.thake.soundnest.data.preferences.AutoplayPref.on)
+        assertTrue(io.github.thake.soundnest.data.preferences.LocalFilesPref.shown)
+        assertTrue(io.github.thake.soundnest.radio.RadioFeaturePref.on)
+        assertTrue(io.github.thake.soundnest.data.preferences.GeniusPref.on)
+    }
 }
