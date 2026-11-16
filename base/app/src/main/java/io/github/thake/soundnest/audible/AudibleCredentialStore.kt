@@ -226,6 +226,7 @@ object AudibleCredentialStore {
         cachedTokens = null
         _summaryFlow.value = null
         initialized = true
+        runCatching { AudiblePlayer.stop() }
     }
 
     @Synchronized

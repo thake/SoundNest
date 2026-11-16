@@ -158,7 +158,7 @@ object SongPlayer {
      */
     private fun reconcile() {
         // A command still on its way: its own end puts the screen right (see [transport]).
-        fun leftAlone() = !acceptsSessionUpdates() || LocalPlayer.active.value || transportsInFlight.get() > 0
+        fun leftAlone() = !acceptsSessionUpdates() || LocalPlayer.active.value || io.github.thake.soundnest.audible.AudiblePlayer.active.value || transportsInFlight.get() > 0
         if (leftAlone()) return
         scope.launch {
             // Read again first: the page's last push can be lost on the way (its events buffer
@@ -210,6 +210,8 @@ object SongPlayer {
 
     /** Queue items of the local player (Local Files). */
     const val LOCAL = "local"
+    /** Queue items of Audible audiobook chapters. */
+    const val AUDIBLE = "audible"
 
     /** Spotify's real queue. */
     data class QueueItem(val song: SongsModel, val uri: String, val uid: String, val provider: String)
@@ -696,6 +698,7 @@ object SongPlayer {
         if (s == null) return
         stateSeen = true
         if (LocalPlayer.active.value && engineWhileLocal(s)) return
+        if (io.github.thake.soundnest.audible.AudiblePlayer.active.value && engineWhileAudible(s)) return
         // Spotify's server still shows the song played before the local-player session saved at exit.
         if (io.github.thake.soundnest.data.preferences.LastSession.engineStateIsStale(savedSource, savedAtMs, s.timestampMs, s.isPaused)) return
         val policy = io.github.thake.soundnest.parental.ParentalPolicyStore.current(Graph.app)
@@ -916,8 +919,8 @@ object SongPlayer {
     private fun applyQueue(q: io.github.thake.soundnest.api.Queue?) {
         apiQueue = q
         if (restoredQueuePending && q != null && q.current == null && q.queued.isEmpty() && q.nextUp.isEmpty()) return
-        // While a local file plays, the queue shown is the local player's.
-        if (q == null || LocalPlayer.active.value) return
+        // While a local file or Audible audiobook plays, the queue shown is that player's.
+        if (q == null || LocalPlayer.active.value || io.github.thake.soundnest.audible.AudiblePlayer.active.value) return
         // A move is under way: its steps are not shown, the order dropped stays (see [queueMove]).
         if (queueMovesInFlight.get() > 0) return
         if (SystemClock.elapsedRealtime() < staleUntil && order(q) in staleOrders) return
@@ -940,7 +943,7 @@ object SongPlayer {
     /** The page's queue from the song [id] on, for the saved session (see [saveLastTrack]). */
     private fun spotifyQueueOf(id: String): List<SongsModel> {
         val q = _queue.value
-        if (LocalPlayer.active.value || id.isBlank()) return emptyList()
+        if (LocalPlayer.active.value || io.github.thake.soundnest.audible.AudiblePlayer.active.value || id.isBlank()) return emptyList()
         return io.github.thake.soundnest.data.preferences.LastSession.queueFor(id, listOfNotNull(q.current) + (q.queued + q.nextUp).map { it.song })
     }
 
@@ -1203,6 +1206,16 @@ object SongPlayer {
         order: List<String>? = null, positionMs: Long? = null,
         songs: List<SongsModel>? = null, alone: Boolean = false,
     ) {
+        if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(song)) {
+            val asin = io.github.thake.soundnest.audible.AudibleUris.asinFromAny(song) ?: return
+            val chapterIdx = io.github.thake.soundnest.audible.AudibleUris.chapterIndexFromUri(song)
+            io.github.thake.soundnest.audible.AudiblePlayer.playBook(
+                asin = asin,
+                chapterIndex = chapterIdx,
+                positionMs = positionMs,
+            )
+            return
+        }
         val policy = io.github.thake.soundnest.parental.ParentalPolicyStore.current(Graph.app)
         val episodeId = song.removePrefix("episode:").takeIf { song.startsWith("episode:") }
         if (episodeId != null && !policy.allowPodcasts && !policy.allowAudiobooks) {
@@ -1227,6 +1240,7 @@ object SongPlayer {
             return
         }
         LocalPlayer.stop()
+        io.github.thake.soundnest.audible.AudiblePlayer.stop()
         cancelBurst()
         val itemUri = if (episodeId != null) "spotify:episode:$episodeId" else SPOTIFY_TRACK_PREFIX + trackId
         val ctx = if (alone) null else contextUri ?: contextRegistry[song]
@@ -1261,6 +1275,7 @@ object SongPlayer {
     fun play(by: String = "user") {
         io.github.thake.soundnest.host.android.Logbook.log("play asked by $by")
         if (by != BY_CALL) callPause.userActed()
+        if (io.github.thake.soundnest.audible.AudiblePlayer.active.value) { Haptics.click(); io.github.thake.soundnest.audible.AudiblePlayer.resume(); return }
         if (LocalPlayer.active.value) { Haptics.click(); LocalPlayer.resume(); return }
         // Smart shuffle was turned off while paused: the list's order comes back as it plays on.
         plainOrderDue?.let { if (restorePlainOrder(it)) return }
@@ -1281,7 +1296,7 @@ object SongPlayer {
         if (!uri.startsWith("spotify:episode:")) return
         scope.launch {
             kotlinx.coroutines.delay(EPISODE_RESUME_CHECK_MS)
-            if (!playing || LocalPlayer.active.value) return@launch
+            if (!playing || LocalPlayer.active.value || io.github.thake.soundnest.audible.AudiblePlayer.active.value) return@launch
             val s = api.player.state.value
             if (s?.item?.uri == uri && s.isPaused) {
                 Log.i(TAG, "episode resume not taken: playing $uri again (${queueTag()})")
@@ -1297,7 +1312,7 @@ object SongPlayer {
 
     /** The phone rings or a call ends, on the main thread. ExoPlayer deals with its own audio focus. */
     private fun phoneCall(busy: Boolean) {
-        if (LocalPlayer.holdsFocus || SoundNestRuntime.spotify.player.playsElsewhere.value) return
+        if (LocalPlayer.holdsFocus || io.github.thake.soundnest.audible.AudiblePlayer.holdsFocus || SoundNestRuntime.spotify.player.playsElsewhere.value) return
         when (callPause.modeChanged(busy, isPlaying(), SystemClock.elapsedRealtime())) {
             CallPause.Action.PAUSE -> pause(by = BY_CALL)
             CallPause.Action.RESUME -> play(by = BY_CALL)
@@ -1314,6 +1329,7 @@ object SongPlayer {
 
     /** [send] false: the engine has paused already (the sleep timer's fade). */
     private fun pauseSilently(send: Boolean = true) {
+        if (io.github.thake.soundnest.audible.AudiblePlayer.active.value) { io.github.thake.soundnest.audible.AudiblePlayer.pause(); return }
         if (LocalPlayer.active.value) { LocalPlayer.pause(); return }
         intendPaused()
         positionMs = getCurrentPosition(); positionAt = SystemClock.elapsedRealtime(); playing = false
@@ -1354,6 +1370,7 @@ object SongPlayer {
         Log.d(TAG, "next tapped")
         io.github.thake.soundnest.host.android.Logbook.log("next asked by $by")
         Haptics.click()
+        if (io.github.thake.soundnest.audible.AudiblePlayer.active.value) { io.github.thake.soundnest.audible.AudiblePlayer.next(); return }
         if (LocalPlayer.active.value) { LocalPlayer.next(); return }
         cancelRepeatOnce("next")
         // Spotify is refusing licences: every skip asks for one more and makes the limit last
@@ -1552,6 +1569,7 @@ object SongPlayer {
     fun previous(by: String = "user") {
         io.github.thake.soundnest.host.android.Logbook.log("previous asked by $by")
         Haptics.click()
+        if (io.github.thake.soundnest.audible.AudiblePlayer.active.value) { io.github.thake.soundnest.audible.AudiblePlayer.previous(); return }
         if (LocalPlayer.active.value) { LocalPlayer.previous(); return }
         cancelRepeatOnce("previous")
         intendPlaying()
@@ -1596,6 +1614,7 @@ object SongPlayer {
     fun shufflePlay(songs: List<SongsModel>) {
         if (songs.isEmpty()) return
         LocalPlayer.stop()
+        io.github.thake.soundnest.audible.AudiblePlayer.stop()
         val ctx = contextRegistry[songs.first().url]
         cancelBurst()
         intendPlaying()
@@ -1715,9 +1734,13 @@ object SongPlayer {
         setRepeatMode(LocalRepeat.OFF)
     }
 
-    /** Podcast playback speed (Spotify refuses it on music). */
+    /** Podcast / Audible audiobook playback speed (Spotify refuses it on music). */
     fun setSpeed(speed: Double) {
         _speed.value = speed
+        if (io.github.thake.soundnest.audible.AudiblePlayer.active.value) {
+            io.github.thake.soundnest.audible.AudiblePlayer.setSpeed(speed)
+            return
+        }
         command { api.player.setSpeed(speed) }
     }
 
@@ -1725,8 +1748,12 @@ object SongPlayer {
     /** The speed Spotify reports for what plays (podcasts only); 1.0 for music. */
     val speed: State<Double> get() = _speed
 
-    /** Lands within the episode when skipping: Spotify refuses a position past the end. */
+    /** Lands within the episode when skipping: Spotify refuses a position past the end; Audible crosses chapters smoothly. */
     fun skipBy(deltaMs: Long) {
+        if (io.github.thake.soundnest.audible.AudiblePlayer.active.value) {
+            io.github.thake.soundnest.audible.AudiblePlayer.skipBy(deltaMs)
+            return
+        }
         val duration = getDuration()
         val target = (getCurrentPosition() + deltaMs).coerceAtLeast(0L)
         seekTo(if (duration > 0) target.coerceAtMost(duration - 1_000L) else target)
@@ -1740,10 +1767,12 @@ object SongPlayer {
     }
 
     /**
-     * What plays is a podcast episode: the player shows its own controls (30-second-free
-     * skips, speed, no shuffle), not the music ones.
+     * What plays is a podcast episode or Audible audiobook chapter: the player shows spoken-word
+     * controls (±15s skips, speed, sleep timer, no shuffle), not the music ones.
      */
-    val isEpisode: Boolean get() = _nowPlaying.value.uri.startsWith("spotify:episode:")
+    val isEpisode: Boolean
+        get() = _nowPlaying.value.uri.startsWith("spotify:episode:") ||
+            _nowPlaying.value.uri.startsWith("audible:chapter:")
 
     fun lyricsTrack(s: SongsModel) = io.github.thake.soundnest.data.api.LyricsApi.Track(
         trackId = s.spotifyTrackId, title = s.title, artist = s.singer, album = s.album,
@@ -1752,6 +1781,7 @@ object SongPlayer {
 
     /** The lyrics request for what is playing now. */
     fun currentLyricsTrack(): io.github.thake.soundnest.data.api.LyricsApi.Track? {
+        if (io.github.thake.soundnest.audible.AudiblePlayer.active.value) return null
         val st = boundState ?: return null
         val title = st.title.value
         if (title.isBlank()) return null
@@ -1763,6 +1793,7 @@ object SongPlayer {
 
     /** Save / remove the current track in Liked Songs. */
     fun setLiked(on: Boolean) {
+        if (io.github.thake.soundnest.audible.AudiblePlayer.active.value) return
         // An unmatched device file is not in the Spotify library.
         if (LocalPlayer.active.value && localSpotifyUri(LocalPlayer.current()) == null) {
             io.github.thake.soundnest.host.android.Logbook.log("library: like not sent, the local song has no Spotify id (${LocalPlayer.current()?.uri?.scheme})")
@@ -1863,6 +1894,7 @@ object SongPlayer {
     private fun seekHeld(uri: String) = uri == seekUri && SystemClock.elapsedRealtime() < seekUntil
 
     fun seekTo(ms: Long) {
+        if (io.github.thake.soundnest.audible.AudiblePlayer.active.value) { io.github.thake.soundnest.audible.AudiblePlayer.seekTo(ms); return }
         if (LocalPlayer.active.value) { LocalPlayer.seekTo(ms); return }
         cancelBurst()
         val now = SystemClock.elapsedRealtime()
@@ -2225,6 +2257,7 @@ object SongPlayer {
 
     /** Move playback to [device] (Spotify Connect transfer). */
     fun transferTo(device: ConnectDevice) {
+        if (io.github.thake.soundnest.audible.AudiblePlayer.active.value) return
         if (!io.github.thake.soundnest.parental.TrustedNetworkGate.isDeviceAllowed(Graph.app, device.id, isSelf = device.isSelf)) {
             io.github.thake.soundnest.host.android.Logbook.log("connect: transfer refused by TrustedNetworkGate")
             return
@@ -2368,7 +2401,7 @@ object SongPlayer {
         if (!isPlaying()) return
         sleepFade?.cancel()
         sleepFade = scope.launch {
-            if (LocalPlayer.active.value) {
+            if (LocalPlayer.active.value || io.github.thake.soundnest.audible.AudiblePlayer.active.value) {
                 fadeLocalOut(SLEEP_FADE_MS)
                 return@launch
             }
@@ -2394,7 +2427,11 @@ object SongPlayer {
     private suspend fun fadeLocalOut(ms: Long) {
         val cast = io.github.thake.soundnest.cast.CastPlayback.active
         val base = if (cast) io.github.thake.soundnest.cast.CastPlayback.volume.floatValue else 1f
-        fun set(gain: Float) = if (cast) io.github.thake.soundnest.cast.CastPlayback.setVolume(base * gain) else LocalPlayer.setGain(gain)
+        fun set(gain: Float) = when {
+            cast -> io.github.thake.soundnest.cast.CastPlayback.setVolume(base * gain)
+            io.github.thake.soundnest.audible.AudiblePlayer.active.value -> io.github.thake.soundnest.audible.AudiblePlayer.setGain(gain)
+            else -> LocalPlayer.setGain(gain)
+        }
         val startedAt = SystemClock.elapsedRealtime()
         try {
             while (true) {
@@ -2548,6 +2585,7 @@ object SongPlayer {
     }
 
     fun skipTo(item: QueueItem) {
+        if (item.provider == AUDIBLE) { item.uid.toIntOrNull()?.let(io.github.thake.soundnest.audible.AudiblePlayer::skipToChapter); return }
         // Its index found now: a row shown in a just-dragged order carries the index it had before (see localIndex).
         if (item.provider == LOCAL) { localIndex(item)?.let(LocalPlayer::skipTo); return }
         cancelBurst()
@@ -2563,6 +2601,7 @@ object SongPlayer {
 
     /** "Clear queue": drops the tracks the user queued (not the context's next ones). */
     fun clearQueue() {
+        if (io.github.thake.soundnest.audible.AudiblePlayer.active.value) return
         if (LocalPlayer.active.value) { LocalPlayer.clearQueued(); return }
         _queue.value = _queue.value.copy(queued = emptyList())
         command { api.player.clearQueue() }
@@ -2594,7 +2633,7 @@ object SongPlayer {
 
     /** Shows [queued] / [nextUp] at once: the order a drop made, kept while the move that makes it so runs. */
     fun showQueueOrder(queued: List<QueueItem>, nextUp: List<QueueItem>) {
-        if (LocalPlayer.active.value) return
+        if (LocalPlayer.active.value || io.github.thake.soundnest.audible.AudiblePlayer.active.value) return
         val shown = _queue.value
         if (shown.queued == queued && shown.nextUp == nextUp) return
         if (queueMovesInFlight.get() == 0) staleOrders.clear()
@@ -2654,6 +2693,7 @@ object SongPlayer {
     /** Move [item] just before / after [target]; a Spotify row stays in its section (see [moveIntoQueue]), a local one goes into [target]'s. */
     fun reorder(item: QueueItem, target: QueueItem, after: Boolean) {
         if (probeQueue) { probeMove(item, target, after, intoQueue = false); return }
+        if (item.provider == AUDIBLE || target.provider == AUDIBLE) return
         if (item.provider == LOCAL) {
             val from = localIndex(item) ?: return
             val t = localIndex(target) ?: return
@@ -2680,6 +2720,7 @@ object SongPlayer {
      */
     fun moveIntoQueue(item: QueueItem, target: QueueItem?, after: Boolean) {
         if (probeQueue) { probeMove(item, target, after, intoQueue = true); return }
+        if (item.provider == AUDIBLE || target?.provider == AUDIBLE) return
         if (item.provider == LOCAL) {
             val from = localIndex(item) ?: return
             LocalPlayer.moveIntoQueue(from, target?.let { localIndex(it) ?: return }, after)
@@ -2703,6 +2744,7 @@ object SongPlayer {
     }
 
     fun removeFromQueue(item: QueueItem) {
+        if (item.provider == AUDIBLE) return
         // Found now, as for skipTo: with the index the row was reported with, a swipe right after a
         // drag removed whichever song had taken that place.
         if (item.provider == LOCAL) { localIndex(item)?.let(LocalPlayer::remove); return }
@@ -2714,10 +2756,20 @@ object SongPlayer {
         }
     }
 
-    fun isPlaying(): Boolean = if (LocalPlayer.active.value) LocalPlayer.isPlaying() else playing
-    fun getDuration(): Long = if (LocalPlayer.active.value) LocalPlayer.duration() else durationMs
+    fun isPlaying(): Boolean = when {
+        io.github.thake.soundnest.audible.AudiblePlayer.active.value -> io.github.thake.soundnest.audible.AudiblePlayer.isPlaying()
+        LocalPlayer.active.value -> LocalPlayer.isPlaying()
+        else -> playing
+    }
+
+    fun getDuration(): Long = when {
+        io.github.thake.soundnest.audible.AudiblePlayer.active.value -> io.github.thake.soundnest.audible.AudiblePlayer.duration()
+        LocalPlayer.active.value -> LocalPlayer.duration()
+        else -> durationMs
+    }
 
     fun getCurrentPosition(): Long {
+        if (io.github.thake.soundnest.audible.AudiblePlayer.active.value) return io.github.thake.soundnest.audible.AudiblePlayer.position()
         if (LocalPlayer.active.value) return LocalPlayer.position()
         val base = positionMs
         if (!playing || isBuffering) return base
@@ -2730,8 +2782,12 @@ object SongPlayer {
      * loading (its start, a seek into what is not loaded yet, a stream that does not keep up)
      * stands still too; the lyrics hold meanwhile.
      */
-    fun positionMoving(): Boolean =
-        if (LocalPlayer.active.value) LocalPlayer.isPlaying() else playing && !isBuffering
+    fun positionMoving(): Boolean = when {
+        io.github.thake.soundnest.audible.AudiblePlayer.active.value ->
+            io.github.thake.soundnest.audible.AudiblePlayer.isPlaying() && !io.github.thake.soundnest.audible.AudiblePlayer.isBuffering()
+        LocalPlayer.active.value -> LocalPlayer.isPlaying()
+        else -> playing && !isBuffering
+    }
 
     /**
      * A tap on a synced lyric line, for the diagnostic: where it jumps, which player plays (and
@@ -2740,6 +2796,7 @@ object SongPlayer {
     fun logLyricJump(targetMs: Long) {
         val log = io.github.thake.soundnest.host.android.Logbook::log
         val player = when {
+            io.github.thake.soundnest.audible.AudiblePlayer.active.value -> "audible"
             LocalPlayer.active.value -> "local, ${LocalPlayer.describe()}"
             _activeDevice.value != null -> "spotify connect"
             else -> "spotify"
@@ -2751,8 +2808,9 @@ object SongPlayer {
         }, afterMs)
     }
 
-    /** A local file starts: Spotify pauses (wherever it plays). */
+    /** A local file starts: Spotify and Audible pause. */
     fun pauseEngineForLocal() {
+        io.github.thake.soundnest.audible.AudiblePlayer.stop()
         localStartedAt = SystemClock.elapsedRealtime()
         // What the page reported last (the screens may already show the song asked for).
         engineUriBeforeLocal = lastPageUri
@@ -2764,10 +2822,24 @@ object SongPlayer {
         SpeakerKeepAlive.set(false)
     }
 
+    /** An Audible audiobook starts: Spotify pauses (wherever it plays). */
+    fun pauseEngineForAudible() {
+        audibleStartedAt = SystemClock.elapsedRealtime()
+        engineUriBeforeAudible = lastPageUri
+        engineRepausedForAudible = false
+        if (playing) command { api.player.pause() }
+        playing = false
+        SpeakerKeepAlive.set(false)
+    }
+
     private var localStartedAt = 0L
     /** What the engine played when the local file started (to tell a pause that did not take from a takeover). */
     private var engineUriBeforeLocal = ""
     private var engineRepaused = false
+
+    private var audibleStartedAt = 0L
+    private var engineUriBeforeAudible = ""
+    private var engineRepausedForAudible = false
 
     /**
      * The engine reports playing while a local file plays. Two streams must never play
@@ -2788,6 +2860,90 @@ object SongPlayer {
         Log.i(TAG, "engine started playing: the local player yields")
         LocalPlayer.stop()
         return false
+    }
+
+    private fun engineWhileAudible(s: PlayerState): Boolean {
+        if (s.isPaused) return true
+        if (SystemClock.elapsedRealtime() - audibleStartedAt < LOCAL_GRACE_MS) return true
+        if (s.item?.uri == engineUriBeforeAudible && !engineRepausedForAudible) {
+            engineRepausedForAudible = true
+            Log.i(TAG, "engine still playing under Audible: pausing it again")
+            command { api.player.pause() }
+            return true
+        }
+        Log.i(TAG, "engine started playing: Audible player yields")
+        io.github.thake.soundnest.audible.AudiblePlayer.stop()
+        return false
+    }
+
+    private inline fun runOnMainImmediate(crossinline block: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) block() else main.post { block() }
+    }
+
+    /** An Audible audiobook's projected chapter / state, shown in PodcastPlayerScreen, mini player, and notification. */
+    fun onAudibleState(
+        chapterSong: SongsModel,
+        chapterUri: String,
+        bookUri: String,
+        bookTitle: String,
+        isPlaying: Boolean,
+        isBuffering: Boolean,
+        chapterPosMs: Long,
+        chapterDurMs: Long,
+    ) {
+        runOnMainImmediate {
+            if (!io.github.thake.soundnest.audible.AudiblePlayer.active.value) return@runOnMainImmediate
+            currentTrackId = ""
+            currentContextUri = bookUri
+            playing = isPlaying
+            positionMs = chapterPosMs
+            positionAt = SystemClock.elapsedRealtime()
+            durationMs = chapterDurMs
+            bufferingState.value = isBuffering
+            val shown = NowPlaying(
+                uri = chapterUri,
+                contextUri = bookUri,
+                contextName = bookTitle,
+                provider = AUDIBLE,
+            )
+            if (_nowPlaying.value != shown) {
+                _nowPlaying.value = shown
+            }
+            val cover = io.github.thake.soundnest.host.android.Covers.large(chapterSong.coverUri)
+            boundState?.let { st ->
+                st.likeState.value = false
+                st.updateSongState(cover, chapterSong.title, chapterSong.singer, isPlaying, chapterSong.id, 0, chapterSong.album)
+            }
+            runCatching { pushNotification(chapterSong.copy(coverUri = cover), false) }
+        }
+    }
+
+    fun onAudibleQueue(current: SongsModel, upcoming: List<Pair<Int, SongsModel>>) {
+        runOnMainImmediate {
+            if (!io.github.thake.soundnest.audible.AudiblePlayer.active.value) return@runOnMainImmediate
+            val items = upcoming.map { (chapterIdx, song) ->
+                QueueItem(song = song, uri = song.url, uid = chapterIdx.toString(), provider = AUDIBLE)
+            }
+            _queue.value = EngineQueue(current = current, queued = emptyList(), nextUp = items)
+        }
+    }
+
+    fun onAudibleStopped() {
+        runOnMainImmediate {
+            playing = false
+            bufferingState.value = false
+            if (_nowPlaying.value.uri.startsWith("audible:")) {
+                _nowPlaying.value = NowPlaying()
+            }
+            if (_queue.value.current?.url?.startsWith("audible:") == true ||
+                _queue.value.nextUp.any { it.provider == AUDIBLE }
+            ) {
+                _queue.value = EngineQueue()
+                runCatching { applyQueue(apiQueue) }
+            }
+            boundState?.updatePlayingState(false)
+            runCatching { pushNotification(null, false) }
+        }
     }
 
     /** The local player's track / state, shown like any other (player, mini player, notification). */
@@ -2824,17 +2980,21 @@ object SongPlayer {
         return LocalPlayer.spotifyIdOf(t).takeIf { it.isNotBlank() }?.let { SPOTIFY_TRACK_PREFIX + it }
     }
 
-    /** The uri a like of the song shown saves ("" for a file of the device). */
+    /** The uri a like of the song shown saves ("" for a file of the device or Audible audiobook). */
     private fun currentLikeUri(): String = when {
+        io.github.thake.soundnest.audible.AudiblePlayer.active.value -> ""
         LocalPlayer.active.value -> localSpotifyUri(LocalPlayer.current()).orEmpty()
         else -> pendingItemUri ?: _nowPlaying.value.uri
     }
 
     /**
-     * The song shown can be liked: anything with a Spotify id; not a file of the device.
+     * The song shown can be liked: anything with a Spotify id; not a file of the device or Audible audiobook.
      * Read by the screens (state: recomposes as it changes).
      */
-    val canLike: Boolean get() = !LocalPlayer.active.value || !_nowPlaying.value.uri.startsWith("local:")
+    val canLike: Boolean
+        get() = (!LocalPlayer.active.value || !_nowPlaying.value.uri.startsWith("local:")) &&
+            !io.github.thake.soundnest.audible.AudiblePlayer.active.value &&
+            !_nowPlaying.value.uri.startsWith("audible:")
 
     private fun localSong(t: io.github.thake.soundnest.data.local.LocalTrack, dur: Long = t.durationMs): SongsModel =
         SongsModel(id = ("local:" + t.id).hashCode() and 0x7fffffff, title = t.title, album = t.album,

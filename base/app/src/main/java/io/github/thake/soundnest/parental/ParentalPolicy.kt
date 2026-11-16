@@ -182,6 +182,7 @@ object ParentalPolicyStore {
             if (!policy.allowLyrics || !extraAllowed) LyricsApi.forgetAll()
         }
         runCatching { io.github.thake.soundnest.data.preferences.HideDjPref.set(context, !policy.homeSections.showDjCard) }
+        runCatching { io.github.thake.soundnest.audible.AudiblePlayer.enforcePolicy(policy) }
         runCatching {
             Api.HomeCache.home = null
             Api.HomeCache.facets.clear()

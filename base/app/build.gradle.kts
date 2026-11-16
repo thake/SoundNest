@@ -188,10 +188,12 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation(libs.serialization.json)
-    // ExoPlayer for Live Radio & Local Files.
+    // ExoPlayer for Live Radio, Local Files & Audible audiobooks.
     implementation("androidx.media3:media3-exoplayer:1.8.0")
-    // HLS (.m3u8) Live Radio streams, which most big broadcasters use.
+    // HLS (.m3u8) Live Radio & Audible HLS-CMAF streams.
     implementation("androidx.media3:media3-exoplayer-hls:1.8.0")
+    // MPEG-DASH (.mpd) Audible Widevine / adaptive audiobook streams.
+    implementation(libs.media3.exoplayer.dash)
     // Installs the Baseline Profiles shipped by Compose & co. on sideloaded builds.
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     implementation(libs.okhttp)
