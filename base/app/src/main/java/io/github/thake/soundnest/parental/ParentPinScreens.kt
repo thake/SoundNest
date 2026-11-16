@@ -41,6 +41,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -59,6 +60,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.thake.soundnest.connect.LanDiscovery
 import io.github.thake.soundnest.ui.theme.AppAccent
 import io.github.thake.soundnest.ui.theme.AppBackground
 import io.github.thake.soundnest.ui.theme.AppMuted
@@ -90,9 +92,17 @@ fun ParentPinSetupScreen(
     var initialFilterMode by remember(context) { mutableStateOf(ParentalPolicyStore.current(context).filterMode) }
     val biometricSupported = remember(context) { ParentSecurityManager.isDeviceBiometricAvailable(context) }
     var enableBiometric by remember { mutableStateOf(biometricSupported) }
-    val onWifi = remember(context) { TrustedNetworkGate.currentSnapshot(context).onWifi }
+    val snap = remember(context) { TrustedNetworkGate.currentSnapshot(context) }
+    val onWifi = snap.onWifi
     var trustCurrentWifi by remember { mutableStateOf(onWifi) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    DisposableEffect(context, onWifi) {
+        if (onWifi) runCatching { LanDiscovery.start(context) }
+        onDispose {
+            if (onWifi) runCatching { LanDiscovery.stop() }
+        }
+    }
 
     val transformation = if (showSecret) VisualTransformation.None else PasswordVisualTransformation()
     val chipColors = FilterChipDefaults.filterChipColors(
@@ -240,7 +250,7 @@ fun ParentPinSetupScreen(
             ) {
                 Column(Modifier.weight(1f)) {
                     Text("Trust Current Wi-Fi as Home Network", color = AppText, fontSize = 15.sp)
-                    Text("Allows Alexa & Spotify Connect speakers on this Wi-Fi", color = AppMuted, fontSize = 12.sp)
+                    Text("Fingerprints this Home LAN & speakers (zero location permissions)", color = AppMuted, fontSize = 12.sp)
                 }
                 Switch(checked = trustCurrentWifi, onCheckedChange = { trustCurrentWifi = it })
             }
@@ -462,7 +472,7 @@ private fun launchSystemBiometric(context: Context, onError: (String) -> Unit) {
 }
 
 /**
- * Reusable Parent Security & Trusted Network controls block (embedded in Settings and `ParentSettingsScreen`).
+ * Reusable Parent Security session & PIN controls block (embedded in Settings and `ParentSettingsScreen`).
  */
 @Composable
 fun ParentSecurityControlsSection(onOpenParentSettings: (() -> Unit)? = null) {
@@ -471,16 +481,14 @@ fun ParentSecurityControlsSection(onOpenParentSettings: (() -> Unit)? = null) {
     val unlocked = remember(tick) { ParentSecurityManager.isAdminUnlocked(context) }
     var biometricEnabled by remember(tick) { mutableStateOf(ParentSecurityManager.isBiometricEnabled(context)) }
     val biometricSupported = remember(context) { ParentSecurityManager.isDeviceBiometricAvailable(context) }
-    var requireTrustedWifi by remember(tick) { mutableStateOf(TrustedNetworkGate.isRequireTrustedNetwork(context)) }
-    var trustedSsids by remember(tick) { mutableStateOf(TrustedNetworkGate.trustedSsids(context)) }
     var showChangePin by remember { mutableStateOf(false) }
 
     Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.weight(1f).padding(end = 8.dp)) {
                 Text(
                     text = if (unlocked) "Parent Mode Active (5-min auto-lock)" else "Parent Mode Locked",
                     color = if (unlocked) AppAccent else AppText,
@@ -539,40 +547,12 @@ fun ParentSecurityControlsSection(onOpenParentSettings: (() -> Unit)? = null) {
                 }
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.weight(1f)) {
-                    Text("Require Trusted Home Wi-Fi for Speakers", color = AppText, fontSize = 15.sp)
-                    val summary = if (trustedSsids.isEmpty()) "No Home Wi-Fi saved yet (remote speakers hidden)"
-                    else "Trusted Wi-Fi: ${trustedSsids.joinToString(", ")}"
-                    Text(summary, color = AppMuted, fontSize = 12.sp)
-                }
-                Switch(
-                    checked = requireTrustedWifi,
-                    onCheckedChange = {
-                        requireTrustedWifi = it
-                        TrustedNetworkGate.setRequireTrustedNetwork(context, it)
-                    },
-                )
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(
-                    onClick = {
-                        TrustedNetworkGate.trustCurrentNetwork(context)
-                        trustedSsids = TrustedNetworkGate.trustedSsids(context)
-                    },
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("Trust Current Wi-Fi", color = AppText, fontSize = 13.sp, maxLines = 1)
-                }
-                OutlinedButton(
-                    onClick = { showChangePin = true },
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("Change PIN / Pass", color = AppText, fontSize = 13.sp, maxLines = 1)
-                }
+            OutlinedButton(
+                onClick = { showChangePin = true },
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Change Parent PIN / Password", color = AppText, fontSize = 13.sp, maxLines = 1)
             }
         }
     }

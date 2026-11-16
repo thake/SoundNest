@@ -193,4 +193,91 @@ class TrustedNetworkGateTest {
         io.github.thake.soundnest.connect.LanLogin.start(untrustedSpeaker)
         assertEquals(null, io.github.thake.soundnest.connect.LanLogin.busy.value)
     }
+
+    @Test
+    fun `zero-permission LinkProperties LAN fingerprint trusts cloud Alexa networks on Android 10+ when SSID is masked`() {
+        val allDevices = listOf(selfPhone, kidsEcho, parentsEcho)
+
+        // Simulate router LAN 192.168.178.1/24 (fritz.box) with phone IP .42, NO location permission (<unknown ssid>), and NO mDNS speakers (cloud Echo only)
+        val phoneAddr1 = java.net.InetAddress.getByName("192.168.178.42") as java.net.Inet4Address
+        val prefix1 = TrustedNetworkGate.ipv4NetworkPrefix(phoneAddr1, 24)
+        assertEquals("192.168.178.0/24", prefix1)
+
+        val homeLan1 = TrustedNetworkGate.buildLanNetworkFingerprint(
+            gateways = listOf("192.168.178.1"),
+            subnets = listOf(prefix1),
+            dnsServers = listOf("192.168.178.1"),
+            domains = "fritz.box",
+        )!!
+        assertEquals("Home LAN (192.168.178.1 · fritz.box)", homeLan1.second)
+
+        TrustedNetworkGate.snapshotOverride = {
+            NetworkSnapshot(
+                onWifi = true,
+                ssid = "<unknown ssid>",
+                bssid = "02:00:00:00:00:00",
+                lanNetworkFingerprint = homeLan1.first,
+                lanNetworkLabel = homeLan1.second,
+                discoveredLanDeviceIds = emptySet(),
+            )
+        }
+
+        // Before trusting: fails closed
+        assertFalse(TrustedNetworkGate.isNetworkTrusted(context))
+        assertEquals(listOf(selfPhone), TrustedNetworkGate.filterConnectDevices(context, allDevices))
+
+        // Parent taps "Trust Current Home Wi-Fi & Visible Speakers": succeeds with zero location permission!
+        assertTrue(TrustedNetworkGate.trustCurrentNetwork(context))
+        assertTrue(TrustedNetworkGate.isNetworkTrusted(context))
+        assertEquals(allDevices, TrustedNetworkGate.filterConnectDevices(context, allDevices))
+        assertEquals(
+            "Home LAN (192.168.178.1 · fritz.box)",
+            TrustedNetworkGate.displayLabelForFingerprint(context, homeLan1.first),
+        )
+
+        // Phone renews DHCP lease to .99 on the same router -> subnet prefix stays 192.168.178.0/24 -> still trusted!
+        val phoneAddr2 = java.net.InetAddress.getByName("192.168.178.99") as java.net.Inet4Address
+        val homeLanRenewed = TrustedNetworkGate.buildLanNetworkFingerprint(
+            gateways = listOf("192.168.178.1"),
+            subnets = listOf(TrustedNetworkGate.ipv4NetworkPrefix(phoneAddr2, 24)),
+            dnsServers = listOf("192.168.178.1"),
+            domains = "fritz.box",
+        )!!
+        TrustedNetworkGate.snapshotOverride = {
+            NetworkSnapshot(
+                onWifi = true,
+                ssid = "<unknown ssid>",
+                bssid = "02:00:00:00:00:00",
+                lanNetworkFingerprint = homeLanRenewed.first,
+                lanNetworkLabel = homeLanRenewed.second,
+            )
+        }
+        assertTrue(TrustedNetworkGate.isNetworkTrusted(context))
+
+        // Child visits another Wi-Fi network (192.168.1.1 / home.arpa) -> untrusted, hides remote Echo speakers!
+        val friendLan = TrustedNetworkGate.buildLanNetworkFingerprint(
+            gateways = listOf("192.168.1.1"),
+            subnets = listOf("192.168.1.0/24"),
+            dnsServers = listOf("192.168.1.1"),
+            domains = "home.arpa",
+        )!!
+        TrustedNetworkGate.snapshotOverride = {
+            NetworkSnapshot(
+                onWifi = true,
+                ssid = "<unknown ssid>",
+                bssid = "02:00:00:00:00:00",
+                lanNetworkFingerprint = friendLan.first,
+                lanNetworkLabel = friendLan.second,
+            )
+        }
+        assertFalse(TrustedNetworkGate.isNetworkTrusted(context))
+        assertEquals(listOf(selfPhone), TrustedNetworkGate.filterConnectDevices(context, allDevices))
+    }
+
+    @Test
+    fun `preserves original SSID casing in displayLabelForSsid while matching case-insensitively`() {
+        TrustedNetworkGate.addTrustedWifi(context, ssid = "\"FamilyHome_5G\"", bssid = null)
+        assertEquals(setOf("familyhome_5g"), TrustedNetworkGate.trustedSsids(context))
+        assertEquals("FamilyHome_5G", TrustedNetworkGate.displayLabelForSsid(context, "familyhome_5g"))
+    }
 }

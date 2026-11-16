@@ -94,6 +94,14 @@ fun ParentSettingsScreen(
         }
     }
 
+    androidx.compose.runtime.DisposableEffect(context, unlocked) {
+        val onWifi = TrustedNetworkGate.currentSnapshot(context).onWifi
+        if (unlocked && onWifi) runCatching { LanDiscovery.start(context) }
+        onDispose {
+            if (unlocked && onWifi) runCatching { LanDiscovery.stop() }
+        }
+    }
+
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json"),
     ) { uri ->
@@ -562,10 +570,16 @@ fun ParentSettingsScreen(
                 }
             }
 
-            // 5. Trusted Home Wi-Fi & Speakers
+            // 5. Trusted Home Network & Speakers
             item(key = "speakers_network") {
+                val lanDeviceCount = LanDiscovery.devices.size
                 val requireWifi = remember(networkRefresh, sessionTick) { TrustedNetworkGate.isRequireTrustedNetwork(context) }
                 val ssids = remember(networkRefresh, sessionTick) { TrustedNetworkGate.trustedSsids(context) }
+                val lanFingerprints = remember(networkRefresh, sessionTick) { TrustedNetworkGate.trustedLanFingerprints(context) }
+                val currentSnap = remember(networkRefresh, sessionTick, lanDeviceCount) { TrustedNetworkGate.currentSnapshot(context) }
+                val isTrustedNow = remember(networkRefresh, sessionTick, currentSnap) {
+                    TrustedNetworkGate.isNetworkTrusted(context, currentSnap)
+                }
                 val visibilityMode = remember(networkRefresh, sessionTick) { TrustedNetworkGate.speakerVisibilityMode(context) }
                 val hiddenIds = remember(networkRefresh, sessionTick) { TrustedNetworkGate.hiddenDeviceIds(context) }
                 val allowedIds = remember(networkRefresh, sessionTick) { TrustedNetworkGate.allowedDeviceIds(context) }
@@ -574,9 +588,45 @@ fun ParentSettingsScreen(
                     value = runCatching { SongPlayer.devices() }.getOrDefault(emptyList())
                 }
 
-                SectionCard("Trusted Home Wi-Fi & Speakers") {
+                SectionCard("Trusted Home Network & Speakers") {
+                    val statusBg = when {
+                        !requireWifi -> tone(0xFF2C2C2C)
+                        isTrustedNow -> AppAccent.copy(alpha = 0.16f)
+                        else -> Color(0xFFFFB74D).copy(alpha = 0.14f)
+                    }
+                    val statusTint = when {
+                        !requireWifi -> AppMuted
+                        isTrustedNow -> AppAccent
+                        else -> Color(0xFFFFB74D)
+                    }
+                    val statusTitle = when {
+                        !requireWifi -> "Network boundary disabled — speakers allowed everywhere"
+                        isTrustedNow -> "✓ Trusted Home LAN active — speakers enabled"
+                        !currentSnap.onWifi -> "Not connected to Wi-Fi — remote speakers hidden"
+                        else -> "Untrusted Wi-Fi — remote speakers hidden"
+                    }
+                    val statusDetail = when {
+                        currentSnap.onWifi && !currentSnap.lanNetworkLabel.isNullOrBlank() ->
+                            "Current connection: ${currentSnap.lanNetworkLabel} (zero location permissions)"
+                        currentSnap.onWifi ->
+                            "Connected to Wi-Fi · Zero location permissions used"
+                        else ->
+                            "Connect to your Home Wi-Fi to trust its router & speaker fingerprint."
+                    }
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(statusBg)
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                    ) {
+                        Text(statusTitle, color = statusTint, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Text(statusDetail, color = AppMuted, fontSize = 11.sp)
+                    }
+
                     PolicyToggleRow(
-                        title = "Require Trusted Home Wi-Fi",
+                        title = "Require Trusted Home Network",
                         subtitle = "Hide cloud Spotify Connect & Alexa speakers and block LAN speaker setup when away from Home Wi-Fi",
                         checked = requireWifi,
                     ) { v ->
@@ -584,42 +634,41 @@ fun ParentSettingsScreen(
                         networkRefresh++
                     }
 
-                    var ssidInput by remember { mutableStateOf("") }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = ssidInput,
-                            onValueChange = { ssidInput = it },
-                            label = { Text("Add Home Wi-Fi SSID manually") },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f),
+                    Button(
+                        enabled = currentSnap.onWifi,
+                        onClick = {
+                            val ok = TrustedNetworkGate.trustCurrentNetwork(context)
+                            networkRefresh++
+                            Toast.makeText(
+                                context,
+                                if (ok) "Current Home LAN & visible speakers trusted." else "Connect to your Home Wi-Fi first.",
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = AppAccent, contentColor = Color.Black),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Trust Current Home LAN & Visible Speakers", fontWeight = FontWeight.Bold)
+                    }
+
+                    if (lanFingerprints.isNotEmpty() || ssids.isNotEmpty()) {
+                        Text(
+                            "Trusted Networks & Speaker Fingerprints",
+                            color = AppMuted,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
                         )
-                        Button(
-                            enabled = ssidInput.isNotBlank(),
-                            onClick = {
-                                TrustedNetworkGate.addTrustedWifi(context, ssidInput, null)
-                                ssidInput = ""
-                                networkRefresh++
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = AppAccent, contentColor = Color.Black),
-                        ) { Text("Add") }
-                    }
-
-                    OutlinedButton(onClick = {
-                        val ok = TrustedNetworkGate.trustCurrentNetwork(context)
-                        networkRefresh++
-                        Toast.makeText(
-                            context,
-                            if (ok) "Current Wi-Fi & LAN speakers trusted." else "Connect to Wi-Fi first (or enter SSID manually).",
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    }) {
-                        Text("Trust Current Wi-Fi & Visible Speakers", color = AppText)
-                    }
-
-                    if (ssids.isNotEmpty()) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            lanFingerprints.sorted().forEach { fp ->
+                                val label = TrustedNetworkGate.displayLabelForFingerprint(context, fp)
+                                RemovableChip(label = label) {
+                                    TrustedNetworkGate.removeTrustedLanFingerprint(context, fp)
+                                    networkRefresh++
+                                }
+                            }
                             ssids.sorted().forEach { ssid ->
-                                RemovableChip(label = "Wi-Fi: $ssid") {
+                                val displaySsid = TrustedNetworkGate.displayLabelForSsid(context, ssid)
+                                RemovableChip(label = "Wi-Fi: $displaySsid") {
                                     TrustedNetworkGate.removeTrustedSsid(context, ssid)
                                     networkRefresh++
                                 }
