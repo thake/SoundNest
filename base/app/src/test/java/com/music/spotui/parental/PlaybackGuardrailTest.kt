@@ -119,6 +119,84 @@ class PlaybackGuardrailTest {
         )
     }
 
+    @Test
+    fun `ads on Spotify Free accounts are never blocked or skipped even under strict allowlist`() {
+        val strictPolicy = ParentalPolicy(
+            filterMode = FilterMode.STRICT_ALLOWLIST,
+            blockExplicit = true,
+            allowedTrackIds = emptySet(),
+        )
+        val adPlaceholder = SongsModel(
+            id = "ad1".hashCode(),
+            title = "Advertisement",
+            album = "",
+            singer = "Spotify",
+            coverUri = "",
+            url = "spotify:ad:ad1|Advertisement",
+            spotifyTrackId = "",
+        )
+
+        assertEquals(
+            LivePlaybackDecision.ALLOW,
+            PlaybackGuardrail.evaluateLivePlayback(
+                item = adPlaceholder,
+                isRemoteActive = false,
+                isRemoteDeviceAllowed = true,
+                policy = strictPolicy,
+                isAd = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `NativeAudio only activates for confirmed Premium accounts so Free accounts play ads via WebPlayerHost`() {
+        val now = 100_000L
+        // Free account -> false (WebPlayerHost handles playback + ads)
+        org.junit.Assert.assertFalse(
+            com.music.spotui.di.NativeAudio.shouldUseNativeEngine(
+                enabled = true,
+                premium = false,
+                nowMs = now,
+                asideUntilMs = 0L,
+            ),
+        )
+        // Unknown plan -> false until confirmed Premium
+        org.junit.Assert.assertFalse(
+            com.music.spotui.di.NativeAudio.shouldUseNativeEngine(
+                enabled = true,
+                premium = null,
+                nowMs = now,
+                asideUntilMs = 0L,
+            ),
+        )
+        // Confirmed Premium -> true
+        org.junit.Assert.assertTrue(
+            com.music.spotui.di.NativeAudio.shouldUseNativeEngine(
+                enabled = true,
+                premium = true,
+                nowMs = now,
+                asideUntilMs = 0L,
+            ),
+        )
+        // Confirmed Premium but NativeAudio disabled or set aside -> false
+        org.junit.Assert.assertFalse(
+            com.music.spotui.di.NativeAudio.shouldUseNativeEngine(
+                enabled = false,
+                premium = true,
+                nowMs = now,
+                asideUntilMs = 0L,
+            ),
+        )
+        org.junit.Assert.assertFalse(
+            com.music.spotui.di.NativeAudio.shouldUseNativeEngine(
+                enabled = true,
+                premium = true,
+                nowMs = now,
+                asideUntilMs = now + 60_000L,
+            ),
+        )
+    }
+
     private fun song(
         id: String,
         title: String,

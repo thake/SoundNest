@@ -2,7 +2,6 @@
 package com.music.spotui.parental
 
 import android.content.Context
-import app.myspoti.spotify.PremiumGateDecision
 import com.music.spotui.ui.screens.Entry
 import com.music.spotui.ui.screens.Onboarding
 import org.junit.After
@@ -40,14 +39,13 @@ class ParentSecurityManagerTest {
         assertFalse(ParentSecurityManager.isPinConfigured(context))
         assertFalse(ParentSecurityManager.isAdminUnlocked(context))
 
-        // Signed-in Premium account without a Parent PIN MUST go to Entry.PARENT_SETUP, never Entry.SETUP or Entry.APP
+        // Signed-in Free or Premium account without a Parent PIN MUST go to Entry.PARENT_SETUP, never Entry.SETUP or Entry.APP
         assertEquals(
             Entry.PARENT_SETUP,
             Onboarding.entry(
                 spotifySignedIn = true,
                 setupNeeded = true,
                 connecting = false,
-                premiumDecision = PremiumGateDecision.Allowed,
                 parentPinConfigured = false,
             ),
         )
@@ -57,23 +55,10 @@ class ParentSecurityManagerTest {
                 spotifySignedIn = true,
                 setupNeeded = false,
                 connecting = false,
-                premiumDecision = PremiumGateDecision.Allowed,
                 parentPinConfigured = false,
             ),
         )
         assertFalse(Onboarding.lookOfferShown(Entry.PARENT_SETUP, false, false, false))
-
-        // Free tier check still takes precedence before asking parent to set up PIN on a non-Premium account
-        assertEquals(
-            Entry.PREMIUM_REQUIRED,
-            Onboarding.entry(
-                spotifySignedIn = true,
-                setupNeeded = true,
-                connecting = false,
-                premiumDecision = PremiumGateDecision.PremiumRequired,
-                parentPinConfigured = false,
-            ),
-        )
     }
 
     @Test

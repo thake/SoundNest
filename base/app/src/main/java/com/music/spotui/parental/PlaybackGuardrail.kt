@@ -43,14 +43,18 @@ object PlaybackGuardrail {
         isRemoteDeviceAllowed: Boolean,
         policy: ParentalPolicy,
         contextUri: String? = null,
+        isAd: Boolean = false,
     ): LivePlaybackDecision {
         if (isRemoteActive) {
             if (!isRemoteDeviceAllowed) return LivePlaybackDecision.SUPPRESS_REMOTE_MIRROR
+            if (isAd) return LivePlaybackDecision.ALLOW
             if (item != null && !ParentalFilterEngine.isTrackAllowed(item, policy, contextUri)) {
                 return LivePlaybackDecision.SUPPRESS_REMOTE_MIRROR
             }
             return LivePlaybackDecision.ALLOW
         }
+        // Never block, skip, or pause Spotify ads on Free accounts, even in strict allowlist mode.
+        if (isAd) return LivePlaybackDecision.ALLOW
         if (item != null && !ParentalFilterEngine.isTrackAllowed(item, policy, contextUri)) {
             return LivePlaybackDecision.BLOCK_AND_SKIP_OR_PAUSE
         }

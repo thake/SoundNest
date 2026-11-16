@@ -706,12 +706,14 @@ object SongPlayer {
         val isRemoteActive = (activeDev != null && !activeDev.local) || _activeDevice.value != null
         val remoteId = activeDev?.id ?: _activeDevice.value?.id.orEmpty()
         val isRemoteAllowed = isRemoteActive && com.music.spotui.parental.TrustedNetworkGate.isDeviceAllowed(Graph.app, remoteId, isSelf = false)
+        val isAdItem = adState.value || item?.kind == app.myspoti.api.ItemKind.AD || uri.startsWith("spotify:ad:")
         when (com.music.spotui.parental.PlaybackGuardrail.evaluateLivePlayback(
             item = liveSong,
             isRemoteActive = isRemoteActive,
             isRemoteDeviceAllowed = isRemoteAllowed,
             policy = policy,
             contextUri = s.contextUri,
+            isAd = isAdItem,
         )) {
             com.music.spotui.parental.LivePlaybackDecision.SUPPRESS_REMOTE_MIRROR -> {
                 _activeDevice.value = null
@@ -1201,15 +1203,6 @@ object SongPlayer {
         order: List<String>? = null, positionMs: Long? = null,
         songs: List<SongsModel>? = null, alone: Boolean = false,
     ) {
-        val cachedPremium = runCatching { app.myspoti.host.android.MyspotiRuntime.host.accounts.list.value.current?.premium }.getOrNull()
-        if (!app.myspoti.spotify.PremiumAccountGate.canPlay(
-                livePremium = app.myspoti.spotify.AccountPlan.premium.value,
-                cachedPremium = cachedPremium,
-            )
-        ) {
-            app.myspoti.host.android.Logbook.log("playSong refused: Spotify Premium required")
-            return
-        }
         val policy = com.music.spotui.parental.ParentalPolicyStore.current(Graph.app)
         val episodeId = song.removePrefix("episode:").takeIf { song.startsWith("episode:") }
         if (episodeId != null && !policy.allowPodcasts && !policy.allowAudiobooks) {

@@ -14,7 +14,7 @@ import kotlinx.serialization.json.contentOrNull
  * so it always says which account is active now.
  *
  * [premium] is null until it is read, true for a paid ad-free plan (Premium, Duo, Family, Student),
- * and false for a free or ad-supported account (which [PremiumAccountGate] blocks in Orpheon Kids).
+ * and false for a free or ad-supported account (which plays audio and ads via the Web Player host).
  */
 object AccountPlan {
     private val _premium = MutableStateFlow<Boolean?>(null)

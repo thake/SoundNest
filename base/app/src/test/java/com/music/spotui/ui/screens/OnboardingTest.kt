@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 package com.music.spotui.ui.screens
 
-import app.myspoti.spotify.PremiumGateDecision
 import com.music.spotui.data.preferences.Look
 import com.music.spotui.data.preferences.LookPref
 import com.music.spotui.di.Graph
@@ -64,34 +63,24 @@ class OnboardingTest {
         assertFalse(Onboarding.lookOfferShown(Entry.APP, false, false, LookPref.offered))
     }
 
-    @Test fun `free account is blocked with PREMIUM_REQUIRED and unverified account stays CONNECTING`() {
+    @Test fun `signed-in Free or Premium account enters PARENT_SETUP when PIN not configured then APP`() {
         assertEquals(
-            Entry.PREMIUM_REQUIRED,
+            Entry.PARENT_SETUP,
             Onboarding.entry(
                 spotifySignedIn = true,
                 setupNeeded = false,
                 connecting = false,
-                premiumDecision = PremiumGateDecision.PremiumRequired,
+                parentPinConfigured = false,
             ),
         )
         assertEquals(
-            Entry.PREMIUM_REQUIRED,
-            Onboarding.entry(
-                spotifySignedIn = true,
-                setupNeeded = true,
-                connecting = false,
-                premiumDecision = PremiumGateDecision.PremiumRequired,
-            ),
-        )
-        assertEquals(
-            Entry.CONNECTING,
+            Entry.APP,
             Onboarding.entry(
                 spotifySignedIn = true,
                 setupNeeded = false,
                 connecting = false,
-                premiumDecision = PremiumGateDecision.Checking,
+                parentPinConfigured = true,
             ),
         )
-        assertFalse(Onboarding.lookOfferShown(Entry.PREMIUM_REQUIRED, false, false, false))
     }
 }

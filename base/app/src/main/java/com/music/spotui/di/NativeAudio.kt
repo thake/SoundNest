@@ -59,7 +59,25 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
     /** Until when the engine is left aside after it could not play: the page plays meanwhile. */
     @Volatile private var asideUntil = 0L
 
-    override val on: Boolean get() = enabled && System.currentTimeMillis() >= asideUntil
+    /**
+     * NativeEngine decodes encrypted music tracks directly and has no ad player.
+     * Only confirmed Premium accounts use NativeEngine; Free (or not-yet-known) accounts
+     * automatically play via WebPlayerHost so Spotify's audio ads play naturally without stalling.
+     */
+    fun shouldUseNativeEngine(
+        enabled: Boolean,
+        premium: Boolean?,
+        nowMs: Long,
+        asideUntilMs: Long,
+    ): Boolean = enabled && premium == true && nowMs >= asideUntilMs
+
+    override val on: Boolean
+        get() = shouldUseNativeEngine(
+            enabled = enabled,
+            premium = app.myspoti.spotify.AccountPlan.premium.value,
+            nowMs = System.currentTimeMillis(),
+            asideUntilMs = asideUntil,
+        )
 
     /** The engine could not play ([why]): the page is the player for [ASIDE_MS], then the engine is tried again. */
     private fun setAside(why: String) {
@@ -107,6 +125,14 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
         val spotify = MyspotiRuntime.spotify
         spotify.player.audio = this
         spotify.devices.ownDeviceId = { deviceId }
+        scope.launch {
+            app.myspoti.spotify.AccountPlan.premium.collect { isPremium ->
+                if (isPremium != true && engine != null) {
+                    log("account is not Premium (plan=$isPremium): handing playback back to WebPlayerHost")
+                    runCatching { stop() }
+                }
+            }
+        }
     }
 
     /** The engine, started and registered first if it was not (the account's player, or the listen mirror's device). */
