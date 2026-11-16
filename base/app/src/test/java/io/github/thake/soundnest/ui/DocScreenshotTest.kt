@@ -317,6 +317,9 @@ class DocScreenshotTest {
     fun tearDown() {
         val app = RuntimeEnvironment.getApplication()
         SongPlayer.setSleepTimer(null)
+        io.github.thake.soundnest.audible.AudibleCredentialStore.clear(app)
+        io.github.thake.soundnest.audible.AudibleCatalogCache.clear(app)
+        io.github.thake.soundnest.audible.AudibleProgressStore.clearAll(app)
         ParentSecurityManager.dismissPrompt()
         ParentSecurityManager.resetForTests(app)
         ParentalPolicyStore.resetForTests(app)
@@ -439,6 +442,9 @@ class DocScreenshotTest {
         LookPref.set(app, look)
         setLibraryGridView(app, false)
         SongPlayer.setSleepTimer(null)
+        io.github.thake.soundnest.audible.AudibleCredentialStore.clear(app)
+        io.github.thake.soundnest.audible.AudibleCatalogCache.clear(app)
+        io.github.thake.soundnest.audible.AudibleProgressStore.clearAll(app)
         ParentSecurityManager.resetForTests(app)
         ParentSecurityManager.setupInitialPin(app, "246810")
         ParentSecurityManager.lockNow(app)
@@ -705,6 +711,64 @@ class DocScreenshotTest {
         add("Parental Controls & Security", "parental/12-manage-content-rules-sheet.png", "Manage Content Rules Sheet", "Searchable Approved & Blocked item rules manager with human-readable titles.", Look.CLASSIC, parentAdminPrep) {
             ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(1, 520))
             ManageContentRulesSheet(initialTabIsApproved = true, onDismiss = {})
+        }
+        val audibleAdminPrep: (Application) -> Unit = { app ->
+            parentAdminPrep(app)
+            io.github.thake.soundnest.audible.AudibleCredentialStore.save(
+                app,
+                io.github.thake.soundnest.audible.AudibleSessionTokens(
+                    marketplace = io.github.thake.soundnest.audible.AudibleMarketplace.DE,
+                    deviceSerial = "DOCSHOTSERIAL1",
+                    adpToken = "DOC_ADP_TOKEN",
+                    devicePrivateKeyPem = "DOC_PEM",
+                    refreshToken = "DOC_REFRESH",
+                    accessToken = "DOC_ACCESS",
+                    customerName = "Family Account",
+                ),
+            )
+            io.github.thake.soundnest.audible.AudibleCatalogCache.saveBooks(
+                app,
+                listOf(
+                    io.github.thake.soundnest.audible.AudibleBook(
+                        asin = "B08G9PRS1K",
+                        title = "Project Hail Mary",
+                        authors = listOf("Andy Weir"),
+                        narrators = listOf("Ray Porter"),
+                        runtimeLengthMs = 58_200_000L,
+                        coverUrl = covers["planets"].orEmpty(),
+                    ),
+                    io.github.thake.soundnest.audible.AudibleBook(
+                        asin = "B004V0725Y",
+                        title = "Momo",
+                        authors = listOf("Michael Ende"),
+                        narrators = listOf("Rufus Beck"),
+                        runtimeLengthMs = 31_800_000L,
+                        coverUrl = covers["bedtime"].orEmpty(),
+                    ),
+                    io.github.thake.soundnest.audible.AudibleBook(
+                        asin = "B09adult99",
+                        title = "Midnight Crime Casebook",
+                        authors = listOf("H. Detective"),
+                        narrators = listOf("A. Reader"),
+                        runtimeLengthMs = 42_000_000L,
+                        coverUrl = covers["starwars"].orEmpty(),
+                    ),
+                ),
+            )
+            ParentalPolicyStore.update(app) {
+                it.copy(
+                    allowAudiobooks = true,
+                    allowedAudibleAsins = setOf("B08G9PRS1K", "B004V0725Y"),
+                    pinnedAudibleAsins = setOf("B08G9PRS1K"),
+                )
+            }
+        }
+        add("Parental Controls & Security", "parental/13-audible-account-controls.png", "Dashboard: Audible Audiobooks", "Connected Audible marketplace status, library sync, and approved/pinned book counts.", Look.CLASSIC, audibleAdminPrep) {
+            ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(3, 360))
+        }
+        add("Parental Controls & Security", "parental/14-audible-parent-picker-sheet.png", "Audible Parent Picker Sheet", "Explicit per-book Approve and separate Pin to Home controls over the parent's owned Audible library.", Look.CLASSIC, audibleAdminPrep) {
+            ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(3, 360))
+            io.github.thake.soundnest.audible.ui.AudiblePickerSheet(onDismiss = {})
         }
 
         // ── 4. Classic Look — Complete Screen & Settings Catalog ──

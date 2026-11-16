@@ -2,12 +2,12 @@
 
 Auto-generated deterministically by `./gradlew :app:generateDocScreenshots` ([`DocScreenshotTest.kt`](../../base/app/src/test/java/io/github/thake/soundnest/ui/DocScreenshotTest.kt)).
 
-Total captured screens, panels, dialogs & sheets: **125**.
+Total captured screens, panels, dialogs & sheets: **127**.
 
 ## Contents
 - [Hero Overview (6)](#hero-overview)
 - [Onboarding & Session (9)](#onboarding-session)
-- [Parental Controls & Security (12)](#parental-controls-security)
+- [Parental Controls & Security (14)](#parental-controls-security)
 - [Classic Look (40)](#classic-look)
 - [Immersive Look (46)](#immersive-look)
 - [Sheets & Modals (12)](#sheets-modals)
@@ -53,6 +53,8 @@ Total captured screens, panels, dialogs & sheets: **125**.
 | **Dashboard: Encrypted Config Backup** (`CLASSIC`) | <img src="parental/10-dashboard-backup-restore.png" width="180" alt="Dashboard: Encrypted Config Backup" /> | [`parental/10-dashboard-backup-restore.png`](parental/10-dashboard-backup-restore.png)<br/>Passphrase-encrypted parental policy export and import. |
 | **Settings (Admin Session Active)** (`CLASSIC`) | <img src="parental/11-settings-admin-unlocked.png" width="180" alt="Settings (Admin Session Active)" /> | [`parental/11-settings-admin-unlocked.png`](parental/11-settings-admin-unlocked.png)<br/>Floating global Parent Mode banner while the 5-minute Admin Session is unlocked. |
 | **Manage Content Rules Sheet** (`CLASSIC`) | <img src="parental/12-manage-content-rules-sheet.png" width="180" alt="Manage Content Rules Sheet" /> | [`parental/12-manage-content-rules-sheet.png`](parental/12-manage-content-rules-sheet.png)<br/>Searchable Approved & Blocked item rules manager with human-readable titles. |
+| **Dashboard: Audible Audiobooks** (`CLASSIC`) | <img src="parental/13-audible-account-controls.png" width="180" alt="Dashboard: Audible Audiobooks" /> | [`parental/13-audible-account-controls.png`](parental/13-audible-account-controls.png)<br/>Connected Audible marketplace status, library sync, and approved/pinned book counts. |
+| **Audible Parent Picker Sheet** (`CLASSIC`) | <img src="parental/14-audible-parent-picker-sheet.png" width="180" alt="Audible Parent Picker Sheet" /> | [`parental/14-audible-parent-picker-sheet.png`](parental/14-audible-parent-picker-sheet.png)<br/>Explicit per-book Approve and separate Pin to Home controls over the parent's owned Audible library. |
 
 ## Classic Look
 

@@ -2,6 +2,12 @@
 
 Release notes for **SoundNest** (`io.github.thake.soundnest`), followed by historical release notes from upstream [Orpheon / Myspoti](https://github.com/kota-zo/Orpheon).
 
+## Unreleased
+
+- 📚 **Audible as a Second Audiobook Source (`:api-audible`)**: Parents can connect an Audible account across 11 marketplaces (auto-defaulted from device locale with manual override before sign-in) using OAuth 2.0 + PKCE virtual device registration (`["bearer", "mac_dms"]` only) inside an isolated ephemeral WebView profile that wipes all web session data immediately after code capture.
+- 🔐 **Explicit Audible Parent Picker & Separate Home Pinning**: Owned Audible titles (`GET /1.0/library` only — zero Store or Plus catalog browsing) default to **blocked** in both *Filtered Open* and *Strict Allowlist* modes until individually approved in `Manage Approved Audible Books` (`allowedAudibleAsins`), with independent per-book **Pin to Home** controls (`pinnedAudibleAsins`) and a dedicated **Show Pinned Audible Books on Home** shelf toggle (`showPinnedAudibleOnHome`).
+- 🎧 **Native Media3 Widevine Streaming & Local-Only Progress**: Streams approved Audible books via Jetpack Media3 (`DashMediaSource` / `HlsMediaSource`) + Android `MediaDrm` (Widevine) with zero `.aax`/`.aaxc` decryption, continuous-to-chapter projection across Classic & Immersive Library (`Audiobooks` chip), Home, Search, Show/Book detail, and Podcast Player screens, and strictly on-device progress storage (`AudibleProgressStore`) that never overwrites parent WhisperSync bookmarks.
+
 ## 1.0.0 — SoundNest
 
 - 🛡️ **SoundNest Fork & Package Rename (`io.github.thake.soundnest`)**: Clean GPL-3.0 fork of Orpheon dedicated to parent-controlled Spotify listening for children and teens (ages 9–16).
