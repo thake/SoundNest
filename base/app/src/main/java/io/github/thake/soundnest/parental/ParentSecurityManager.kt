@@ -72,7 +72,8 @@ object ParentSecurityManager {
     private const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
     internal const val KEYSTORE_ALIAS = "soundnest_parent_pin"
 
-    const val MIN_PIN_LENGTH = 6
+    const val MIN_PIN_LENGTH = 4
+    const val MAX_PIN_LENGTH = 128
     const val ADMIN_SESSION_TTL_MS = 5 * 60_000L
     private const val PBKDF2_ITERATIONS = 65_536
     private const val PBKDF2_KEY_BITS = 256
@@ -107,7 +108,7 @@ object ParentSecurityManager {
         context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     fun isValidPinFormat(pin: String): Boolean =
-        pin.length >= MIN_PIN_LENGTH && pin.all { it in '0'..'9' }
+        pin.length in MIN_PIN_LENGTH..MAX_PIN_LENGTH && pin.none { it == '\n' || it == '\r' }
 
     fun isPinConfigured(context: Context): Boolean {
         val p = prefs(context)

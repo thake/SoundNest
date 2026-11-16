@@ -176,7 +176,7 @@ fun ParentSettingsScreen(navController: NavController) {
                     Icon(Icons.Default.Lock, contentDescription = null, tint = AppAccent, modifier = Modifier.size(48.dp))
                     Text("Parent Mode Locked", color = AppText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "Enter your Parent PIN to configure content filters, Home sections, features, speakers, or backups.",
+                        "Enter your Parent PIN or password to configure content filters, Home sections, features, speakers, or backups.",
                         color = AppMuted,
                         fontSize = 14.sp,
                     )
@@ -184,7 +184,7 @@ fun ParentSettingsScreen(navController: NavController) {
                         onClick = { ParentSecurityManager.runProtected(context, AppSurface.PARENT_CONTROLS) {} },
                         colors = ButtonDefaults.buttonColors(containerColor = AppAccent, contentColor = Color.Black),
                     ) {
-                        Text("Unlock with Parent PIN", fontWeight = FontWeight.Bold)
+                        Text("Unlock Parent Mode", fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -198,7 +198,7 @@ fun ParentSettingsScreen(navController: NavController) {
         ) {
             // 1. Session & PIN Security
             item(key = "security") {
-                SectionCard("Parent PIN & Session") {
+                SectionCard("Parent Lock & Session") {
                     ParentSecurityControlsSection()
                 }
             }

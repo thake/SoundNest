@@ -25,10 +25,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -46,9 +49,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.thake.soundnest.ui.theme.AppAccent
@@ -58,9 +63,17 @@ import io.github.thake.soundnest.ui.theme.AppText
 import io.github.thake.soundnest.ui.theme.tone
 import kotlinx.coroutines.delay
 
+private fun sanitizeSecretInput(raw: String): String =
+    raw.replace("\n", "").replace("\r", "").take(ParentSecurityManager.MAX_PIN_LENGTH)
+
+private val SecretKeyboardOptions = KeyboardOptions(
+    keyboardType = KeyboardType.Password,
+    autoCorrectEnabled = false,
+)
+
 /**
  * Mandatory fail-closed onboarding step (`Entry.PARENT_SETUP`): blocks access to the app until
- * a parent configures a 6+ digit PIN.
+ * a parent configures a 4+ character PIN or password.
  */
 @Composable
 fun ParentPinSetupScreen(
@@ -70,11 +83,14 @@ fun ParentPinSetupScreen(
     val context = LocalContext.current
     var pin by remember { mutableStateOf("") }
     var confirmPin by remember { mutableStateOf("") }
+    var showSecret by remember { mutableStateOf(false) }
     val biometricSupported = remember(context) { ParentSecurityManager.isDeviceBiometricAvailable(context) }
     var enableBiometric by remember { mutableStateOf(biometricSupported) }
     val onWifi = remember(context) { TrustedNetworkGate.currentSnapshot(context).onWifi }
     var trustCurrentWifi by remember { mutableStateOf(onWifi) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    val transformation = if (showSecret) VisualTransformation.None else PasswordVisualTransformation()
 
     Column(
         modifier = Modifier
@@ -92,14 +108,14 @@ fun ParentPinSetupScreen(
             modifier = Modifier.padding(top = 8.dp),
         )
         Text(
-            text = "Set Up Parent PIN",
+            text = "Set Up Parent PIN or Password",
             color = AppText,
             fontSize = 26.sp,
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = "SoundNest requires a 6+ digit Parent PIN before handing this phone to your child. " +
-                "Content filters, Home page sections, Home Wi-Fi speakers, and account changes stay locked behind your PIN.",
+            text = "SoundNest requires a Parent PIN or password (4+ characters) before handing this phone to your child. " +
+                "Content filters, Home page sections, Home Wi-Fi speakers, and account changes stay locked behind it.",
             color = AppMuted,
             fontSize = 14.sp,
         )
@@ -107,27 +123,40 @@ fun ParentPinSetupScreen(
         OutlinedTextField(
             value = pin,
             onValueChange = { next ->
-                pin = next.filter { it in '0'..'9' }.take(16)
+                pin = sanitizeSecretInput(next)
                 errorMessage = null
             },
-            label = { Text("Parent PIN (6+ digits)") },
+            label = { Text("Parent PIN or password (4+ chars)") },
             singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-            modifier = Modifier.fillMaxWidth(),
+            visualTransformation = transformation,
+            keyboardOptions = SecretKeyboardOptions,
+            trailingIcon = {
+                IconButton(onClick = { showSecret = !showSecret }) {
+                    Icon(
+                        imageVector = if (showSecret) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                        contentDescription = if (showSecret) "Hide PIN or password" else "Show PIN or password",
+                        tint = AppMuted,
+                    )
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("parent_setup_secret"),
         )
 
         OutlinedTextField(
             value = confirmPin,
             onValueChange = { next ->
-                confirmPin = next.filter { it in '0'..'9' }.take(16)
+                confirmPin = sanitizeSecretInput(next)
                 errorMessage = null
             },
-            label = { Text("Confirm Parent PIN") },
+            label = { Text("Confirm PIN or password") },
             singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-            modifier = Modifier.fillMaxWidth(),
+            visualTransformation = transformation,
+            keyboardOptions = SecretKeyboardOptions,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("parent_setup_confirm"),
         )
 
         if (biometricSupported) {
@@ -172,9 +201,9 @@ fun ParentPinSetupScreen(
             onClick = {
                 when {
                     !ParentSecurityManager.isValidPinFormat(pin) ->
-                        errorMessage = "Enter a numeric PIN with at least 6 digits."
+                        errorMessage = "Enter a PIN or password with at least 4 characters."
                     pin != confirmPin ->
-                        errorMessage = "PINs do not match."
+                        errorMessage = "Entries do not match."
                     else -> {
                         when (ParentSecurityManager.setupInitialPin(context, pin)) {
                             PinSetupResult.Success, PinSetupResult.AlreadyConfigured -> {
@@ -185,16 +214,19 @@ fun ParentPinSetupScreen(
                                 onPinConfigured()
                             }
                             PinSetupResult.InvalidFormat ->
-                                errorMessage = "Enter a numeric PIN with at least 6 digits."
+                                errorMessage = "Enter a PIN or password with at least 4 characters."
                         }
                     }
                 }
             },
             colors = ButtonDefaults.buttonColors(containerColor = AppAccent, contentColor = Color.Black),
             shape = RoundedCornerShape(24.dp),
-            modifier = Modifier.fillMaxWidth().height(50.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp)
+                .testTag("parent_setup_save"),
         ) {
-            Text("Save Parent PIN & Continue", fontWeight = FontWeight.Bold)
+            Text("Save & Continue", fontWeight = FontWeight.Bold)
         }
 
         TextButton(
@@ -207,8 +239,8 @@ fun ParentPinSetupScreen(
 }
 
 /**
- * Global Compose host that renders a Parent PIN / Biometric prompt whenever a protected surface
- * invokes [ParentSecurityManager.runProtected] while the 5-minute Admin Session is locked.
+ * Global Compose host that renders a Parent PIN / Password / Biometric prompt whenever a protected
+ * surface invokes [ParentSecurityManager.runProtected] while the 5-minute Admin Session is locked.
  */
 @Composable
 fun ParentPinPromptHost() {
@@ -217,6 +249,7 @@ fun ParentPinPromptHost() {
     val req = request ?: return
 
     var pin by remember(req.id) { mutableStateOf("") }
+    var showSecret by remember(req.id) { mutableStateOf(false) }
     var errorText by remember(req.id) { mutableStateOf<String?>(null) }
     var lockoutMs by remember(req.id) { mutableLongStateOf(ParentSecurityManager.lockoutRemainingMs(context)) }
     val canBiometric = remember(req.id, lockoutMs) {
@@ -236,7 +269,7 @@ fun ParentPinPromptHost() {
         onDismissRequest = { ParentSecurityManager.dismissPrompt() },
         containerColor = tone(0xFF282828),
         title = {
-            Text("Parent PIN Required", color = AppText, fontWeight = FontWeight.Bold)
+            Text("Parent PIN / Password Required", color = AppText, fontWeight = FontWeight.Bold)
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -248,15 +281,26 @@ fun ParentPinPromptHost() {
                 OutlinedTextField(
                     value = pin,
                     onValueChange = { next ->
-                        pin = next.filter { it in '0'..'9' }.take(16)
+                        pin = sanitizeSecretInput(next)
                         errorText = null
                     },
                     enabled = lockoutMs <= 0L,
-                    label = { Text("6+ digit Parent PIN") },
+                    label = { Text("Parent PIN or password") },
                     singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = if (showSecret) VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = SecretKeyboardOptions,
+                    trailingIcon = {
+                        IconButton(onClick = { showSecret = !showSecret }) {
+                            Icon(
+                                imageVector = if (showSecret) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = if (showSecret) "Hide PIN or password" else "Show PIN or password",
+                                tint = AppMuted,
+                            )
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("parent_prompt_secret"),
                 )
                 if (lockoutMs > 0L) {
                     val secs = ((lockoutMs + 999L) / 1000L).coerceAtLeast(1L)
@@ -293,7 +337,7 @@ fun ParentPinPromptHost() {
                         }
                         is PinVerifyResult.InvalidPin -> {
                             pin = ""
-                            errorText = "Incorrect PIN (${res.remainingBeforeCooldown} tries before cooldown)."
+                            errorText = "Incorrect PIN or password (${res.remainingBeforeCooldown} tries before cooldown)."
                         }
                         PinVerifyResult.NotConfigured -> ParentSecurityManager.dismissPrompt()
                     }
@@ -311,10 +355,10 @@ fun ParentPinPromptHost() {
 }
 
 private fun surfaceDescription(surface: AppSurface): String = when (surface) {
-    AppSurface.PARENT_CONTROLS -> "Enter your Parent PIN to open Parental Controls (unlocked for 5 minutes)."
-    AppSurface.ACCOUNTS_AND_LOGOUT -> "Enter your Parent PIN to manage Spotify accounts or sign out."
-    AppSurface.HIDDEN_SONGS_AND_BANS -> "Enter your Parent PIN to change hidden songs or artist bans."
-    AppSurface.DIAGNOSTIC_EXPORT -> "Enter your Parent PIN to export diagnostic logs."
+    AppSurface.PARENT_CONTROLS -> "Enter your Parent PIN or password to open Parental Controls (unlocked for 5 minutes)."
+    AppSurface.ACCOUNTS_AND_LOGOUT -> "Enter your Parent PIN or password to manage Spotify accounts or sign out."
+    AppSurface.HIDDEN_SONGS_AND_BANS -> "Enter your Parent PIN or password to change hidden songs or artist bans."
+    AppSurface.DIAGNOSTIC_EXPORT -> "Enter your Parent PIN or password to export diagnostic logs."
     AppSurface.KID_APPEARANCE, AppSurface.KID_AUDIO, AppSurface.KID_SLEEP_TIMER -> ""
 }
 
@@ -332,7 +376,7 @@ private fun launchSystemBiometric(context: Context, onError: (String) -> Unit) {
         val prompt = BiometricPrompt.Builder(activity)
             .setTitle("Unlock Parent Mode")
             .setSubtitle("Authenticate to unlock Parental Controls for 5 minutes")
-            .setNegativeButton("Use PIN", activity.mainExecutor) { _, _ -> }
+            .setNegativeButton("Use PIN / Password", activity.mainExecutor) { _, _ -> }
             .build()
         prompt.authenticate(
             CancellationSignal(),
@@ -340,7 +384,7 @@ private fun launchSystemBiometric(context: Context, onError: (String) -> Unit) {
             object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult?) {
                     if (!ParentSecurityManager.onBiometricSucceeded(context)) {
-                        onError("Please enter your Parent PIN.")
+                        onError("Please enter your Parent PIN or password.")
                     }
                 }
 
@@ -350,7 +394,7 @@ private fun launchSystemBiometric(context: Context, onError: (String) -> Unit) {
             },
         )
     }.onFailure {
-        onError("Biometric authentication unavailable; please use your PIN.")
+        onError("Biometric authentication unavailable; please use your PIN or password.")
     }
 }
 
@@ -464,7 +508,7 @@ fun ParentSecurityControlsSection(onOpenParentSettings: (() -> Unit)? = null) {
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text("Change Parent PIN", color = AppText, fontSize = 13.sp, maxLines = 1)
+                    Text("Change PIN / Pass", color = AppText, fontSize = 13.sp, maxLines = 1)
                 }
             }
         }
@@ -481,37 +525,49 @@ private fun ChangeParentPinDialog(onDismiss: () -> Unit) {
     var currentPin by remember { mutableStateOf("") }
     var newPin by remember { mutableStateOf("") }
     var confirmPin by remember { mutableStateOf("") }
+    var showSecrets by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
+
+    val transformation = if (showSecrets) VisualTransformation.None else PasswordVisualTransformation()
 
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = tone(0xFF282828),
-        title = { Text("Change Parent PIN", color = AppText, fontWeight = FontWeight.Bold) },
+        title = { Text("Change Parent PIN / Password", color = AppText, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
                     value = currentPin,
-                    onValueChange = { currentPin = it.filter { c -> c in '0'..'9' }.take(16); errorText = null },
-                    label = { Text("Current PIN") },
+                    onValueChange = { currentPin = sanitizeSecretInput(it); errorText = null },
+                    label = { Text("Current PIN or password") },
                     singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    visualTransformation = transformation,
+                    keyboardOptions = SecretKeyboardOptions,
+                    trailingIcon = {
+                        IconButton(onClick = { showSecrets = !showSecrets }) {
+                            Icon(
+                                imageVector = if (showSecrets) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = if (showSecrets) "Hide PIN or password" else "Show PIN or password",
+                                tint = AppMuted,
+                            )
+                        }
+                    },
                 )
                 OutlinedTextField(
                     value = newPin,
-                    onValueChange = { newPin = it.filter { c -> c in '0'..'9' }.take(16); errorText = null },
-                    label = { Text("New PIN (6+ digits)") },
+                    onValueChange = { newPin = sanitizeSecretInput(it); errorText = null },
+                    label = { Text("New PIN or password (4+ chars)") },
                     singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    visualTransformation = transformation,
+                    keyboardOptions = SecretKeyboardOptions,
                 )
                 OutlinedTextField(
                     value = confirmPin,
-                    onValueChange = { confirmPin = it.filter { c -> c in '0'..'9' }.take(16); errorText = null },
-                    label = { Text("Confirm New PIN") },
+                    onValueChange = { confirmPin = sanitizeSecretInput(it); errorText = null },
+                    label = { Text("Confirm new PIN or password") },
                     singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    visualTransformation = transformation,
+                    keyboardOptions = SecretKeyboardOptions,
                 )
                 errorText?.let { Text(it, color = Color(0xFFFF6B6B), fontSize = 13.sp) }
             }
@@ -519,13 +575,13 @@ private fun ChangeParentPinDialog(onDismiss: () -> Unit) {
         confirmButton = {
             TextButton(onClick = {
                 if (newPin != confirmPin) {
-                    errorText = "New PINs do not match."
+                    errorText = "New entries do not match."
                     return@TextButton
                 }
                 when (ParentSecurityManager.changePin(context, currentPin, newPin)) {
                     PinChangeResult.Success -> onDismiss()
-                    PinChangeResult.InvalidCurrentPin -> errorText = "Current PIN is incorrect."
-                    PinChangeResult.InvalidNewPinFormat -> errorText = "New PIN must be at least 6 digits."
+                    PinChangeResult.InvalidCurrentPin -> errorText = "Current PIN or password is incorrect."
+                    PinChangeResult.InvalidNewPinFormat -> errorText = "New PIN or password must be at least 4 characters."
                     PinChangeResult.LockedOut -> errorText = "Too many wrong attempts; please wait."
                 }
             }) {

@@ -18,7 +18,7 @@ SoundNest is a focused **GPL-3.0** derivative of [Orpheon (formerly Myspoti)](ht
 - **Zero ad-blocking or DRM circumvention** — no ad-muting, no WebView script injection to suppress ads, no SponsorBlock, no audio downloading/ripping, and no Spotify attestation workarounds.
 - **Zero third-party extensions or scrapers** — no extension runtime, no YouTube Music / external catalog scrapers, and no in-app self-updater bypassing device parental controls.
 - **Zero unmoderated social surfaces** — Spotify Friend Activity, unmoderated user profiles, Music Videos, Canvas video loops, and artist merch/concert prompts are removed.
-- **Fail-closed parental guardrails** — mandatory 6+ digit Parent PIN on first launch, hybrid Blocklist / Strict Allowlist filtering, customizable Home shelves, Trusted Home Wi-Fi speaker boundaries, and a built-in Sleep Timer.
+- **Fail-closed parental guardrails** — mandatory Parent PIN or password (4+ characters) on first launch, hybrid Blocklist / Strict Allowlist filtering, customizable Home shelves, Trusted Home Wi-Fi speaker boundaries, and a built-in Sleep Timer.
 
 ---
 
@@ -54,12 +54,12 @@ SoundNest supports **both** Spotify Free and Spotify Premium accounts without re
 
 ## Parent Guide
 
-### 1. First-Run Setup & Parent PIN Security
+### 1. First-Run Setup & Parent Lock Security
 1. Install **SoundNest** and sign in with the Spotify Free or Premium account your child will use.
-2. Immediately after sign-in, SoundNest blocks access to the app until you set a **6+ digit Parent PIN** (`Set Up Parent PIN`).
-3. Your PIN is hashed with **PBKDF2-HMAC-SHA256** (65,536 iterations) and wrapped in an **Android Keystore AES-GCM** hardware-backed key, with persistent exponential cooldowns after repeated wrong guesses (30s up to 15m).
+2. Immediately after sign-in, SoundNest blocks access to the app until you set a **Parent PIN or password (4+ characters)** (`Set Up Parent PIN or Password` — digits, letters, symbols, or passphrases are all supported).
+3. Your PIN or password is hashed with **PBKDF2-HMAC-SHA256** (65,536 iterations) and wrapped in an **Android Keystore AES-GCM** hardware-backed key, with persistent exponential cooldowns after repeated wrong guesses (30s up to 15m).
 4. Optionally enable **Fingerprint / Face Unlock** to enter Parent Mode quickly, and toggle **Trust Current Wi-Fi as Home Network** while at home.
-5. Unlocking Parent Mode starts a **5-minute Admin Session** that automatically re-locks (or tap **Lock & Exit** before handing the device back to your child). Account switching, sign-out, hidden-song management, and diagnostic exports all require your Parent PIN.
+5. Unlocking Parent Mode starts a **5-minute Admin Session** that automatically re-locks (or tap **Lock & Exit** before handing the device back to your child). Account switching, sign-out, hidden-song management, and diagnostic exports all require your Parent PIN or password.
 
 ### 2. Choosing a Content Filter Mode
 Open **Settings -> Open Parental Controls Dashboard** to pick between two modes:

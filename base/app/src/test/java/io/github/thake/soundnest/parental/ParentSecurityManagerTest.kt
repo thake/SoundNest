@@ -68,22 +68,22 @@ class ParentSecurityManagerTest {
     }
 
     @Test
-    fun `enforces 6-digit numeric PIN minimum hashes with PBKDF2 and refuses unauthenticated overwrite`() {
-        // Rejects < 6 digits or non-digits
-        assertEquals(
-            PinSetupResult.InvalidFormat,
-            ParentSecurityManager.setupInitialPin(context, "12345"),
-        )
-        assertEquals(
-            PinSetupResult.InvalidFormat,
-            ParentSecurityManager.setupInitialPin(context, "12ab56"),
-        )
+    fun `enforces 4-character minimum PIN or password hashes with PBKDF2 and refuses unauthenticated overwrite`() {
+        assertEquals(4, ParentSecurityManager.MIN_PIN_LENGTH)
+        assertEquals(128, ParentSecurityManager.MAX_PIN_LENGTH)
+
+        // Rejects < 4 chars, > MAX_PIN_LENGTH chars, or multiline control characters
+        assertEquals(PinSetupResult.InvalidFormat, ParentSecurityManager.setupInitialPin(context, ""))
+        assertEquals(PinSetupResult.InvalidFormat, ParentSecurityManager.setupInitialPin(context, "123"))
+        assertEquals(PinSetupResult.InvalidFormat, ParentSecurityManager.setupInitialPin(context, "abc"))
+        assertEquals(PinSetupResult.InvalidFormat, ParentSecurityManager.setupInitialPin(context, "ab\ncd"))
+        assertEquals(PinSetupResult.InvalidFormat, ParentSecurityManager.setupInitialPin(context, "a".repeat(129)))
         assertFalse(ParentSecurityManager.isPinConfigured(context))
 
-        // Valid 6-digit PIN configures PBKDF2 hash (never storing plaintext PIN in SharedPreferences)
+        // Accepts 4-digit PIN and hashes with PBKDF2 (never storing plaintext in SharedPreferences)
         assertEquals(
             PinSetupResult.Success,
-            ParentSecurityManager.setupInitialPin(context, "246810"),
+            ParentSecurityManager.setupInitialPin(context, "2468"),
         )
         assertTrue(ParentSecurityManager.isPinConfigured(context))
         assertTrue(ParentSecurityManager.isAdminUnlocked(context))
@@ -93,29 +93,39 @@ class ParentSecurityManagerTest {
             .all
             .values
             .joinToString("|")
-        assertFalse("Plaintext PIN must never appear in SharedPreferences", rawPrefsDump.contains("246810"))
+        assertFalse("Plaintext PIN must never appear in SharedPreferences", rawPrefsDump.contains("2468"))
 
-        // Cannot overwrite initial PIN once configured without knowing current PIN
+        // Cannot overwrite initial PIN/password once configured without knowing current secret
         ParentSecurityManager.lockNow(context)
         assertEquals(
             PinSetupResult.AlreadyConfigured,
-            ParentSecurityManager.setupInitialPin(context, "999999"),
+            ParentSecurityManager.setupInitialPin(context, "newPass!"),
         )
         assertEquals(
             PinChangeResult.InvalidCurrentPin,
-            ParentSecurityManager.changePin(context, currentPin = "000000", newPin = "999999"),
+            ParentSecurityManager.changePin(context, currentPin = "0000", newPin = "newPass!"),
         )
         assertEquals(
             PinChangeResult.InvalidNewPinFormat,
-            ParentSecurityManager.changePin(context, currentPin = "246810", newPin = "1234"),
+            ParentSecurityManager.changePin(context, currentPin = "2468", newPin = "abc"),
         )
+
+        // Supports changing from a 4-digit PIN to a full password with symbols, spaces, and Unicode
+        val password = "S0undN3st! horse 🔑"
         assertEquals(
             PinChangeResult.Success,
-            ParentSecurityManager.changePin(context, currentPin = "246810", newPin = "98765432"),
+            ParentSecurityManager.changePin(context, currentPin = "2468", newPin = password),
         )
+        val rawPrefsAfterChange = context
+            .getSharedPreferences(ParentSecurityManager.PREFS_NAME, Context.MODE_PRIVATE)
+            .all
+            .values
+            .joinToString("|")
+        assertFalse("Plaintext password must never appear in SharedPreferences", rawPrefsAfterChange.contains("S0undN3st"))
+
         ParentSecurityManager.lockNow(context)
-        assertTrue(ParentSecurityManager.verifyPin(context, "246810") is PinVerifyResult.InvalidPin)
-        assertEquals(PinVerifyResult.Verified, ParentSecurityManager.verifyPin(context, "98765432"))
+        assertTrue(ParentSecurityManager.verifyPin(context, "2468") is PinVerifyResult.InvalidPin)
+        assertEquals(PinVerifyResult.Verified, ParentSecurityManager.verifyPin(context, password))
     }
 
     @Test
