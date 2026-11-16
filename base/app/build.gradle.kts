@@ -138,6 +138,7 @@ android {
 
 dependencies {
     implementation(project(":host-android"))
+    implementation(project(":api-audible"))
     // The native engine: the account's audio outside the Web Player page (NativeAudio), behind its setting.
     implementation(project(":engine-android"))
     // AutoMix: song analysis and transition planning (pure Kotlin), Beat This on ONNX Runtime.

@@ -1,0 +1,96 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+package io.github.thake.soundnest.audible
+
+import android.content.Context
+import io.github.thake.soundnest.data.writeTextSafely
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import java.io.File
+
+@Serializable
+private data class PersistedAudibleCatalog(
+    val books: List<AudibleBook> = emptyList(),
+    val chaptersByAsin: Map<String, List<AudibleChapter>> = emptyMap(),
+)
+
+object AudibleCatalogCache {
+    private val json = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+    }
+
+    private val _revision = MutableStateFlow(0L)
+    val revision: StateFlow<Long> = _revision.asStateFlow()
+
+    @Volatile
+    private var state: PersistedAudibleCatalog? = null
+
+    private fun cacheFile(context: Context): File =
+        File(context.applicationContext.filesDir, "audible/catalog.json")
+
+    @Synchronized
+    private fun ensureLoaded(context: Context): PersistedAudibleCatalog {
+        state?.let { return it }
+        val file = cacheFile(context)
+        val loaded = if (file.exists()) {
+            runCatching { json.decodeFromString<PersistedAudibleCatalog>(file.readText()) }
+                .getOrDefault(PersistedAudibleCatalog())
+        } else {
+            PersistedAudibleCatalog()
+        }
+        state = loaded
+        return loaded
+    }
+
+    @Synchronized
+    private fun persist(context: Context, updated: PersistedAudibleCatalog) {
+        state = updated
+        runCatching { writeTextSafely(cacheFile(context), json.encodeToString(updated)) }
+        _revision.value++
+    }
+
+    @Synchronized
+    fun saveBooks(context: Context, books: List<AudibleBook>) {
+        val current = ensureLoaded(context)
+        val validAsins = books.map { it.asin }.toSet()
+        val keptChapters = current.chaptersByAsin.filterKeys { it in validAsins }
+        persist(context, PersistedAudibleCatalog(books = books, chaptersByAsin = keptChapters))
+    }
+
+    @Synchronized
+    fun books(context: Context): List<AudibleBook> = ensureLoaded(context).books
+
+    @Synchronized
+    fun book(context: Context, asin: String): AudibleBook? {
+        val clean = asin.trim()
+        return ensureLoaded(context).books.firstOrNull { it.asin == clean }
+    }
+
+    @Synchronized
+    fun saveChapters(context: Context, asin: String, chapters: List<AudibleChapter>) {
+        val clean = asin.trim()
+        if (clean.isEmpty()) return
+        val current = ensureLoaded(context)
+        persist(context, current.copy(chaptersByAsin = current.chaptersByAsin + (clean to chapters)))
+    }
+
+    @Synchronized
+    fun chapters(context: Context, asin: String): List<AudibleChapter>? =
+        ensureLoaded(context).chaptersByAsin[asin.trim()]
+
+    @Synchronized
+    fun clear(context: Context) {
+        state = PersistedAudibleCatalog()
+        runCatching { cacheFile(context).delete() }
+        _revision.value++
+    }
+
+    @Synchronized
+    internal fun resetMemoryForTests() {
+        state = null
+    }
+}

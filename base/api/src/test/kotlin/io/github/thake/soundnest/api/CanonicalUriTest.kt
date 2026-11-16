@@ -14,4 +14,10 @@ class CanonicalUriTest {
             assertEquals(uri, canonicalUri(uri))
         }
     }
+
+    @Test fun `audible book and chapter uris map to AUDIOBOOK and CHAPTER`() {
+        assertEquals(MediaKind.AUDIOBOOK, MediaKind.of("audible:book:B08G9PRS1K"))
+        assertEquals(MediaKind.CHAPTER, MediaKind.of("audible:chapter:B08G9PRS1K:0"))
+        assertEquals("audible:book:B08G9PRS1K", canonicalUri("audible:book:B08G9PRS1K"))
+    }
 }

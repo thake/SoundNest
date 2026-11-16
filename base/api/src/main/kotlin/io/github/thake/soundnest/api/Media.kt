@@ -24,8 +24,8 @@ enum class MediaKind {
             uri.startsWith("spotify:playlist:") -> PLAYLIST
             uri.startsWith("spotify:show:") -> SHOW
             uri.startsWith("spotify:episode:") -> EPISODE
-            uri.startsWith("spotify:audiobook:") -> AUDIOBOOK
-            uri.startsWith("spotify:chapter:") -> CHAPTER
+            uri.startsWith("spotify:audiobook:") || uri.startsWith("audible:book:") -> AUDIOBOOK
+            uri.startsWith("spotify:chapter:") || uri.startsWith("audible:chapter:") -> CHAPTER
             uri.startsWith("spotify:user:") && ":collection" in uri -> COLLECTION
             uri.startsWith("spotify:user:") -> USER
             uri.startsWith("spotify:genre:") || uri.startsWith("spotify:page:") -> GENRE
