@@ -106,6 +106,8 @@ class ImmersivePlayerActions(
     val openArtist: () -> Unit = {},
     /** Opens one artist of the credit line directly. */
     val openArtistRef: (io.github.thake.soundnest.api.ArtistRef) -> Unit = {},
+    /** Opens the playing context (playlist, album, artist, Liked Songs) when available. */
+    val openContext: () -> Unit = {},
     /** Closes the player (PlayerSheet.close()). */
     val close: () -> Unit = {},
 )
@@ -236,6 +238,27 @@ fun rememberImmersivePlayer(navController: NavController): ImmersivePlayerBridge
                 vm.goToArtist(SongPlayer.currentTrackId, vm.currentSongSinger.value) { route -> navController.navigate(route) }
             },
             openArtistRef = { a -> navController.navigate(io.github.thake.soundnest.ui.components.ArtistChooser.routeOf(a)) },
+            openContext = {
+                val cur = SongPlayer.nowPlaying.value
+                val parts = cur.contextUri.split(":")
+                val id = parts.getOrNull(2).orEmpty()
+                val name = cur.contextName.ifBlank { SongPlayer.knownContextName(cur.contextUri) }
+                val route = when {
+                    Regex("spotify:(collection(:tracks)?|user:[^:]+:collection(:artist:[^:]+)?)").matches(cur.contextUri) ->
+                        io.github.thake.soundnest.ui.navigation.Routes.Liked.route
+                    parts.getOrNull(1) == "user" && parts.getOrNull(3) == "playlist" && parts.getOrNull(4).orEmpty().isNotBlank() ->
+                        io.github.thake.soundnest.ui.navigation.playlistRoute(parts[4], name)
+                    parts.getOrNull(1) == "playlist" && id.isNotBlank() ->
+                        io.github.thake.soundnest.ui.navigation.playlistRoute(id, name)
+                    parts.getOrNull(1) == "album" && id.isNotBlank() ->
+                        io.github.thake.soundnest.ui.navigation.albumRoute(name, "", id)
+                    parts.getOrNull(1) == "artist" && id.isNotBlank() ->
+                        io.github.thake.soundnest.ui.navigation.artistRoute(name, id)
+                    else -> null
+                }
+                if (route != null) navController.navigate(route)
+                else io.github.thake.soundnest.ui.screens.openNowPlayingAlbum(vm, vm.currentSongSinger.value, smartScope) { navController.navigate(it) }
+            },
             close = { PlayerSheet.close() },
         )
     }

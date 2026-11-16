@@ -3,6 +3,12 @@ package io.github.thake.soundnest.ui.components
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import io.github.thake.soundnest.ui.look.rememberReduceMotion
 
@@ -22,4 +28,24 @@ import io.github.thake.soundnest.ui.look.rememberReduceMotion
 @Composable
 fun Modifier.titleMarquee(enabled: Boolean = true, iterations: Int = 2): Modifier =
     if (!enabled || rememberReduceMotion()) this
-    else this.basicMarquee(iterations = iterations, repeatDelayMillis = 2_500, initialDelayMillis = 1_800, velocity = 28.dp)
+    else this.basicMarquee(iterations = iterations, repeatDelayMillis = 2_800, initialDelayMillis = 2_800, velocity = 26.dp)
+
+/** Softens the right edge of an overflowing marquee line so glyphs fade out instead of slicing mid-character. */
+fun Modifier.overflowRightFade(enabled: Boolean): Modifier =
+    if (!enabled) this
+    else this
+        .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+        .drawWithContent {
+            drawContent()
+            val fade = 16.dp.toPx().coerceAtMost(size.width * 0.2f)
+            if (fade > 1f) {
+                drawRect(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(Color.Black, Color.Transparent),
+                        startX = size.width - fade,
+                        endX = size.width,
+                    ),
+                    blendMode = BlendMode.DstIn,
+                )
+            }
+        }

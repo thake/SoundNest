@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -81,6 +82,7 @@ import io.github.thake.soundnest.ui.components.PodcastSpeedSheet
 import io.github.thake.soundnest.ui.components.QualitySheet
 import io.github.thake.soundnest.ui.components.QueueSheet
 import io.github.thake.soundnest.ui.components.SleepTimerSheet
+import io.github.thake.soundnest.ui.components.overflowRightFade
 import io.github.thake.soundnest.ui.components.playingSourceLabel
 import io.github.thake.soundnest.ui.components.speedLabel
 import io.github.thake.soundnest.ui.components.titleMarquee
@@ -97,7 +99,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** The height of the line holding the title, the show and the round glyphs. */
-private val TITLE_HEIGHT = 60.dp
+private val TITLE_HEIGHT = 68.dp
 private val ART_TITLE_GAP = 20.dp
 private val ART_TOP_PAD = 8.dp
 private val ArtCorner = RoundedCornerShape(8.dp)
@@ -179,17 +181,20 @@ fun ImmersivePodcastPlayer(navController: NavController) {
         // The source line's room is kept from the start (it is known a moment after the
         // episode starts): it fades in below the title and the show instead of moving them.
         val sourceLabel = playingSourceLabel()
-        val sourceAlpha by animateFloatAsState(if (sourceLabel.isNotBlank()) 1f else 0f, tween(250), label = "sourceLine")
-        Column(Modifier.weight(1f)) {
+        var titleOverflows by remember(title) { mutableStateOf(false) }
+        var showOverflows by remember(showName) { mutableStateOf(false) }
+        Column(Modifier.weight(1f).wrapContentHeight(unbounded = true)) {
             Text(
                 text = title,
                 style = Immersive.Title.copy(fontSize = 20.sp, lineHeight = 22.sp),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                onTextLayout = { if (it.hasVisualOverflow) titleOverflows = true },
                 modifier = Modifier
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
                         navController.navigate(episodeRoute(episodeId, title))
                     }
+                    .overflowRightFade(titleOverflows)
                     .titleMarquee(iterations = Int.MAX_VALUE),
             )
             Text(
@@ -202,14 +207,16 @@ fun ImmersivePodcastPlayer(navController: NavController) {
                 color = tint.copy(alpha = 0.55f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                onTextLayout = { if (it.hasVisualOverflow) showOverflows = true },
                 modifier = Modifier
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { openShow() }
+                    .overflowRightFade(showOverflows)
                     .titleMarquee(iterations = Int.MAX_VALUE),
             )
-            // What the sound is when Myspoti's own player plays it; a tap opens its quality.
+            // What the sound is when SoundNest's own player plays it; a tap opens its quality.
             if (sourceLabel.isNotBlank()) Text(
                 text = sourceLabel,
-                style = Immersive.Caption.copy(lineHeight = 14.sp),
+                style = Immersive.Caption.copy(lineHeight = 16.sp),
                 color = tint.copy(alpha = 0.45f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

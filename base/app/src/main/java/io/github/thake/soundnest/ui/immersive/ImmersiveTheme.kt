@@ -29,8 +29,8 @@ object Immersive {
     val Text = Color.White
     val TextSecondary = Color.White.copy(alpha = 0.60f)
     val TextTertiary = Color.White.copy(alpha = 0.38f)
-    /** The look's own pink until an Immersive accent colour is chosen in Settings, then that colour (links, the selected tab, toggles). */
-    val Accent: Color get() = AccentPref.let { if (it.immersiveAccentChosen) it.accentOf(Look.IMMERSIVE).color else Color(0xFFFF4F7B) }
+    /** The look's accent colour (Coral-Pink by default, or whichever swatch is chosen in Settings > Display). */
+    val Accent: Color get() = AccentPref.accentOf(Look.IMMERSIVE).color
     val GlassFill = Color(0xFF2C2C34).copy(alpha = 0.88f)
     val GlassEdge = Color.White.copy(alpha = 0.12f)
     /** The red of a destructive swipe, menu entry or confirmation (Leave, Remove, an error). */

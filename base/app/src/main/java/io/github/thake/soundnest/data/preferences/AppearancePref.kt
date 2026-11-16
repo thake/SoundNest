@@ -28,20 +28,21 @@ object AccentPref {
         GREEN("green", Color(0xFF1ED760)),
         BLUE("blue", Color(0xFF509BF5)),
         PURPLE("purple", Color(0xFFAF7AF6)),
-        PINK("pink", Color(0xFFF573A0)),
+        PINK("pink", Color(0xFFFF4F7B)),
         ORANGE("orange", Color(0xFFFF9E3D)),
     }
 
     var classicAccent by mutableStateOf(Accent.GREEN)
         private set
 
-    var immersiveAccent by mutableStateOf(Accent.GREEN)
+    var immersiveAccent by mutableStateOf(Accent.PINK)
         private set
 
     var immersiveAccentChosen by mutableStateOf(false)
         private set
 
-    fun accentOf(look: Look): Accent = if (look == Look.IMMERSIVE) immersiveAccent else classicAccent
+    fun accentOf(look: Look): Accent =
+        if (look == Look.IMMERSIVE) (if (immersiveAccentChosen) immersiveAccent else Accent.PINK) else classicAccent
 
     val accentColor: Color get() = accentOf(LookPref.look).color
 
@@ -54,7 +55,7 @@ object AccentPref {
             p.edit().putString(KEY_ACCENT_CLASSIC, old).putString(KEY_ACCENT_IMMERSIVE, old).apply()
         }
         classicAccent = Accent.entries.firstOrNull { it.key == p.getString(KEY_ACCENT_CLASSIC, "green") } ?: Accent.GREEN
-        immersiveAccent = Accent.entries.firstOrNull { it.key == p.getString(KEY_ACCENT_IMMERSIVE, "green") } ?: Accent.GREEN
+        immersiveAccent = Accent.entries.firstOrNull { it.key == p.getString(KEY_ACCENT_IMMERSIVE, "pink") } ?: Accent.PINK
         immersiveAccentChosen = p.contains(KEY_ACCENT_IMMERSIVE)
     }
 

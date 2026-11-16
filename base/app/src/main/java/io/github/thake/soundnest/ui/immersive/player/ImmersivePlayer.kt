@@ -61,6 +61,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
+import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -104,6 +106,7 @@ import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
 import com.bumptech.glide.integration.compose.placeholder
 import io.github.thake.soundnest.ui.components.DevicesSheet
+import io.github.thake.soundnest.ui.immersive.sheets.ImmersiveSleepTimerSheet
 import io.github.thake.soundnest.ui.immersive.sheets.ImmersiveSongOptionsSheet
 import io.github.thake.soundnest.ui.immersive.Immersive
 import io.github.thake.soundnest.ui.immersive.lyrics.ImmersiveLyricsPanel
@@ -115,6 +118,7 @@ import io.github.thake.soundnest.ui.components.SongBlend
 import io.github.thake.soundnest.ui.components.SongBlendCover
 import io.github.thake.soundnest.ui.components.mixSqueeze
 import io.github.thake.soundnest.ui.components.mixWave
+import io.github.thake.soundnest.ui.components.overflowRightFade
 import io.github.thake.soundnest.ui.components.titleMarquee
 import io.github.thake.soundnest.ui.look.rememberArtworkColors
 import io.github.thake.soundnest.ui.look.rememberPauseScale
@@ -122,7 +126,7 @@ import kotlin.math.abs
 
 // Sizes and gaps of the portrait layout, as the player this follows has them.
 private val THUMB_SIZE = 54.dp
-private val HEADER_HEIGHT = 60.dp
+private val HEADER_HEIGHT = 68.dp
 // Covers.large is 640px: the cover is always decoded at that, whatever size the box has right now.
 private const val COVER_DECODE_PX = 640
 private val ART_TITLE_GAP = 20.dp
@@ -277,6 +281,12 @@ fun ImmersivePlayer(
     var showDevices by remember { mutableStateOf(false) }
     var showQuality by remember { mutableStateOf(false) }
     var showNerd by remember { mutableStateOf(false) }
+    var showSleep by remember { mutableStateOf(false) }
+    val sleepEndsAt by io.github.thake.soundnest.di.SongPlayer.sleepEndsAt
+    val allowLyrics = io.github.thake.soundnest.parental.rememberParentalPolicy().allowLyrics
+    LaunchedEffect(allowLyrics, panel) {
+        if (!allowLyrics && panel == Panel.LYRICS) panel = Panel.NONE
+    }
     val lyricsOpen = panel == Panel.LYRICS
     val queueOpen = panel == Panel.QUEUE
 
@@ -319,9 +329,11 @@ fun ImmersivePlayer(
                 panel = panel,
                 pauseScale = pauseScale,
                 volume = volume,
+                sleepEndsAt = sleepEndsAt,
                 onToggleLyrics = { panel = if (lyricsOpen) Panel.NONE else Panel.LYRICS },
                 onToggleQueue = { panel = if (queueOpen) Panel.NONE else Panel.QUEUE },
                 onOpenDevices = { showDevices = true },
+                onOpenSleepTimer = { showSleep = true },
                 onMore = if (navController != null && state.song != null) ({ showMenu = true }) else null,
                 onSource = { showQuality = true },
                 onSourceLong = { showNerd = true },
@@ -329,6 +341,20 @@ fun ImmersivePlayer(
             ) else Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
                 // The handle: always hands its drags to the sheet.
                 PlayerDismissStrip(tint) { actions.close() }
+                if (panel == Panel.NONE && (state.contextName.isNotBlank() || sleepEndsAt != null)) {
+                    PlayerTopContextRow(
+                        contextName = state.contextName,
+                        sleepEndsAt = sleepEndsAt,
+                        tint = tint,
+                        onOpenContext = actions.openContext,
+                        onOpenSleep = { showSleep = true },
+                        modifier = Modifier
+                            .widthIn(max = PLAYER_MAX_WIDTH + PLAYER_GUTTER * 2)
+                            .fillMaxWidth()
+                            .padding(horizontal = PLAYER_GUTTER)
+                            .align(Alignment.CenterHorizontally),
+                    )
+                }
 
                 // Large windows (a portrait tablet): the box below is no taller than the cover and
                 // the credits need, and the two are centred with the controls under the handle.
@@ -467,10 +493,12 @@ fun ImmersivePlayer(
                     PlayerControlsBlock(
                         state = state, actions = actions, volume = volume, lyricsOpen = lyricsOpen, queueOpen = queueOpen,
                         showVolume = showVolume,
+                        sleepActive = sleepEndsAt != null,
                         // Lyrics and the queue are two things to show in one place: opening one closes the other.
                         onToggleLyrics = { panel = if (lyricsOpen) Panel.NONE else Panel.LYRICS },
                         onToggleQueue = { panel = if (queueOpen) Panel.NONE else Panel.QUEUE },
                         onOpenDevices = { showDevices = true },
+                        onOpenSleepTimer = { showSleep = true },
                     )
                     // A hidden volume bar keeps its room, under the controls: without it the block got
                     // shorter and the cover, the credits, the scrubber and the transport dropped into
@@ -487,6 +515,7 @@ fun ImmersivePlayer(
     if (showDevices) DevicesSheet { showDevices = false }
     if (showQuality) io.github.thake.soundnest.ui.components.QualitySheet { showQuality = false }
     if (showNerd) io.github.thake.soundnest.ui.components.StatsForNerdsSheet { showNerd = false }
+    if (showSleep) ImmersiveSleepTimerSheet { showSleep = false }
     val song = state.song
     if (showMenu && song != null && navController != null) {
         ImmersiveSongOptionsSheet(
@@ -561,16 +590,19 @@ private fun RowScope.PlayerCredits(
                 alpha = state.blend?.wordsAlpha() ?: 1f
             },
     ) {
+        var titleOverflows by remember(state.title, state.adPlaying) { mutableStateOf(false) }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = if (state.adPlaying) stringResource(R.string.immersive_player_ad) else state.title,
                 style = Immersive.Title.copy(fontSize = 20.sp, lineHeight = lineH),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                onTextLayout = { titleOverflows = it.hasVisualOverflow },
                 modifier = Modifier
                     .weight(1f, fill = false)
                     // The marquee inside the tap target: scrolling leaves the target as it was.
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { actions.openAlbum() }
+                    .overflowRightFade(titleOverflows)
                     .titleMarquee(enabled = scrolls, iterations = Int.MAX_VALUE),
             )
             if (state.explicit && !state.adPlaying) {
@@ -602,13 +634,14 @@ private fun RowScope.PlayerCredits(
                 onTextLayout = { if (it.hasVisualOverflow) lineScrolls.value = true },
                 modifier = Modifier
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { actions.openArtist() }
+                    .overflowRightFade(lineScrolls.value)
                     .titleMarquee(enabled = scrolls && lineScrolls.value, iterations = Int.MAX_VALUE),
             )
         }
-        // What the sound is when Myspoti's own player plays it; a tap opens what plays and its quality.
+        // What the sound is when SoundNest's own player plays it; a tap opens what plays and its quality.
         if (!state.adPlaying && sourceShown && sourceRoom) Text(
             text = sourceLabel.ifEmpty { " " },
-            style = Immersive.Caption.copy(lineHeight = 14.sp),
+            style = Immersive.Caption.copy(lineHeight = 16.sp),
             color = tint.copy(alpha = 0.45f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -638,6 +671,89 @@ private fun RowScope.PlayerCredits(
     }
 }
 
+/**
+ * Compact header row below the dismiss strip showing the active playing context (tappable) and/or
+ * an active Sleep Timer pill when a timer is armed.
+ */
+@Composable
+private fun PlayerTopContextRow(
+    contextName: String,
+    sleepEndsAt: Long?,
+    tint: Color,
+    onOpenContext: () -> Unit,
+    onOpenSleep: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var tick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(sleepEndsAt) {
+        if (sleepEndsAt != null && sleepEndsAt > 0L) {
+            while (true) {
+                kotlinx.coroutines.delay(15_000L)
+                tick++
+            }
+        }
+    }
+    @Suppress("UNUSED_EXPRESSION")
+    tick
+    val sleepLabel = when {
+        sleepEndsAt == null -> null
+        sleepEndsAt == -1L -> stringResource(R.string.context_menu_sleep_timer_end_of_track)
+        else -> {
+            val mins = (((sleepEndsAt - android.os.SystemClock.elapsedRealtime()) + 59_999L) / 60_000L)
+                .toInt().coerceAtLeast(1)
+            stringResource(R.string.sleep_minutes, mins)
+        }
+    }
+    Row(
+        modifier = modifier.padding(bottom = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (contextName.isNotBlank()) {
+            Text(
+                text = contextName,
+                style = Immersive.Caption.copy(fontWeight = FontWeight.SemiBold, lineHeight = 16.sp),
+                color = tint.copy(alpha = 0.72f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onOpenContext,
+                    )
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+            )
+        }
+        if (sleepLabel != null) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(tint.copy(alpha = 0.20f))
+                    .clickable(onClick = onOpenSleep)
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Timer,
+                    contentDescription = stringResource(R.string.context_menu_sleep_timer),
+                    tint = tint,
+                    modifier = Modifier.size(14.dp),
+                )
+                Text(
+                    text = sleepLabel,
+                    style = Immersive.Caption.copy(fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold),
+                    color = tint,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+}
+
 /** Scrubber, transport, volume and the bottom row: the controls under the cover. */
 @Composable
 private fun PlayerControlsBlock(
@@ -647,9 +763,11 @@ private fun PlayerControlsBlock(
     lyricsOpen: Boolean,
     queueOpen: Boolean,
     showVolume: Boolean,
+    sleepActive: Boolean = false,
     onToggleLyrics: () -> Unit,
     onToggleQueue: () -> Unit,
     onOpenDevices: () -> Unit,
+    onOpenSleepTimer: () -> Unit = {},
 ) {
     PlayerScrubber(state = state, onSeek = actions.seekTo)
     Spacer(Modifier.height(8.dp))
@@ -673,11 +791,13 @@ private fun PlayerControlsBlock(
         smartEnabled = state.smart,
         repeatMode = state.repeatMode,
         deviceActive = state.deviceName != null,
+        sleepActive = sleepActive,
         onToggleLyrics = onToggleLyrics,
         onToggleQueue = onToggleQueue,
         onToggleShuffle = actions.toggleShuffle,
         onCycleRepeat = actions.cycleRepeat,
         onOpenDevices = onOpenDevices,
+        onOpenSleepTimer = onOpenSleepTimer,
     )
     Spacer(Modifier.height(18.dp))
 }
@@ -696,9 +816,11 @@ private fun LandscapePlayer(
     panel: Int,
     pauseScale: State<Float>,
     volume: PlayerVolume,
+    sleepEndsAt: Long?,
     onToggleLyrics: () -> Unit,
     onToggleQueue: () -> Unit,
     onOpenDevices: () -> Unit,
+    onOpenSleepTimer: () -> Unit,
     onMore: (() -> Unit)?,
     onSource: () -> Unit,
     onSourceLong: () -> Unit = {},
@@ -755,6 +877,16 @@ private fun LandscapePlayer(
                 // The volume bar is the first thing to go when the window is low: the hardware keys do it too.
                 val showVolume = io.github.thake.soundnest.data.preferences.PlayerVolumePref.on && maxHeight >= LANDSCAPE_VOLUME_MIN_HEIGHT
                 Column(Modifier.widthIn(max = PLAYER_MAX_WIDTH).verticalScroll(rememberScrollState())) {
+                    if (state.contextName.isNotBlank() || sleepEndsAt != null) {
+                        PlayerTopContextRow(
+                            contextName = state.contextName,
+                            sleepEndsAt = sleepEndsAt,
+                            tint = tint,
+                            onOpenContext = actions.openContext,
+                            onOpenSleep = onOpenSleepTimer,
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                        )
+                    }
                     Row(Modifier.fillMaxWidth().height(HEADER_HEIGHT), verticalAlignment = Alignment.CenterVertically) {
                         PlayerCredits(state, actions, tint, scrolls = true, collapse = { 0f }, onMore = onMore, onSource = onSource, onSourceLong = onSourceLong)
                     }
@@ -762,7 +894,9 @@ private fun LandscapePlayer(
                     PlayerControlsBlock(
                         state = state, actions = actions, volume = volume,
                         lyricsOpen = panel == Panel.LYRICS, queueOpen = panel == Panel.QUEUE, showVolume = showVolume,
+                        sleepActive = sleepEndsAt != null,
                         onToggleLyrics = onToggleLyrics, onToggleQueue = onToggleQueue, onOpenDevices = onOpenDevices,
+                        onOpenSleepTimer = onOpenSleepTimer,
                     )
                 }
             }

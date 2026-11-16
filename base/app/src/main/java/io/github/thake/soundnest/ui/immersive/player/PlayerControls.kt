@@ -51,6 +51,7 @@ import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -477,55 +478,42 @@ internal fun PlayerActionRow(
     smartEnabled: Boolean,
     repeatMode: Int,
     deviceActive: Boolean,
+    sleepActive: Boolean = false,
     onToggleLyrics: () -> Unit,
     onToggleQueue: () -> Unit,
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
     onOpenDevices: () -> Unit,
+    onOpenSleepTimer: () -> Unit = {},
 ) {
     val modes = io.github.thake.soundnest.data.preferences.PlayerModesPref.on
     val capsule = io.github.thake.soundnest.data.preferences.PlayerCapsulePref.shown
+    val allowLyrics = io.github.thake.soundnest.parental.rememberParentalPolicy().allowLyrics
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val widestRow = BOTTOM_ACTION_SIZE * 2 + pillWidth(if (modes) 3 else 2)
         val edgeInset = ((maxWidth - widestRow) / 4).coerceAtLeast(0.dp)
-        // 0 with the capsule centred between lyrics and queue, 1 with it moved over to where the
-        // lyrics glyph sits. Read only while placing, so the slide relays out the row and recomposes nothing.
-        val toStart = animateFloatAsState(
-            targetValue = if (queueOpen) 1f else 0f,
-            animationSpec = tween(PILL_SLIDE_MS, easing = FastOutSlowInEasing),
-            label = "playerBottomPillSlide",
-        )
         Box(
             modifier = Modifier.fillMaxWidth().padding(horizontal = edgeInset),
-            contentAlignment = Alignment.CenterStart,
+            contentAlignment = Alignment.Center,
         ) {
-            // Gone while the queue is up: the capsule slides over into its place.
-            AnimatedVisibility(
-                visible = !queueOpen,
-                enter = fadeIn(tween(180, delayMillis = 120)),
-                exit = fadeOut(tween(120)),
-                modifier = Modifier.align(Alignment.CenterStart),
-            ) {
-                BottomGlyph(
-                    icon = Icons.Rounded.Lyrics,
-                    contentDescription = stringResource(if (lyricsOpen) R.string.immersive_player_lyrics_close else R.string.immersive_player_lyrics),
-                    // Lyrics and the queue are two things to show in one place, so opening either
-                    // closes the other; lit to say which is up.
-                    onClick = onToggleLyrics,
-                    highlighted = lyricsOpen,
-                )
+            Box(Modifier.align(Alignment.CenterStart)) {
+                if (allowLyrics) {
+                    BottomGlyph(
+                        icon = Icons.Rounded.Lyrics,
+                        contentDescription = stringResource(if (lyricsOpen) R.string.immersive_player_lyrics_close else R.string.immersive_player_lyrics),
+                        onClick = onToggleLyrics,
+                        highlighted = lyricsOpen,
+                    )
+                } else {
+                    BottomGlyph(
+                        icon = Icons.Rounded.Timer,
+                        contentDescription = stringResource(R.string.context_menu_sleep_timer),
+                        onClick = onOpenSleepTimer,
+                        highlighted = sleepActive,
+                    )
+                }
             }
-            // Laid out across the whole row and placed by hand: centred at 0, flush with the
-            // lyrics glyph's left edge at 1. Not there at all with "Capsule in the player" off.
-            if (capsule) Box(
-                Modifier.layout { measurable, constraints ->
-                    val placeable = measurable.measure(constraints.copy(minWidth = 0))
-                    layout(constraints.maxWidth, placeable.height) {
-                        val centred = (constraints.maxWidth - placeable.width) / 2f
-                        placeable.place((centred * (1f - toStart.value)).roundToInt(), 0)
-                    }
-                },
-            ) {
+            if (capsule) Box(Modifier.align(Alignment.Center)) {
                 Pill {
                     if (modes) {
                         PillSegment(
@@ -563,7 +551,6 @@ internal fun PlayerActionRow(
                         contentDescription = stringResource(R.string.immersive_player_devices),
                         onClick = onOpenDevices,
                         highlighted = deviceActive,
-                        // Devices alone fills the width of two, as in 2.1.0.
                         width = if (modes) PILL_SEGMENT_WIDTH else pillWidth(2),
                     )
                 }
