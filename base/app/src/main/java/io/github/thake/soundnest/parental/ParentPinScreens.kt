@@ -338,6 +338,8 @@ fun ParentPinPromptHost() {
         }
     }
 
+    var showForgotHelp by remember(req.id) { mutableStateOf(false) }
+
     AlertDialog(
         onDismissRequest = { ParentSecurityManager.dismissPrompt() },
         containerColor = tone(0xFF282828),
@@ -396,11 +398,39 @@ fun ParentPinPromptHost() {
                         Text("  Unlock with Biometrics", color = AppText)
                     }
                 }
+                Text(
+                    text = if (showForgotHelp) "Hide recovery instructions ▲" else "Forgot PIN or password?",
+                    color = AppMuted,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .clickable { showForgotHelp = !showForgotHelp }
+                        .padding(vertical = 2.dp)
+                        .testTag("parent_prompt_forgot_toggle"),
+                )
+                if (showForgotHelp) {
+                    Text(
+                        text = "For child safety, SoundNest has no remote PIN reset. Use Biometric Unlock if enabled, " +
+                            "or clear SoundNest's app storage in Android Settings (protected by Google Family Link on supervised devices), " +
+                            "sign in again, set a new PIN, and import your soundnest-policy.json backup.",
+                        color = AppMuted,
+                        fontSize = 12.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(tone(0xFF1F1F1F), RoundedCornerShape(8.dp))
+                            .padding(10.dp)
+                            .testTag("parent_prompt_forgot_body"),
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(
                 enabled = lockoutMs <= 0L && pin.length >= ParentSecurityManager.MIN_PIN_LENGTH,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = AppAccent,
+                    disabledContentColor = AppMuted.copy(alpha = 0.45f),
+                ),
                 onClick = {
                     when (val res = ParentSecurityManager.submitPromptPin(context, pin)) {
                         PinVerifyResult.Verified -> Unit
@@ -416,7 +446,7 @@ fun ParentPinPromptHost() {
                     }
                 },
             ) {
-                Text("Unlock", color = AppAccent, fontWeight = FontWeight.Bold)
+                Text("Unlock", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
@@ -616,19 +646,28 @@ internal fun ChangeParentPinDialog(onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                if (newPin != confirmPin) {
-                    errorText = "New entries do not match."
-                    return@TextButton
-                }
-                when (ParentSecurityManager.changePin(context, currentPin, newPin)) {
-                    PinChangeResult.Success -> onDismiss()
-                    PinChangeResult.InvalidCurrentPin -> errorText = "Current PIN or password is incorrect."
-                    PinChangeResult.InvalidNewPinFormat -> errorText = "New PIN or password must be at least 4 characters."
-                    PinChangeResult.LockedOut -> errorText = "Too many wrong attempts; please wait."
-                }
-            }) {
-                Text("Save", color = AppAccent, fontWeight = FontWeight.Bold)
+            TextButton(
+                enabled = currentPin.length >= ParentSecurityManager.MIN_PIN_LENGTH &&
+                    newPin.length >= ParentSecurityManager.MIN_PIN_LENGTH &&
+                    confirmPin.length >= ParentSecurityManager.MIN_PIN_LENGTH,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = AppAccent,
+                    disabledContentColor = AppMuted.copy(alpha = 0.45f),
+                ),
+                onClick = {
+                    if (newPin != confirmPin) {
+                        errorText = "New entries do not match."
+                        return@TextButton
+                    }
+                    when (ParentSecurityManager.changePin(context, currentPin, newPin)) {
+                        PinChangeResult.Success -> onDismiss()
+                        PinChangeResult.InvalidCurrentPin -> errorText = "Current PIN or password is incorrect."
+                        PinChangeResult.InvalidNewPinFormat -> errorText = "New PIN or password must be at least 4 characters."
+                        PinChangeResult.LockedOut -> errorText = "Too many wrong attempts; please wait."
+                    }
+                },
+            ) {
+                Text("Save", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {

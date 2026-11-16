@@ -92,6 +92,9 @@ class ParentalConfigBackupTest {
         CustomSpeakerNames.setCustomName(context, "emma-echo-dot", "Emma's Bedroom")
         CustomSpeakerNames.setCustomName(context, "kitchen-sonos", "Kitchen Speaker")
 
+        RuleLabelStore.record(context, "playlist", "pl1", "Disney Sing-Alongs", "42 songs")
+        RuleLabelStore.record(context, "artist", "bad_art", "Blocked Rapper")
+
         val exportedJson = ParentalConfigBackup.exportJson(context)
 
         // Security invariant: exported JSON must NEVER contain PIN digits, salt, or hash blobs
@@ -112,6 +115,11 @@ class ParentalConfigBackupTest {
         // Policy + HomeSectionConfig restored identically
         assertEquals(richPolicy, ParentalPolicyStore.current(context))
 
+        // Human-readable rule labels restored identically
+        assertEquals(RuleLabel("Disney Sing-Alongs", "42 songs"), RuleLabelStore.resolve(context, "playlist", "pl1"))
+        assertEquals(RuleLabel("Blocked Rapper", ""), RuleLabelStore.resolve(context, "artist", "bad_art"))
+        assertEquals(RuleLabel("Album · alb1", "spotify:album:alb1"), RuleLabelStore.resolve(context, "album", "alb1"))
+
         // TrustedNetworkGate restored identically
         assertTrue(TrustedNetworkGate.isRequireTrustedNetwork(context))
         assertEquals(setOf("homekidswifi"), TrustedNetworkGate.trustedSsids(context))
@@ -131,6 +139,19 @@ class ParentalConfigBackupTest {
         // Target device's Parent PIN ("987654") was NOT overwritten by the backup!
         assertEquals(PinVerifyResult.Verified, ParentSecurityManager.verifyPin(context, "987654"))
         assertTrue(ParentSecurityManager.verifyPin(context, "654321") is PinVerifyResult.InvalidPin)
+    }
+
+    @Test
+    fun `allowShow, blockShow, and clearShowRule persist labels and remove rules cleanly`() {
+        ParentalPolicyStore.allowShow(context, "spotify:show:kids_stories", "Bedtime Stories", "Kids Podcast")
+        assertEquals(setOf("kids_stories"), ParentalPolicyStore.current(context).allowedShowIds)
+        assertEquals(
+            RuleLabel("Bedtime Stories", "Kids Podcast"),
+            RuleLabelStore.resolve(context, "show", "kids_stories"),
+        )
+
+        ParentalPolicyStore.clearShowRule(context, "kids_stories")
+        assertTrue(ParentalPolicyStore.current(context).allowedShowIds.isEmpty())
     }
 
     @Test

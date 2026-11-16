@@ -24,6 +24,7 @@ data class ParentalBackupPayload(
     val policy: ParentalPolicy = ParentalPolicy(),
     val trustedNetwork: TrustedNetworkBackup = TrustedNetworkBackup(),
     val customSpeakerNames: Map<String, String> = emptyMap(),
+    val ruleLabels: Map<String, RuleLabel> = emptyMap(),
 )
 
 /**
@@ -55,6 +56,7 @@ object ParentalConfigBackup {
             allowedDeviceIds = TrustedNetworkGate.allowedDeviceIds(context),
         ),
         customSpeakerNames = CustomSpeakerNames.all(context),
+        ruleLabels = RuleLabelStore.all(context),
     )
 
     fun exportJson(context: Context): String =
@@ -89,6 +91,7 @@ object ParentalConfigBackup {
             CustomSpeakerNames.setCustomName(context, deviceId, nickname)
         }
 
+        RuleLabelStore.mergeAll(context, payload.ruleLabels)
         ParentalPolicyStore.replace(context, sanitizedPolicy)
     }
 }

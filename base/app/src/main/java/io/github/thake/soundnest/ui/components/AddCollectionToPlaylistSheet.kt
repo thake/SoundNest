@@ -212,7 +212,7 @@ fun AlbumOptionsSheet(albumUri: String, name: String, known: io.github.thake.sou
                     if (allowed) "Parent: Remove Album from Allowlist" else "Parent: Allow Album (Parent Picks)",
                 ) {
                     if (allowed) io.github.thake.soundnest.parental.ParentalPolicyStore.clearAlbumRule(linkContext, normAlbum)
-                    else io.github.thake.soundnest.parental.ParentalPolicyStore.allowAlbum(linkContext, normAlbum)
+                    else io.github.thake.soundnest.parental.ParentalPolicyStore.allowAlbum(linkContext, normAlbum, title = name, subtitle = known?.ownerName)
                     Toast.makeText(linkContext, if (allowed) "Removed album from allowlist" else "Album added to allowlist", Toast.LENGTH_SHORT).show()
                     onDismiss()
                 }
@@ -221,7 +221,7 @@ fun AlbumOptionsSheet(albumUri: String, name: String, known: io.github.thake.sou
                     if (blocked) "Parent: Unblock Album" else "Parent: Block Album",
                 ) {
                     if (blocked) io.github.thake.soundnest.parental.ParentalPolicyStore.clearAlbumRule(linkContext, normAlbum)
-                    else io.github.thake.soundnest.parental.ParentalPolicyStore.blockAlbum(linkContext, normAlbum)
+                    else io.github.thake.soundnest.parental.ParentalPolicyStore.blockAlbum(linkContext, normAlbum, title = name, subtitle = known?.ownerName)
                     Toast.makeText(linkContext, if (blocked) "Album unblocked" else "Album blocked", Toast.LENGTH_SHORT).show()
                     onDismiss()
                 }

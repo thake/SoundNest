@@ -111,7 +111,7 @@ fun ArtistOptionsSheet(artistId: String, artistName: String, artistImage: String
                     if (allowed) "Parent: Remove Artist from Allowlist" else "Parent: Allow Artist",
                 ) {
                     if (allowed) io.github.thake.soundnest.parental.ParentalPolicyStore.clearArtistRule(context, normArtist)
-                    else io.github.thake.soundnest.parental.ParentalPolicyStore.allowArtist(context, normArtist)
+                    else io.github.thake.soundnest.parental.ParentalPolicyStore.allowArtist(context, normArtist, title = artistName)
                     Toast.makeText(context, if (allowed) "Removed artist from allowlist" else "Artist added to allowlist", Toast.LENGTH_SHORT).show()
                     onDismiss()
                 }
@@ -120,7 +120,7 @@ fun ArtistOptionsSheet(artistId: String, artistName: String, artistImage: String
                     if (blocked) "Parent: Unblock Artist" else "Parent: Block Artist",
                 ) {
                     if (blocked) io.github.thake.soundnest.parental.ParentalPolicyStore.clearArtistRule(context, normArtist)
-                    else io.github.thake.soundnest.parental.ParentalPolicyStore.blockArtist(context, normArtist)
+                    else io.github.thake.soundnest.parental.ParentalPolicyStore.blockArtist(context, normArtist, title = artistName)
                     Toast.makeText(context, if (blocked) "Artist unblocked" else "Artist blocked", Toast.LENGTH_SHORT).show()
                     onDismiss()
                 }

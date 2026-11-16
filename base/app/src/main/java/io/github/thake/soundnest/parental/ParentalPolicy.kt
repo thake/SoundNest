@@ -177,8 +177,9 @@ object ParentalPolicyStore {
 
     // ── Convenience Allow / Block Helpers (maintain disjoint sets) ──
 
-    fun allowTrack(context: Context, idOrUri: String) {
+    fun allowTrack(context: Context, idOrUri: String, title: String? = null, subtitle: String? = null) {
         val id = normalizeSpotifyId(idOrUri).takeIf { it.isNotEmpty() } ?: return
+        RuleLabelStore.record(context, "track", id, title, subtitle)
         update(context) {
             it.copy(
                 allowedTrackIds = it.allowedTrackIds + id,
@@ -187,8 +188,9 @@ object ParentalPolicyStore {
         }
     }
 
-    fun blockTrack(context: Context, idOrUri: String) {
+    fun blockTrack(context: Context, idOrUri: String, title: String? = null, subtitle: String? = null) {
         val id = normalizeSpotifyId(idOrUri).takeIf { it.isNotEmpty() } ?: return
+        RuleLabelStore.record(context, "track", id, title, subtitle)
         update(context) {
             it.copy(
                 blockedTrackIds = it.blockedTrackIds + id,
@@ -207,8 +209,9 @@ object ParentalPolicyStore {
         }
     }
 
-    fun allowAlbum(context: Context, idOrUri: String) {
+    fun allowAlbum(context: Context, idOrUri: String, title: String? = null, subtitle: String? = null) {
         val id = normalizeSpotifyId(idOrUri).takeIf { it.isNotEmpty() } ?: return
+        RuleLabelStore.record(context, "album", id, title, subtitle)
         update(context) {
             it.copy(
                 allowedAlbumIds = it.allowedAlbumIds + id,
@@ -217,8 +220,9 @@ object ParentalPolicyStore {
         }
     }
 
-    fun blockAlbum(context: Context, idOrUri: String) {
+    fun blockAlbum(context: Context, idOrUri: String, title: String? = null, subtitle: String? = null) {
         val id = normalizeSpotifyId(idOrUri).takeIf { it.isNotEmpty() } ?: return
+        RuleLabelStore.record(context, "album", id, title, subtitle)
         update(context) {
             it.copy(
                 blockedAlbumIds = it.blockedAlbumIds + id,
@@ -237,8 +241,9 @@ object ParentalPolicyStore {
         }
     }
 
-    fun allowArtist(context: Context, idOrUri: String) {
+    fun allowArtist(context: Context, idOrUri: String, title: String? = null, subtitle: String? = null) {
         val id = normalizeSpotifyId(idOrUri).takeIf { it.isNotEmpty() } ?: return
+        RuleLabelStore.record(context, "artist", id, title, subtitle)
         update(context) {
             it.copy(
                 allowedArtistIds = it.allowedArtistIds + id,
@@ -247,8 +252,9 @@ object ParentalPolicyStore {
         }
     }
 
-    fun blockArtist(context: Context, idOrUri: String) {
+    fun blockArtist(context: Context, idOrUri: String, title: String? = null, subtitle: String? = null) {
         val id = normalizeSpotifyId(idOrUri).takeIf { it.isNotEmpty() } ?: return
+        RuleLabelStore.record(context, "artist", id, title, subtitle)
         update(context) {
             it.copy(
                 blockedArtistIds = it.blockedArtistIds + id,
@@ -267,8 +273,9 @@ object ParentalPolicyStore {
         }
     }
 
-    fun allowPlaylist(context: Context, idOrUri: String) {
+    fun allowPlaylist(context: Context, idOrUri: String, title: String? = null, subtitle: String? = null) {
         val id = normalizeSpotifyId(idOrUri).takeIf { it.isNotEmpty() } ?: return
+        RuleLabelStore.record(context, "playlist", id, title, subtitle)
         update(context) {
             it.copy(
                 allowedPlaylistIds = it.allowedPlaylistIds + id,
@@ -277,8 +284,9 @@ object ParentalPolicyStore {
         }
     }
 
-    fun blockPlaylist(context: Context, idOrUri: String) {
+    fun blockPlaylist(context: Context, idOrUri: String, title: String? = null, subtitle: String? = null) {
         val id = normalizeSpotifyId(idOrUri).takeIf { it.isNotEmpty() } ?: return
+        RuleLabelStore.record(context, "playlist", id, title, subtitle)
         update(context) {
             it.copy(
                 blockedPlaylistIds = it.blockedPlaylistIds + id,
@@ -297,8 +305,9 @@ object ParentalPolicyStore {
         }
     }
 
-    fun allowShow(context: Context, idOrUri: String) {
+    fun allowShow(context: Context, idOrUri: String, title: String? = null, subtitle: String? = null) {
         val id = normalizeSpotifyId(idOrUri).takeIf { it.isNotEmpty() } ?: return
+        RuleLabelStore.record(context, "show", id, title, subtitle)
         update(context) {
             it.copy(
                 allowedShowIds = it.allowedShowIds + id,
@@ -307,12 +316,23 @@ object ParentalPolicyStore {
         }
     }
 
-    fun blockShow(context: Context, idOrUri: String) {
+    fun blockShow(context: Context, idOrUri: String, title: String? = null, subtitle: String? = null) {
         val id = normalizeSpotifyId(idOrUri).takeIf { it.isNotEmpty() } ?: return
+        RuleLabelStore.record(context, "show", id, title, subtitle)
         update(context) {
             it.copy(
                 blockedShowIds = it.blockedShowIds + id,
                 allowedShowIds = it.allowedShowIds - id,
+            )
+        }
+    }
+
+    fun clearShowRule(context: Context, idOrUri: String) {
+        val id = normalizeSpotifyId(idOrUri).takeIf { it.isNotEmpty() } ?: return
+        update(context) {
+            it.copy(
+                allowedShowIds = it.allowedShowIds - id,
+                blockedShowIds = it.blockedShowIds - id,
             )
         }
     }
@@ -354,6 +374,7 @@ object ParentalPolicyStore {
     @Synchronized
     internal fun resetForTests(context: Context) {
         prefs(context).edit().clear().apply()
+        RuleLabelStore.resetForTests(context)
         val defaults = ParentalPolicy()
         _policyFlow.value = defaults
         initialized = true

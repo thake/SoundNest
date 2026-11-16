@@ -224,7 +224,7 @@ fun PlaylistOptionsSheet(
                     if (allowed) "Parent: Remove Playlist from Allowlist" else "Parent: Allow Playlist (Parent Picks)",
                 ) {
                     if (allowed) io.github.thake.soundnest.parental.ParentalPolicyStore.clearPlaylistRule(context, normPl)
-                    else io.github.thake.soundnest.parental.ParentalPolicyStore.allowPlaylist(context, normPl)
+                    else io.github.thake.soundnest.parental.ParentalPolicyStore.allowPlaylist(context, normPl, title = page.name, subtitle = page.ownerName)
                     android.widget.Toast.makeText(context, if (allowed) "Removed playlist from allowlist" else "Playlist added to allowlist", android.widget.Toast.LENGTH_SHORT).show()
                     onDismiss()
                 }
@@ -233,7 +233,7 @@ fun PlaylistOptionsSheet(
                     if (blocked) "Parent: Unblock Playlist" else "Parent: Block Playlist",
                 ) {
                     if (blocked) io.github.thake.soundnest.parental.ParentalPolicyStore.clearPlaylistRule(context, normPl)
-                    else io.github.thake.soundnest.parental.ParentalPolicyStore.blockPlaylist(context, normPl)
+                    else io.github.thake.soundnest.parental.ParentalPolicyStore.blockPlaylist(context, normPl, title = page.name, subtitle = page.ownerName)
                     android.widget.Toast.makeText(context, if (blocked) "Playlist unblocked" else "Playlist blocked", android.widget.Toast.LENGTH_SHORT).show()
                     onDismiss()
                 }

@@ -24,16 +24,22 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -57,6 +63,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -65,6 +72,7 @@ import androidx.navigation.NavController
 import io.github.thake.soundnest.connect.CustomSpeakerNames
 import io.github.thake.soundnest.connect.LanDiscovery
 import io.github.thake.soundnest.di.SongPlayer
+import io.github.thake.soundnest.ui.components.LookSheet
 import io.github.thake.soundnest.ui.components.bottomBarsSpace
 import io.github.thake.soundnest.ui.theme.AppAccent
 import io.github.thake.soundnest.ui.theme.AppBackground
@@ -86,6 +94,19 @@ fun ParentSettingsScreen(
     var networkRefresh by remember { mutableIntStateOf(0) }
     var editingSpeakerId by remember { mutableStateOf<String?>(null) }
     var editingSpeakerName by remember { mutableStateOf("") }
+    var rulesSheetApprovedTab by remember { mutableStateOf<Boolean?>(null) }
+
+    val selectedChipColors = FilterChipDefaults.filterChipColors(
+        selectedContainerColor = AppAccent,
+        selectedLabelColor = Color.Black,
+        selectedLeadingIconColor = Color.Black,
+    )
+    val accentFilledButtonColors = ButtonDefaults.buttonColors(
+        containerColor = AppAccent,
+        contentColor = Color.Black,
+        disabledContainerColor = tone(0xFF2E2E2E),
+        disabledContentColor = AppMuted.copy(alpha = 0.5f),
+    )
 
     LaunchedEffect(Unit) {
         ParentalPolicyStore.current(context)
@@ -193,7 +214,7 @@ fun ParentSettingsScreen(
                     )
                     Button(
                         onClick = { ParentSecurityManager.runProtected(context, AppSurface.PARENT_CONTROLS) {} },
-                        colors = ButtonDefaults.buttonColors(containerColor = AppAccent, contentColor = Color.Black),
+                        colors = accentFilledButtonColors,
                     ) {
                         Text("Unlock Parent Mode", fontWeight = FontWeight.Bold)
                     }
@@ -220,19 +241,25 @@ fun ParentSettingsScreen(
                 SectionCard("Content Filter & Rules") {
                     Text("Filter Mode", color = AppText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val isOpen = policy.filterMode == FilterMode.FILTERED_OPEN
+                        val isStrict = policy.filterMode == FilterMode.STRICT_ALLOWLIST
                         FilterChip(
-                            selected = policy.filterMode == FilterMode.FILTERED_OPEN,
+                            selected = isOpen,
                             onClick = {
                                 ParentalPolicyStore.update(context) { it.copy(filterMode = FilterMode.FILTERED_OPEN) }
                             },
-                            label = { Text("Filtered Open") },
+                            label = { Text("Filtered Open", fontWeight = if (isOpen) FontWeight.Bold else FontWeight.Normal) },
+                            leadingIcon = if (isOpen) { { Icon(Icons.Default.Check, contentDescription = null) } } else null,
+                            colors = selectedChipColors,
                         )
                         FilterChip(
-                            selected = policy.filterMode == FilterMode.STRICT_ALLOWLIST,
+                            selected = isStrict,
                             onClick = {
                                 ParentalPolicyStore.update(context) { it.copy(filterMode = FilterMode.STRICT_ALLOWLIST) }
                             },
-                            label = { Text("Strict Allowlist") },
+                            label = { Text("Strict Allowlist", fontWeight = if (isStrict) FontWeight.Bold else FontWeight.Normal) },
+                            leadingIcon = if (isStrict) { { Icon(Icons.Default.Check, contentDescription = null) } } else null,
+                            colors = selectedChipColors,
                         )
                     }
                     Text(
@@ -268,6 +295,10 @@ fun ParentSettingsScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             enabled = uriInput.isNotBlank(),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = AppAccent,
+                                disabledContentColor = AppMuted.copy(alpha = 0.45f),
+                            ),
                             onClick = {
                                 val applied = applyQuickUriRule(context, uriInput, allow = true)
                                 if (applied) {
@@ -277,9 +308,13 @@ fun ParentSettingsScreen(
                                     Toast.makeText(context, "Unrecognized Spotify link/URI.", Toast.LENGTH_SHORT).show()
                                 }
                             },
-                        ) { Text("Allow", color = AppAccent) }
+                        ) { Text("Allow", fontWeight = FontWeight.SemiBold) }
                         OutlinedButton(
                             enabled = uriInput.isNotBlank(),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color(0xFFFF6B6B),
+                                disabledContentColor = AppMuted.copy(alpha = 0.45f),
+                            ),
                             onClick = {
                                 val applied = applyQuickUriRule(context, uriInput, allow = false)
                                 if (applied) {
@@ -289,7 +324,7 @@ fun ParentSettingsScreen(
                                     Toast.makeText(context, "Unrecognized Spotify link/URI.", Toast.LENGTH_SHORT).show()
                                 }
                             },
-                        ) { Text("Block", color = Color(0xFFFF6B6B)) }
+                        ) { Text("Block", fontWeight = FontWeight.SemiBold) }
                     }
 
                     Text(
@@ -298,16 +333,32 @@ fun ParentSettingsScreen(
                         fontSize = 12.sp,
                     )
 
-                    // Rule counts summary
-                    Text(
-                        text = "Approved: ${policy.allowedPlaylistIds.size} playlists · ${policy.allowedAlbumIds.size} albums · ${policy.allowedArtistIds.size} artists · ${policy.allowedTrackIds.size} tracks",
-                        color = AppText,
-                        fontSize = 12.sp,
+                    // Interactive Rule Manager summary cards
+                    RuleSummaryCard(
+                        title = "Approved Items",
+                        summary = buildRuleSummaryText(
+                            playlists = policy.allowedPlaylistIds.size,
+                            albums = policy.allowedAlbumIds.size,
+                            artists = policy.allowedArtistIds.size,
+                            tracks = policy.allowedTrackIds.size,
+                            shows = policy.allowedShowIds.size,
+                        ),
+                        accentColor = AppAccent,
+                        testTag = "parent_manage_approved_rules",
+                        onClick = { rulesSheetApprovedTab = true },
                     )
-                    Text(
-                        text = "Blocked: ${policy.blockedPlaylistIds.size} playlists · ${policy.blockedAlbumIds.size} albums · ${policy.blockedArtistIds.size} artists · ${policy.blockedTrackIds.size} tracks",
-                        color = AppMuted,
-                        fontSize = 12.sp,
+                    RuleSummaryCard(
+                        title = "Blocked Items",
+                        summary = buildRuleSummaryText(
+                            playlists = policy.blockedPlaylistIds.size,
+                            albums = policy.blockedAlbumIds.size,
+                            artists = policy.blockedArtistIds.size,
+                            tracks = policy.blockedTrackIds.size,
+                            shows = policy.blockedShowIds.size,
+                        ),
+                        accentColor = Color(0xFFFF6B6B),
+                        testTag = "parent_manage_blocked_rules",
+                        onClick = { rulesSheetApprovedTab = false },
                     )
 
                     HorizontalDivider(color = tone(0xFF3A3A3A))
@@ -329,7 +380,7 @@ fun ParentSettingsScreen(
                                 ParentalPolicyStore.addBlockedKeyword(context, keywordInput)
                                 keywordInput = ""
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = AppAccent, contentColor = Color.Black),
+                            colors = accentFilledButtonColors,
                         ) { Text("Add") }
                     }
                     if (policy.blockedKeywords.isNotEmpty()) {
@@ -362,7 +413,7 @@ fun ParentSettingsScreen(
                                     regexInput = ""
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = AppAccent, contentColor = Color.Black),
+                            colors = accentFilledButtonColors,
                         ) { Text("Add") }
                     }
                     if (policy.blockedRegexPatterns.isNotEmpty()) {
@@ -645,7 +696,7 @@ fun ParentSettingsScreen(
                                 Toast.LENGTH_SHORT,
                             ).show()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = AppAccent, contentColor = Color.Black),
+                        colors = accentFilledButtonColors,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text("Trust Current Home LAN & Visible Speakers", fontWeight = FontWeight.Bold)
@@ -679,21 +730,31 @@ fun ParentSettingsScreen(
                     HorizontalDivider(color = tone(0xFF3A3A3A))
                     Text("Speaker Visibility Mode", color = AppText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val allExceptHiddenSelected = visibilityMode == SpeakerVisibilityMode.ALLOW_ALL_EXCEPT_HIDDEN
                         FilterChip(
-                            selected = visibilityMode == SpeakerVisibilityMode.ALLOW_ALL_EXCEPT_HIDDEN,
+                            selected = allExceptHiddenSelected,
                             onClick = {
                                 TrustedNetworkGate.setSpeakerVisibilityMode(context, SpeakerVisibilityMode.ALLOW_ALL_EXCEPT_HIDDEN)
                                 networkRefresh++
                             },
-                            label = { Text("All Except Hidden") },
+                            colors = selectedChipColors,
+                            leadingIcon = if (allExceptHiddenSelected) {
+                                { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            } else null,
+                            label = { Text("All Except Hidden", fontWeight = if (allExceptHiddenSelected) FontWeight.Bold else FontWeight.Normal) },
                         )
+                        val onlyAllowedSelected = visibilityMode == SpeakerVisibilityMode.ONLY_ALLOWED
                         FilterChip(
-                            selected = visibilityMode == SpeakerVisibilityMode.ONLY_ALLOWED,
+                            selected = onlyAllowedSelected,
                             onClick = {
                                 TrustedNetworkGate.setSpeakerVisibilityMode(context, SpeakerVisibilityMode.ONLY_ALLOWED)
                                 networkRefresh++
                             },
-                            label = { Text("Only Allowed") },
+                            colors = selectedChipColors,
+                            leadingIcon = if (onlyAllowedSelected) {
+                                { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            } else null,
+                            label = { Text("Only Allowed", fontWeight = if (onlyAllowedSelected) FontWeight.Bold else FontWeight.Normal) },
                         )
                     }
 
@@ -726,6 +787,12 @@ fun ParentSettingsScreen(
                         knownSpeakers.forEach { (id, label) ->
                             val isHidden = id in hiddenIds
                             val isAllowed = id in allowedIds
+                            val speakerUsable = if (visibilityMode == SpeakerVisibilityMode.ONLY_ALLOWED) isAllowed else !isHidden
+                            val statusLabel = if (visibilityMode == SpeakerVisibilityMode.ONLY_ALLOWED) {
+                                if (speakerUsable) "Allowed" else "Blocked"
+                            } else {
+                                if (speakerUsable) "Visible" else "Hidden"
+                            }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -740,25 +807,24 @@ fun ParentSettingsScreen(
                                 }) {
                                     Icon(Icons.Default.Edit, contentDescription = "Rename speaker", tint = AppMuted, modifier = Modifier.size(18.dp))
                                 }
-                                if (visibilityMode == SpeakerVisibilityMode.ONLY_ALLOWED) {
-                                    FilterChip(
-                                        selected = isAllowed,
-                                        onClick = {
-                                            TrustedNetworkGate.setDeviceAllowedInStrictMode(context, id, !isAllowed)
-                                            networkRefresh++
-                                        },
-                                        label = { Text(if (isAllowed) "Allowed" else "Blocked") },
-                                    )
-                                } else {
-                                    FilterChip(
-                                        selected = isHidden,
-                                        onClick = {
-                                            TrustedNetworkGate.setDeviceHidden(context, id, !isHidden)
-                                            networkRefresh++
-                                        },
-                                        label = { Text(if (isHidden) "Hidden" else "Visible") },
-                                    )
-                                }
+                                Text(
+                                    text = statusLabel,
+                                    color = if (speakerUsable) AppAccent else AppMuted,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(end = 8.dp),
+                                )
+                                Switch(
+                                    checked = speakerUsable,
+                                    onCheckedChange = { usable ->
+                                        if (visibilityMode == SpeakerVisibilityMode.ONLY_ALLOWED) {
+                                            TrustedNetworkGate.setDeviceAllowedInStrictMode(context, id, usable)
+                                        } else {
+                                            TrustedNetworkGate.setDeviceHidden(context, id, !usable)
+                                        }
+                                        networkRefresh++
+                                    },
+                                )
                             }
                         }
                     }
@@ -776,7 +842,7 @@ fun ParentSettingsScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Button(
                             onClick = { exportLauncher.launch("soundnest-policy.json") },
-                            colors = ButtonDefaults.buttonColors(containerColor = AppAccent, contentColor = Color.Black),
+                            colors = accentFilledButtonColors,
                         ) {
                             Text("Export JSON", fontWeight = FontWeight.Bold)
                         }
@@ -789,6 +855,13 @@ fun ParentSettingsScreen(
                 }
             }
         }
+    }
+
+    rulesSheetApprovedTab?.let { approvedTab ->
+        ManageContentRulesSheet(
+            initialTabIsApproved = approvedTab,
+            onDismiss = { rulesSheetApprovedTab = null },
+        )
     }
 
     editingSpeakerId?.let { speakerId ->
@@ -806,12 +879,18 @@ fun ParentSettingsScreen(
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    CustomSpeakerNames.setCustomName(context, speakerId, editingSpeakerName)
-                    editingSpeakerId = null
-                    networkRefresh++
-                }) {
-                    Text("Save", color = AppAccent, fontWeight = FontWeight.Bold)
+                TextButton(
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = AppAccent,
+                        disabledContentColor = AppMuted.copy(alpha = 0.45f),
+                    ),
+                    onClick = {
+                        CustomSpeakerNames.setCustomName(context, speakerId, editingSpeakerName)
+                        editingSpeakerId = null
+                        networkRefresh++
+                    },
+                ) {
+                    Text("Save", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -820,6 +899,306 @@ fun ParentSettingsScreen(
                 }
             },
         )
+    }
+}
+
+private data class ManagedRuleEntry(
+    val kind: String,
+    val id: String,
+    val title: String,
+    val subtitle: String,
+)
+
+private fun buildRuleSummaryText(
+    playlists: Int,
+    albums: Int,
+    artists: Int,
+    tracks: Int,
+    shows: Int,
+): String {
+    val total = playlists + albums + artists + tracks + shows
+    if (total == 0) return "None yet · Tap to inspect"
+    val parts = buildList {
+        if (playlists > 0) add("$playlists playlist${if (playlists == 1) "" else "s"}")
+        if (albums > 0) add("$albums album${if (albums == 1) "" else "s"}")
+        if (artists > 0) add("$artists artist${if (artists == 1) "" else "s"}")
+        if (tracks > 0) add("$tracks song${if (tracks == 1) "" else "s"}")
+        if (shows > 0) add("$shows show${if (shows == 1) "" else "s"}")
+    }
+    return parts.joinToString(" · ")
+}
+
+@Composable
+private fun RuleSummaryCard(
+    title: String,
+    summary: String,
+    accentColor: Color,
+    testTag: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(tone(0xFF282828))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .testTag(testTag),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = accentColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text(summary, color = AppMuted, fontSize = 12.sp)
+        }
+        Text("Manage", color = accentColor, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.width(4.dp))
+        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = accentColor, modifier = Modifier.size(18.dp))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun ManageContentRulesSheet(
+    initialTabIsApproved: Boolean,
+    onDismiss: () -> Unit,
+) {
+    LookSheet(
+        onDismissRequest = onDismiss,
+        containerColor = tone(0xFF222222),
+    ) {
+        ManageContentRulesSheetBody(
+            initialTabIsApproved = initialTabIsApproved,
+            onDismiss = onDismiss,
+        )
+    }
+}
+
+@Composable
+internal fun ManageContentRulesSheetBody(
+    initialTabIsApproved: Boolean,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    val policy by ParentalPolicyStore.policyFlow.collectAsState()
+    var showApproved by remember(initialTabIsApproved) { mutableStateOf(initialTabIsApproved) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    val selectedChipColors = FilterChipDefaults.filterChipColors(
+        selectedContainerColor = AppAccent,
+        selectedLabelColor = Color.Black,
+        selectedLeadingIconColor = Color.Black,
+    )
+
+    val approvedEntries = remember(policy) {
+        collectManagedRuleEntries(
+            context = context,
+            playlists = policy.allowedPlaylistIds,
+            albums = policy.allowedAlbumIds,
+            artists = policy.allowedArtistIds,
+            tracks = policy.allowedTrackIds,
+            shows = policy.allowedShowIds,
+        )
+    }
+    val blockedEntries = remember(policy) {
+        collectManagedRuleEntries(
+            context = context,
+            playlists = policy.blockedPlaylistIds,
+            albums = policy.blockedAlbumIds,
+            artists = policy.blockedArtistIds,
+            tracks = policy.blockedTrackIds,
+            shows = policy.blockedShowIds,
+        )
+    }
+
+    val activeEntries = if (showApproved) approvedEntries else blockedEntries
+    val filteredEntries = remember(activeEntries, searchQuery) {
+        val q = searchQuery.trim().lowercase()
+        if (q.isEmpty()) activeEntries
+        else activeEntries.filter { entry ->
+            entry.title.lowercase().contains(q) ||
+                entry.subtitle.lowercase().contains(q) ||
+                entry.id.lowercase().contains(q) ||
+                entry.kind.lowercase().contains(q)
+        }
+    }
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                text = "Manage Content Rules",
+                color = AppText,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = onDismiss) {
+                Icon(Icons.Default.Close, contentDescription = "Close", tint = AppMuted)
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = showApproved,
+                onClick = { showApproved = true },
+                colors = selectedChipColors,
+                leadingIcon = if (showApproved) {
+                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                } else null,
+                label = {
+                    Text(
+                        "Approved (${approvedEntries.size})",
+                        fontWeight = if (showApproved) FontWeight.Bold else FontWeight.Normal,
+                    )
+                },
+                modifier = Modifier.testTag("rules_tab_approved"),
+            )
+            FilterChip(
+                selected = !showApproved,
+                onClick = { showApproved = false },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = Color(0xFFFF6B6B),
+                    selectedLabelColor = Color.Black,
+                    selectedLeadingIconColor = Color.Black,
+                ),
+                leadingIcon = if (!showApproved) {
+                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                } else null,
+                label = {
+                    Text(
+                        "Blocked (${blockedEntries.size})",
+                        fontWeight = if (!showApproved) FontWeight.Bold else FontWeight.Normal,
+                    )
+                },
+                modifier = Modifier.testTag("rules_tab_blocked"),
+            )
+        }
+
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            placeholder = { Text("Search by title, artist, or Spotify ID") },
+            singleLine = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("rules_search_input"),
+        )
+
+        if (filteredEntries.isEmpty()) {
+            val emptyMessage = when {
+                searchQuery.isNotBlank() -> "No rules match \"${searchQuery.trim()}\"."
+                showApproved -> "No approved items yet. Open the ⋮ menu on any playlist, album, artist, or song while Parent Mode is unlocked to approve it."
+                else -> "No blocked items yet. Open the ⋮ menu on any item while Parent Mode is unlocked to block it."
+            }
+            Text(
+                text = emptyMessage,
+                color = AppMuted,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(vertical = 20.dp),
+            )
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(bottom = 16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = false),
+            ) {
+                items(filteredEntries, key = { "${it.kind}:${it.id}" }) { entry ->
+                    val badgeColor = if (showApproved) AppAccent else Color(0xFFFF6B6B)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(tone(0xFF2B2B2B))
+                            .padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+                    ) {
+                        Text(
+                            text = RuleLabelStore.kindDisplayName(entry.kind),
+                            color = badgeColor,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(badgeColor.copy(alpha = 0.16f))
+                                .padding(horizontal = 7.dp, vertical = 3.dp),
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = entry.title,
+                                color = AppText,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            if (entry.subtitle.isNotBlank()) {
+                                Text(
+                                    text = entry.subtitle,
+                                    color = AppMuted,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                        IconButton(
+                            onClick = { clearManagedRule(context, entry.kind, entry.id) },
+                            modifier = Modifier.testTag("rule_remove_${entry.kind}_${entry.id}"),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteOutline,
+                                contentDescription = "Remove rule",
+                                tint = AppMuted,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun collectManagedRuleEntries(
+    context: android.content.Context,
+    playlists: Set<String>,
+    albums: Set<String>,
+    artists: Set<String>,
+    tracks: Set<String>,
+    shows: Set<String>,
+): List<ManagedRuleEntry> {
+    fun entriesFor(kind: String, ids: Set<String>): List<ManagedRuleEntry> =
+        ids.map { id ->
+            val label = RuleLabelStore.resolve(context, kind, id)
+            ManagedRuleEntry(kind = kind, id = id, title = label.title, subtitle = label.subtitle)
+        }.sortedBy { it.title.lowercase() }
+
+    return buildList {
+        addAll(entriesFor("playlist", playlists))
+        addAll(entriesFor("album", albums))
+        addAll(entriesFor("artist", artists))
+        addAll(entriesFor("track", tracks))
+        addAll(entriesFor("show", shows))
+    }
+}
+
+private fun clearManagedRule(context: android.content.Context, kind: String, id: String) {
+    when (kind) {
+        "playlist" -> ParentalPolicyStore.clearPlaylistRule(context, id)
+        "album" -> ParentalPolicyStore.clearAlbumRule(context, id)
+        "artist" -> ParentalPolicyStore.clearArtistRule(context, id)
+        "track" -> ParentalPolicyStore.clearTrackRule(context, id)
+        "show" -> ParentalPolicyStore.clearShowRule(context, id)
     }
 }
 

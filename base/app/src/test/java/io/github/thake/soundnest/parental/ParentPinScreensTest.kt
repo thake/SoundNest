@@ -132,4 +132,37 @@ class ParentPinScreensTest {
         assertTrue(authorized)
         assertTrue(ParentSecurityManager.isAdminUnlocked(app))
     }
+
+    @Test
+    fun `prompt dialog expands Forgot PIN recovery instructions and ManageContentRulesSheetBody removes items`() {
+        val app = RuntimeEnvironment.getApplication()
+        ParentSecurityManager.setupInitialPin(app, "k3y!")
+        ParentSecurityManager.lockNow(app)
+        ParentalPolicyStore.allowPlaylist(app, "pl_kids", "Kids Favorites", "Curated")
+        ParentalPolicyStore.blockArtist(app, "art_bad", "Explicit Band")
+
+        ParentSecurityManager.runProtected(app, AppSurface.PARENT_CONTROLS) {}
+
+        rule.setContent {
+            SpotuiTheme {
+                ParentPinPromptHost()
+                ManageContentRulesSheetBody(initialTabIsApproved = true, onDismiss = {})
+            }
+        }
+
+        rule.onNodeWithTag("parent_prompt_forgot_toggle").performClick()
+        rule.onNodeWithTag("parent_prompt_forgot_body").assertExists()
+
+        // Approved playlist is displayed with its human-readable title and can be removed in one tap
+        rule.onNodeWithText("Kids Favorites").assertExists()
+        rule.onNodeWithTag("rule_remove_playlist_pl_kids").performClick()
+        assertFalse("pl_kids" in ParentalPolicyStore.current(app).allowedPlaylistIds)
+
+        // Switching to Blocked tab shows blocked artist and allows removal
+        ParentSecurityManager.dismissPrompt()
+        rule.onNodeWithTag("rules_tab_blocked").performClick()
+        rule.onNodeWithText("Explicit Band").assertExists()
+        rule.onNodeWithTag("rule_remove_artist_art_bad").performClick()
+        assertFalse("art_bad" in ParentalPolicyStore.current(app).blockedArtistIds)
+    }
 }

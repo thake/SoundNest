@@ -330,7 +330,7 @@ fun SongOptionsSheet(
                     tint = MenuGreen,
                 ) {
                     if (trackAllowed) io.github.thake.soundnest.parental.ParentalPolicyStore.clearTrackRule(context, normTrack)
-                    else io.github.thake.soundnest.parental.ParentalPolicyStore.allowTrack(context, normTrack)
+                    else io.github.thake.soundnest.parental.ParentalPolicyStore.allowTrack(context, normTrack, title = song.title, subtitle = song.singer)
                     toast(if (trackAllowed) "Removed track from allowlist" else "Track added to allowlist")
                     onDismiss()
                 }
@@ -339,7 +339,7 @@ fun SongOptionsSheet(
                     if (trackBlocked) "Parent: Unblock Track" else "Parent: Block Track",
                 ) {
                     if (trackBlocked) io.github.thake.soundnest.parental.ParentalPolicyStore.clearTrackRule(context, normTrack)
-                    else io.github.thake.soundnest.parental.ParentalPolicyStore.blockTrack(context, normTrack)
+                    else io.github.thake.soundnest.parental.ParentalPolicyStore.blockTrack(context, normTrack, title = song.title, subtitle = song.singer)
                     toast(if (trackBlocked) "Track unblocked" else "Track blocked")
                     onDismiss()
                 }
@@ -352,7 +352,7 @@ fun SongOptionsSheet(
                         tint = MenuGreen,
                     ) {
                         if (albumAllowed) io.github.thake.soundnest.parental.ParentalPolicyStore.clearAlbumRule(context, normAlbum)
-                        else io.github.thake.soundnest.parental.ParentalPolicyStore.allowAlbum(context, normAlbum)
+                        else io.github.thake.soundnest.parental.ParentalPolicyStore.allowAlbum(context, normAlbum, title = song.album, subtitle = song.singer)
                         toast(if (albumAllowed) "Removed album from allowlist" else "Album added to allowlist")
                         onDismiss()
                     }
