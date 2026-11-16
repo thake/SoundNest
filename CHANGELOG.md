@@ -1,8 +1,22 @@
 # Changelog
 
-Each release on GitHub shows its section below. The app shows it too when it offers the update. Every detail: [docs/CHANGELOG-full.md](docs/CHANGELOG-full.md).
+Release notes for **SoundNest** (`io.github.thake.soundnest`), followed by historical release notes from upstream [Orpheon / Myspoti](https://github.com/kota-zo/Orpheon).
 
-## 1.0.0
+## 1.0.0 — SoundNest
+
+- 🛡️ **SoundNest Fork & Package Rename (`io.github.thake.soundnest`)**: Clean GPL-3.0 fork of Orpheon dedicated to parent-controlled Spotify listening for children and teens (ages 9–16).
+- 🚫 **Zero Ad-Blocking, Extensions, or Unmoderated Surfaces**: Removed all ad-blocking, ad-muting, and SponsorBlock code, removed the extension runtime, YouTube Music / external catalog scrapers, audio downloader, Orpheon Pass, self-updater, Spotify Friend Activity, Music Videos, Canvas loops, and artist merch/concert prompts.
+- 🎵 **Spotify Free & Spotify Premium Support**: Free accounts stream via Spotify's official Web Player with unmodified audio ads and automatic live-playback parental skip/pause guards on server-shuffled tracks; Premium accounts additionally unlock the Native Media3 audio engine (`NativeAudio`), 10-band Equalizer, AutoMix beat-matched transitions, and cloud Spotify Connect on Trusted Home Wi-Fi.
+- 🔐 **Fail-Closed Parent PIN & Admin Session**: Mandatory 6+ digit Parent PIN onboarding (`PBKDF2-HMAC-SHA256` + Android Keystore `AES-GCM` envelope), exponential brute-force cooldowns, optional biometric unlock, and 5-minute auto-locking Admin Sessions protecting parental rules, account switching/sign-out, hidden songs, and diagnostic exports.
+- 🧭 **Hybrid Parental Filter & Deep-Link Guard**: Choose between **Filtered Open** (explicit toggle + artist/album/playlist/track/keyword/regex blocklists) and **Strict Allowlist** (approved items only, discovery vectors automatically disabled), enforced across UI, queues, Android Auto, widgets, and `open.spotify.com` / `spotify:` deep links.
+- 🏠 **Configurable Home Screen & Sibling Backup**: **Parent Picks** shelf, **Minimal Home Mode**, per-category and per-shelf visibility toggles, Read-Only Spotify Library lock, Trusted Home Wi-Fi speaker gating with custom speaker labels, kid-accessible **Sleep Timer**, and `soundnest-policy.json` export/import.
+- 📸 **Automated Documentation Screenshots**: Added `:app:generateDocScreenshots` powered by Roborazzi + Robolectric native graphics.
+
+---
+
+## Upstream History (Orpheon / Myspoti)
+
+### Orpheon 1.0.0
 
 - 🎉 **Myspoti is now Orpheon**, the name the community chose. It installs as a new app next to Myspoti: sign in again and add your extensions back, then Myspoti can go. Myspoti 2.4.1 offers to install it. The icon is a placeholder until the real one is made.
 - 🔗 **Sign in a computer from its QR code** with the phone's camera, and the first launch asks which music account you use (Spotify, YouTube Music or none) before any sign-in.

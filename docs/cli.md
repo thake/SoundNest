@@ -1,9 +1,9 @@
-# Driving the app over adb (`tools/myspoti-cli`) — Debug Builds Only
+# Driving the app over adb (`tools/soundnest-cli`) — Debug Builds Only
 
 Debug builds (`cliEnabled = true`) answer playback and AutoMix test commands sent over adb, so automated tests can inspect state without screenshots or taps. Non-debug builds disable `CliReceiver` in the manifest (`cliEnabled = false`) and refuse CLI broadcasts at runtime.
 
 ```bash
-tools/myspoti-cli [-p io.github.thake.orpheonkids.dev] [-s serial] [-t 40] [--raw] <command> [args…]
+tools/soundnest-cli [-p io.github.thake.soundnest.dev] [-s serial] [-t 40] [--raw] <command> [args…]
 ```
 
 Each command is one broadcast (`<package>.CLI`, guarded by `android.permission.DUMP`).

@@ -1,27 +1,35 @@
-# Contributing to Myspoti
+# Contributing to SoundNest
 
-Thanks for helping. Bug reports (with a diagnostic report from Settings), fixes and translations are all welcome.
+Thanks for helping make **SoundNest** safe, reliable, and enjoyable for families. Bug reports, parental-control improvements, accessibility enhancements, and translations are welcome.
 
-## Build and test
+## Build, test, and screenshots
 
-Requirements: JDK 17+ and the Android SDK (compileSdk 37). The Android project is in `base/`.
+Requirements: JDK 17+ (JDK 21 recommended) and the Android SDK (`compileSdk = 37`). The Android project lives in `base/`.
 
 ```bash
 cd base
 ./gradlew assembleDebug
-./gradlew :app:testDebugUnitTest :api-spotify:test
+./gradlew :api:test :api-spotify:test :automix:test :engine:jvmTest \
+          :engine-android:testDebugUnitTest :host-android:testDebugUnitTest \
+          :host-cdp:test :app:testDebugUnitTest
 ```
 
-Put your SDK path in `base/local.properties` (`sdk.dir=...`). The live API tests (`:host-cdp:test`) need a desktop Chrome signed in to the Web Player; see the README.
+If your change updates visible UI screens documented in `README.md`, regenerate the headless Roborazzi documentation screenshots:
+
+```bash
+cd base
+./gradlew :app:generateDocScreenshots
+```
+
+Put your SDK path in `base/local.properties` (`sdk.dir=...`). Live browser-bridge tests (`:host-cdp:test`) run offline unit checks by default and can optionally connect to a signed-in desktop Chromium instance.
 
 ## Changes
 
-- Keep a change focused, and write it like the code around it. Texts in the repository (code, comments, strings in `values/`, docs) are in English; translations go in the matching `values-xx/` folder.
-- Add or update a unit test when you fix a bug or change a rule.
-- Commit messages are one plain sentence in English that says what changes for the user (or what was wrong), not a list of files.
+- Develop changes in a **test-driven (TDD)** manner: add or update unit/Robolectric tests alongside every behavioral or parental-policy change (`@Config(sdk = [35])` for Robolectric tests in `:app`).
+- Keep changes focused and match surrounding Kotlin style. Repository code, comments, default strings (`values/`), and docs are in English; translations go in `values-xx/`.
 
 ## Rules
 
-- **Extensions API:** an extension call that is accepted today must never become an error. New fields and calls are fine; removing, renaming or tightening an existing one is not.
-- **Spotify:** Myspoti talks to Spotify the way its Web Player does. No contribution may bypass, weaken or work around Spotify's protections (DRM, licences, attestation, rate limits), and none may add a Spotify audio download or decryption.
-- **License:** Myspoti is GPL-3.0. Your contribution is released under the same license. If you reuse this code in another project, keep the notices, credit Myspoti (https://github.com/kota-zo/myspoti) and publish your complete source under GPL-3.0; closing the source or changing the license is a violation.
+- **Parental safety (fail closed):** new discovery surfaces, external content sources, or account/network actions must respect `ParentalPolicy`, `FeatureGates`, `ParentSecurityManager`, and `TrustedNetworkGate`.
+- **Spotify & zero circumvention:** SoundNest talks to Spotify the way its Web Player does and supports both Spotify Free and Spotify Premium accounts honestly. No contribution may add ad-blocking, ad-muting, SponsorBlock, audio downloading/decryption, scraper extensions, or workarounds against Spotify's DRM/attestation/rate limits.
+- **License (GPL-3.0):** SoundNest is free software under **GPL-3.0**, derived from [Orpheon / Myspoti](https://github.com/kota-zo/Orpheon). Your contribution is released under GPL-3.0. Any redistribution or fork must retain copyright notices, credit both **SoundNest** and **Orpheon / Myspoti**, and publish complete source code under GPL-3.0.
