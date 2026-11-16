@@ -146,7 +146,7 @@ private val ArtCorner = RoundedCornerShape(8.dp)
 private const val MIX_BEAT_GROW = 0.025f
 
 /** What the middle of the player shows. */
-private object Panel {
+internal object Panel {
     const val NONE = 0
     const val LYRICS = 1
     const val QUEUE = 2
@@ -260,6 +260,7 @@ fun ImmersivePlayer(
     actions: ImmersivePlayerActions,
     modifier: Modifier = Modifier,
     navController: NavController? = null,
+    initialPanel: Int = Panel.NONE,
 ) {
     val context = LocalContext.current
     val palette = rememberArtworkColors(state.coverUrl.takeIf { it.isNotBlank() })
@@ -271,7 +272,7 @@ fun ImmersivePlayer(
     val tintPalette = if (blend?.outgoingWords == true) outgoingPalette else palette
     val tint by animateColorAsState(playerTintOf(tintPalette), tween(io.github.thake.soundnest.ui.immersive.motion.ImmersiveMotion.TINT_MS), label = "playerTint")
 
-    var panel by rememberSaveable { mutableIntStateOf(Panel.NONE) }
+    var panel by rememberSaveable(initialPanel) { mutableIntStateOf(initialPanel) }
     var showMenu by remember { mutableStateOf(false) }
     var showDevices by remember { mutableStateOf(false) }
     var showQuality by remember { mutableStateOf(false) }

@@ -198,10 +198,10 @@ private fun episodeMinutesLabel(min: Long) = if (min >= 60) "${min / 60} h ${min
  * (Spotify, downloads and local files). Same counters as the Classic `RecapScreen`.
  */
 @Composable
-fun ImmersiveRecapScreen(navController: NavController) {
+fun ImmersiveRecapScreen(navController: NavController, initialTab: Int = 0) {
     val periods = listOf(R.string.recap_month to 30L, R.string.recap_year to 365L, R.string.recap_all to 36_500L)
     var period by rememberSaveable { mutableIntStateOf(1) }
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    var tab by rememberSaveable(initialTab) { mutableIntStateOf(initialTab) }
     // Off the main thread: the history file grows with every listen.
     val loaded by produceState<ListenHistory.Recap?>(null, period) {
         value = withContext(Dispatchers.IO) { ListenHistory.recap(System.currentTimeMillis() - periods[period].second * 86_400_000L) }

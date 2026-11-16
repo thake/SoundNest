@@ -520,7 +520,7 @@ fun ParentSecurityControlsSection(onOpenParentSettings: (() -> Unit)? = null) {
 }
 
 @Composable
-private fun ChangeParentPinDialog(onDismiss: () -> Unit) {
+internal fun ChangeParentPinDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
     var currentPin by remember { mutableStateOf("") }
     var newPin by remember { mutableStateOf("") }

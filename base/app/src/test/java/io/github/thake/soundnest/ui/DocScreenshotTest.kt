@@ -19,58 +19,205 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onRoot
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.github.takahirom.roborazzi.captureRoboImage
+import com.github.takahirom.roborazzi.captureScreenRoboImage
+import io.github.thake.soundnest.ConnectingScreen
+import io.github.thake.soundnest.LoginProblemScreen
+import io.github.thake.soundnest.api.Account
+import io.github.thake.soundnest.api.Album
+import io.github.thake.soundnest.api.AlbumRef
+import io.github.thake.soundnest.api.Artist
+import io.github.thake.soundnest.api.ArtistRef
+import io.github.thake.soundnest.api.Category
+import io.github.thake.soundnest.api.CreditRole
+import io.github.thake.soundnest.api.Credits
+import io.github.thake.soundnest.api.Device
+import io.github.thake.soundnest.api.Devices
+import io.github.thake.soundnest.api.Episode
+import io.github.thake.soundnest.api.Home
+import io.github.thake.soundnest.api.HomeFeed
+import io.github.thake.soundnest.api.HomeFilter
+import io.github.thake.soundnest.api.Image
+import io.github.thake.soundnest.api.Library
+import io.github.thake.soundnest.api.LibraryFilter
+import io.github.thake.soundnest.api.LibraryItem
+import io.github.thake.soundnest.api.MediaCard
+import io.github.thake.soundnest.api.MediaKind
+import io.github.thake.soundnest.api.Page
+import io.github.thake.soundnest.api.Shelf
+import io.github.thake.soundnest.api.Podcasts
+import io.github.thake.soundnest.api.RecentEntry
+import io.github.thake.soundnest.api.RecentItem
+import io.github.thake.soundnest.api.Recents
 import io.github.thake.soundnest.api.SoundNestApi
+import io.github.thake.soundnest.api.TopContent
+import io.github.thake.soundnest.api.Track
+import io.github.thake.soundnest.api.TrackExtras
+import io.github.thake.soundnest.api.Users
+import io.github.thake.soundnest.api.WhatsNewItem
+import io.github.thake.soundnest.api.WhatsNewState
 import io.github.thake.soundnest.data.api.Api
+import io.github.thake.soundnest.data.api.Response
+import io.github.thake.soundnest.data.entity.AccountModel
+import io.github.thake.soundnest.data.entity.AlbumsModel
+import io.github.thake.soundnest.data.entity.ArtistOverviewModel
+import io.github.thake.soundnest.data.entity.ArtistTrackUi
+import io.github.thake.soundnest.data.entity.ArtistsModel
+import io.github.thake.soundnest.data.entity.ContextPageModel
 import io.github.thake.soundnest.data.entity.HomeFeedModel
 import io.github.thake.soundnest.data.entity.HomeItem
 import io.github.thake.soundnest.data.entity.HomeSection
 import io.github.thake.soundnest.data.entity.LibraryEntry
+import io.github.thake.soundnest.data.entity.LyricLine
+import io.github.thake.soundnest.data.entity.Lyrics
+import io.github.thake.soundnest.data.entity.LyricsColors
+import io.github.thake.soundnest.data.entity.PodcastModel
+import io.github.thake.soundnest.data.entity.SearchResults
+import io.github.thake.soundnest.data.entity.ShowPage
+import io.github.thake.soundnest.data.entity.SongsModel
+import io.github.thake.soundnest.data.local.ListenHistory
+import io.github.thake.soundnest.data.local.LocalItem
+import io.github.thake.soundnest.data.local.LocalPlaylist
+import io.github.thake.soundnest.data.local.LocalPlaylists
+import io.github.thake.soundnest.data.preferences.HiddenSongs
 import io.github.thake.soundnest.data.preferences.Look
+import io.github.thake.soundnest.data.preferences.LookPref
+import io.github.thake.soundnest.data.preferences.setLibraryGridView
 import io.github.thake.soundnest.di.Graph
 import io.github.thake.soundnest.di.SongPlayer
 import io.github.thake.soundnest.host.android.AccountStore
 import io.github.thake.soundnest.host.android.SoundNestRuntime
 import io.github.thake.soundnest.host.android.WebPlayerHost
+import io.github.thake.soundnest.parental.AppSurface
+import io.github.thake.soundnest.parental.ChangeParentPinDialog
 import io.github.thake.soundnest.parental.FilterMode
 import io.github.thake.soundnest.parental.HomeSectionConfig
 import io.github.thake.soundnest.parental.NetworkSnapshot
+import io.github.thake.soundnest.parental.ParentPinPromptHost
 import io.github.thake.soundnest.parental.ParentPinSetupScreen
 import io.github.thake.soundnest.parental.ParentSecurityManager
 import io.github.thake.soundnest.parental.ParentSettingsScreen
 import io.github.thake.soundnest.parental.ParentalPolicy
 import io.github.thake.soundnest.parental.ParentalPolicyStore
 import io.github.thake.soundnest.parental.TrustedNetworkGate
+import io.github.thake.soundnest.radio.RadioFavorite
+import io.github.thake.soundnest.radio.RadioFavoritesStore
+import io.github.thake.soundnest.radio.RadioStation
+import io.github.thake.soundnest.radio.ui.ImmersiveLiveRadioScreen
+import io.github.thake.soundnest.radio.ui.LiveRadioScreen
+import io.github.thake.soundnest.ui.components.AboutSheet
+import io.github.thake.soundnest.ui.components.DevicesSheet
+import io.github.thake.soundnest.ui.components.EpisodeOptionsSheet
+import io.github.thake.soundnest.ui.components.LoginHelpDialog
+import io.github.thake.soundnest.ui.components.PlaylistOptionsSheet
 import io.github.thake.soundnest.ui.components.ProvideWindowSize
+import io.github.thake.soundnest.ui.components.QualitySheet
+import io.github.thake.soundnest.ui.components.SleepTimerSheet
+import io.github.thake.soundnest.ui.components.SongOptionsSheet
+import io.github.thake.soundnest.ui.components.StatsForNerdsSheet
 import io.github.thake.soundnest.ui.components.WindowSize
 import io.github.thake.soundnest.ui.components.windowSize
+import io.github.thake.soundnest.ui.immersive.pages.ImmersiveEpisodeScreen
+import io.github.thake.soundnest.ui.immersive.pages.ImmersiveEpisodesScreen
+import io.github.thake.soundnest.ui.immersive.pages.ImmersiveEqualizerScreen
+import io.github.thake.soundnest.ui.immersive.pages.ImmersiveFolderScreen
+import io.github.thake.soundnest.ui.immersive.pages.ImmersiveHiddenSongsScreen
+import io.github.thake.soundnest.ui.immersive.pages.ImmersiveLocalFilesScreen
+import io.github.thake.soundnest.ui.immersive.pages.ImmersiveLocalPlaylistScreen
+import io.github.thake.soundnest.ui.immersive.pages.ImmersiveNewEpisodesScreen
+import io.github.thake.soundnest.ui.immersive.pages.ImmersiveNewReleasesScreen
+import io.github.thake.soundnest.ui.immersive.pages.ImmersiveQueueScreen
+import io.github.thake.soundnest.ui.immersive.pages.ImmersiveRecapScreen
+import io.github.thake.soundnest.ui.immersive.pages.ImmersiveRecentlyPlayedScreen
+import io.github.thake.soundnest.ui.immersive.pages.ImmersiveSettingsScreen
+import io.github.thake.soundnest.ui.immersive.pages.ImmersiveWhatsNewScreen
+import io.github.thake.soundnest.ui.immersive.pages.SettingsPage
 import io.github.thake.soundnest.ui.immersive.player.ImmersiveMiniPlayer
 import io.github.thake.soundnest.ui.immersive.player.ImmersivePlayer
 import io.github.thake.soundnest.ui.immersive.player.ImmersivePlayerActions
 import io.github.thake.soundnest.ui.immersive.player.ImmersivePlayerState
+import io.github.thake.soundnest.ui.immersive.player.ImmersivePodcastPlayer
 import io.github.thake.soundnest.ui.immersive.player.ImmersiveRepeat
+import io.github.thake.soundnest.ui.immersive.player.Panel
+import io.github.thake.soundnest.ui.immersive.podcast.ImmersiveShowScreen
+import io.github.thake.soundnest.ui.immersive.screens.ImmersiveArtistReleasesScreen
+import io.github.thake.soundnest.ui.immersive.screens.ImmersiveArtistScreen
+import io.github.thake.soundnest.ui.immersive.screens.ImmersiveCategoryScreen
+import io.github.thake.soundnest.ui.immersive.screens.ImmersiveContextScreen
 import io.github.thake.soundnest.ui.immersive.screens.ImmersiveHomeScreen
+import io.github.thake.soundnest.ui.immersive.screens.ImmersiveLibraryScreen
+import io.github.thake.soundnest.ui.immersive.screens.ImmersiveProfileSheet
+import io.github.thake.soundnest.ui.immersive.screens.ImmersiveSearchScreen
+import io.github.thake.soundnest.ui.immersive.sheets.ImmersiveSleepTimerSheet
+import io.github.thake.soundnest.ui.immersive.sheets.ImmersiveSongOptionsSheet
 import io.github.thake.soundnest.ui.immersive.shell.ImmersiveBottomChrome
 import io.github.thake.soundnest.ui.immersive.shell.LocalImmersiveChrome
 import io.github.thake.soundnest.ui.immersive.shell.rememberImmersiveChromeState
 import io.github.thake.soundnest.ui.look.LocalLook
+import io.github.thake.soundnest.ui.look.LookOffer
+import io.github.thake.soundnest.ui.look.LookStep
 import io.github.thake.soundnest.ui.navigation.MainBottomNavigation
 import io.github.thake.soundnest.ui.navigation.MainNavigationRail
 import io.github.thake.soundnest.ui.navigation.Routes
+import io.github.thake.soundnest.ui.screens.ArtistReleasesScreen
+import io.github.thake.soundnest.ui.screens.ArtistScreen
+import io.github.thake.soundnest.ui.screens.CategoryScreen
+import io.github.thake.soundnest.ui.screens.ContextScreen
+import io.github.thake.soundnest.ui.screens.ContextViewModel
+import io.github.thake.soundnest.ui.screens.EpisodeScreen
+import io.github.thake.soundnest.ui.screens.EpisodesScreen
+import io.github.thake.soundnest.ui.screens.EqualizerScreen
+import io.github.thake.soundnest.ui.screens.FolderScreen
+import io.github.thake.soundnest.ui.screens.HiddenSongsScreen
+import io.github.thake.soundnest.ui.screens.HomeScreen
+import io.github.thake.soundnest.ui.screens.LibraryScreen
+import io.github.thake.soundnest.ui.screens.LocalFilesScreen
+import io.github.thake.soundnest.ui.screens.LocalPlaylistScreen
+import io.github.thake.soundnest.ui.screens.LyricsScreen
+import io.github.thake.soundnest.ui.screens.NewEpisodesScreen
+import io.github.thake.soundnest.ui.screens.NewReleasesScreen
+import io.github.thake.soundnest.ui.screens.PlayerScreen
+import io.github.thake.soundnest.ui.screens.PodcastPlayerScreen
+import io.github.thake.soundnest.ui.screens.QueueScreen
+import io.github.thake.soundnest.ui.screens.RecapScreen
+import io.github.thake.soundnest.ui.screens.RecentlyPlayedScreen
+import io.github.thake.soundnest.ui.screens.STEP_INTRO
+import io.github.thake.soundnest.ui.screens.STEP_LOOK
+import io.github.thake.soundnest.ui.screens.STEP_PERMISSIONS
+import io.github.thake.soundnest.ui.screens.STEP_QUALITY
+import io.github.thake.soundnest.ui.screens.SearchScreen
 import io.github.thake.soundnest.ui.screens.SettingsScreen
+import io.github.thake.soundnest.ui.screens.SetupScreen
+import io.github.thake.soundnest.ui.screens.ShowScreen
+import io.github.thake.soundnest.ui.screens.WelcomeScreen
+import io.github.thake.soundnest.ui.screens.WhatsNewScreen
 import io.github.thake.soundnest.ui.theme.SpotuiTheme
+import io.github.thake.soundnest.ui.viewmodel.ArtistViewModel
+import io.github.thake.soundnest.ui.viewmodel.CategoryViewModel
+import io.github.thake.soundnest.ui.viewmodel.EpisodeViewModel
+import io.github.thake.soundnest.ui.viewmodel.LibraryViewModel
+import io.github.thake.soundnest.ui.viewmodel.LyricsViewModel
+import io.github.thake.soundnest.ui.viewmodel.SearchViewModel
+import io.github.thake.soundnest.ui.viewmodel.ShowViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -97,13 +244,15 @@ import kotlin.coroutines.Continuation
 import kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
 
 /**
- * On-demand headless documentation screenshot generator powered by Roborazzi + Robolectric native graphics.
+ * Complete headless documentation & UX screenshot catalog generator powered by Roborazzi + Robolectric native graphics.
  *
  * Skipped during regular `:app:testDebugUnitTest` runs so unit tests stay fast.
  * Run explicitly via:
  *   `./gradlew :app:generateDocScreenshots`
  *
- * Outputs deterministic PNG screenshots directly to `docs/screenshots/`.
+ * Outputs deterministic PNG screenshots for every reachable screen, look (`Classic` & `Immersive`),
+ * onboarding step, parental gate, player panel, settings sub-page, and bottom sheet/dialog into `docs/screenshots/`,
+ * plus an auto-generated `docs/screenshots/README.md` catalog index.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -113,11 +262,25 @@ class DocScreenshotTest {
     @get:Rule
     val rule = createAndroidComposeRule<ComponentActivity>()
 
+    private lateinit var hostActivity: ComponentActivity
     private lateinit var outputDir: File
     private lateinit var covers: Map<String, String>
+    private var spotifyJob: kotlinx.coroutines.CompletableJob? = null
 
     private val approvedPlaylists = setOf("ghibli", "roadtrip", "curious")
     private val approvedAlbums = setOf("planets", "dragon")
+    private val approvedArtists = setOf("holst", "hisaishi")
+
+    private data class ShotSpec(
+        val id: String,
+        val category: String,
+        val relativePath: String,
+        val title: String,
+        val description: String,
+        val look: Look,
+        val prepare: (Application) -> Unit = {},
+        val content: @Composable () -> Unit,
+    )
 
     @Before
     fun setUp() {
@@ -125,126 +288,149 @@ class DocScreenshotTest {
             "DocScreenshotTest runs only via :app:generateDocScreenshots",
             System.getProperty("soundnest.docScreenshots") == "true",
         )
+        hostActivity = rule.activity
         val app = RuntimeEnvironment.getApplication()
         Graph::class.java.getDeclaredField("app").apply { isAccessible = true }.set(null, app)
 
-        ParentSecurityManager.resetForTests(app)
-        ParentalPolicyStore.resetForTests(app)
-        TrustedNetworkGate.resetForTests(app)
-        TrustedNetworkGate.snapshotOverride = {
-            NetworkSnapshot(
-                onWifi = true,
-                ssid = "FamilyHomeWiFi",
-                bssid = "aa:bb:cc:dd:ee:01",
-            )
-        }
-        TrustedNetworkGate.addTrustedWifi(app, "FamilyHomeWiFi", "aa:bb:cc:dd:ee:01")
-        SongPlayer.setSleepTimer(null)
-
         val dirProp = System.getProperty("soundnest.docScreenshotsDir")
         outputDir = (if (!dirProp.isNullOrBlank()) File(dirProp) else File("../docs/screenshots")).apply { mkdirs() }
+        listOf("onboarding", "parental", "classic", "immersive", "sheets").forEach { sub ->
+            File(outputDir, sub).mkdirs()
+        }
+
         val coverDir = File(app.cacheDir, "doc_covers").apply { mkdirs() }
         covers = generateProceduralCovers(coverDir)
 
-        seedCurrentSong(
-            title = "Clair de Lune",
-            artist = "Claude Debussy",
-            album = "Suite bergamasque",
-            coverUri = covers.getValue("debussy"),
-        )
-        offlineRuntime()
         bareHost()
+        installRichFakeApi()
+        seedAllStoresAndViewModels(app)
     }
 
     @After
     fun tearDown() {
         val app = RuntimeEnvironment.getApplication()
         SongPlayer.setSleepTimer(null)
+        ParentSecurityManager.dismissPrompt()
         ParentSecurityManager.resetForTests(app)
         ParentalPolicyStore.resetForTests(app)
         TrustedNetworkGate.resetForTests(app)
+        setLibraryGridView(app, false)
+        LookPref.set(app, Look.CLASSIC)
         Api.HomeCache.clear()
+        ContextViewModel.clearCache()
+        ListenHistory.clear()
+        LocalPlaylists.playlists.clear()
+        RadioFavoritesStore.favorites.clear()
+        spotifyJob?.cancel()
+        spotifyJob = null
         runCatching {
             SoundNestRuntime::class.java.getDeclaredField("host").apply { isAccessible = true }
                 .set(SoundNestRuntime, null)
         }
     }
 
+    @OptIn(com.github.takahirom.roborazzi.ExperimentalRoborazziApi::class)
     @Test
-    fun immersiveHome() {
+    fun generateCompleteCatalog() {
         val app = RuntimeEnvironment.getApplication()
-        ParentSecurityManager.setupInitialPin(app, "246810")
-        ParentSecurityManager.lockNow(app)
-        ParentalPolicyStore.replace(
-            app,
-            ParentalPolicy(
-                filterMode = FilterMode.FILTERED_OPEN,
-                blockExplicit = true,
-                allowedPlaylistIds = approvedPlaylists,
-                allowedAlbumIds = approvedAlbums,
-                allowPodcasts = false,
-                allowAudiobooks = false,
-                homeSections = HomeSectionConfig(
-                    minimalHomeMode = false,
-                    showParentPicks = true,
-                    showChartsAndTrending = false,
-                ),
-            ),
-        )
-        seedFeedAndLibraryCache()
-        shootDoc("immersive-home", Look.IMMERSIVE) {
-            ImmersiveShell(Routes.Home.route, capped = false) { nav ->
-                ImmersiveHomeScreen(nav)
+        val shots = buildCompleteCatalog()
+
+        var activeShot by mutableStateOf<ShotSpec?>(null)
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            val shot = activeShot
+            if (shot != null) {
+                key(shot.id) {
+                    SpotuiTheme {
+                        CompositionLocalProvider(LocalLook provides shot.look) {
+                            ProvideWindowSize {
+                                Box(
+                                    Modifier
+                                        .fillMaxSize()
+                                        .background(if (shot.look == Look.IMMERSIVE) Color.Black else Color(0xFF121212)),
+                                ) {
+                                    shot.content()
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                Box(Modifier.fillMaxSize().background(Color.Black))
             }
         }
-    }
 
-    @Test
-    fun minimalHome() {
-        val app = RuntimeEnvironment.getApplication()
-        ParentSecurityManager.setupInitialPin(app, "246810")
-        ParentSecurityManager.lockNow(app)
-        ParentalPolicyStore.replace(
-            app,
-            ParentalPolicy(
-                filterMode = FilterMode.STRICT_ALLOWLIST,
-                blockExplicit = true,
-                allowedPlaylistIds = approvedPlaylists,
-                allowedAlbumIds = approvedAlbums,
-                allowPodcasts = false,
-                allowAudiobooks = false,
-                homeSections = HomeSectionConfig(
-                    minimalHomeMode = true,
-                    showFilterChips = false,
-                    showWhatsNewBell = false,
-                    showParentPicks = true,
-                ),
-            ),
-        )
-        seedFeedAndLibraryCache()
-        shootDoc("minimal-home", Look.IMMERSIVE) {
-            ImmersiveShell(Routes.Home.route, capped = false) { nav ->
-                ImmersiveHomeScreen(nav)
+        for (shot in shots) {
+            // Clear any open dialog/sheet window from the previous shot before preparing the next one.
+            activeShot = null
+            ParentSecurityManager.dismissPrompt()
+            ShadowLooper.idleMainLooper(40, TimeUnit.MILLISECONDS)
+            rule.mainClock.advanceTimeBy(80)
+
+            resetShotDefaults(app, shot.look)
+            shot.prepare(app)
+
+            activeShot = shot
+            repeat(14) {
+                Thread.sleep(25)
+                ShadowLooper.idleMainLooper(80, TimeUnit.MILLISECONDS)
+                rule.mainClock.advanceTimeBy(120)
             }
+            ShadowLooper.idleMainLooper(100, TimeUnit.MILLISECONDS)
+            rule.mainClock.advanceTimeBy(400)
+
+            val target = File(outputDir, shot.relativePath)
+            target.parentFile?.mkdirs()
+            captureScreenRoboImage(target)
+            assertRenderedNonBlank(shot.relativePath, target)
         }
+
+        activeShot = null
+        ParentSecurityManager.dismissPrompt()
+        ShadowLooper.idleMainLooper(60, TimeUnit.MILLISECONDS)
+        rule.mainClock.advanceTimeBy(120)
+
+        writeCatalogReadme(shots)
     }
 
-    @Test
-    fun parentPinGate() {
-        val app = RuntimeEnvironment.getApplication()
+    private fun assertRenderedNonBlank(relativePath: String, target: File) {
+        assertTrue("Expected screenshot ${target.absolutePath} to exist", target.exists())
+        val bmp = android.graphics.BitmapFactory.decodeFile(target.absolutePath)
+        assertTrue("Expected screenshot $relativePath to decode as Bitmap", bmp != null)
+        val firstPixel = bmp!!.getPixel(0, 0)
+        var nonUniformPixels = 0
+        val stepX = (bmp.width / 64).coerceAtLeast(1)
+        val stepY = (bmp.height / 128).coerceAtLeast(1)
+        var y = 0
+        while (y < bmp.height) {
+            var x = 0
+            while (x < bmp.width) {
+                if (bmp.getPixel(x, y) != firstPixel) nonUniformPixels++
+                x += stepX
+            }
+            y += stepY
+        }
+        bmp.recycle()
+        assertTrue(
+            "Expected screenshot $relativePath to contain rendered UI pixels (found $nonUniformPixels non-background samples)",
+            nonUniformPixels >= 5,
+        )
+    }
+
+    private fun resetShotDefaults(app: Application, look: Look) {
+        LookPref.set(app, look)
+        setLibraryGridView(app, false)
+        SongPlayer.setSleepTimer(null)
         ParentSecurityManager.resetForTests(app)
-        shootDoc("parent-pin-gate", Look.CLASSIC) {
-            ParentPinSetupScreen(
-                onPinConfigured = {},
-                onSwitchOrLogout = {},
-            )
-        }
-    }
-
-    @Test
-    fun parentDashboard() {
-        val app = RuntimeEnvironment.getApplication()
         ParentSecurityManager.setupInitialPin(app, "246810")
+        ParentSecurityManager.lockNow(app)
+
+        TrustedNetworkGate.resetForTests(app)
+        TrustedNetworkGate.snapshotOverride = {
+            NetworkSnapshot(onWifi = true, ssid = "FamilyHomeWiFi", bssid = "aa:bb:cc:dd:ee:01")
+        }
+        TrustedNetworkGate.addTrustedWifi(app, "FamilyHomeWiFi", "aa:bb:cc:dd:ee:01")
+
         ParentalPolicyStore.replace(
             app,
             ParentalPolicy(
@@ -252,62 +438,1156 @@ class DocScreenshotTest {
                 blockExplicit = true,
                 allowedPlaylistIds = approvedPlaylists,
                 allowedAlbumIds = approvedAlbums,
+                allowedArtistIds = approvedArtists,
                 blockedKeywords = setOf("explicit remix"),
-                allowPodcasts = false,
-                allowAudiobooks = false,
+                allowPodcasts = true,
+                allowAudiobooks = true,
                 allowLyrics = true,
+                allowLocalFiles = true,
+                allowLiveRadio = true,
+                allowAutoplayAndRadio = true,
                 readOnlySpotifyLibrary = true,
                 homeSections = HomeSectionConfig(
-                    showChartsAndTrending = false,
-                    showMixesAndMadeForYou = false,
+                    minimalHomeMode = false,
+                    showFilterChips = true,
+                    showWhatsNewBell = true,
                     showParentPicks = true,
+                    showChartsAndTrending = false,
                 ),
             ),
         )
+
         seedFeedAndLibraryCache()
-        shootDoc("parent-dashboard", Look.CLASSIC) {
-            val nav = rememberNavController()
-            ParentSettingsScreen(navController = nav)
-        }
+        seedMusicNowPlaying()
     }
 
-    @Test
-    fun kidSettings() {
-        val app = RuntimeEnvironment.getApplication()
-        ParentSecurityManager.setupInitialPin(app, "246810")
-        ParentSecurityManager.lockNow(app)
-        shootDoc("kid-settings", Look.CLASSIC) {
+    private fun buildCompleteCatalog(): List<ShotSpec> {
+        val shots = mutableListOf<ShotSpec>()
+        fun add(
+            category: String,
+            relativePath: String,
+            title: String,
+            description: String,
+            look: Look,
+            prepare: (Application) -> Unit = {},
+            content: @Composable () -> Unit,
+        ) {
+            shots += ShotSpec(
+                id = relativePath,
+                category = category,
+                relativePath = relativePath,
+                title = title,
+                description = description,
+                look = look,
+                prepare = prepare,
+                content = content,
+            )
+        }
+
+        val immersivePlayerState = {
+            ImmersivePlayerState(
+                song = sampleTrackSongs().first(),
+                title = "Jupiter, the Bringer of Jollity",
+                artist = "Gustav Holst • London Symphony",
+                album = "The Planets, Op. 32",
+                coverUrl = covers.getValue("planets"),
+                playing = true,
+                positionMs = { 142_000L },
+                durationMs = 478_000L,
+                shuffle = false,
+                repeatMode = ImmersiveRepeat.ALL,
+                liked = true,
+                contextName = "Parent Picks • Classical",
+            )
+        }
+
+        val filteredOpenPrep: (Application) -> Unit = { app ->
+            ParentalPolicyStore.replace(
+                app,
+                ParentalPolicy(
+                    filterMode = FilterMode.FILTERED_OPEN,
+                    blockExplicit = true,
+                    allowedPlaylistIds = approvedPlaylists,
+                    allowedAlbumIds = approvedAlbums,
+                    allowedArtistIds = approvedArtists,
+                    allowPodcasts = false,
+                    allowAudiobooks = false,
+                    homeSections = HomeSectionConfig(
+                        minimalHomeMode = false,
+                        showParentPicks = true,
+                        showChartsAndTrending = false,
+                    ),
+                ),
+            )
+            seedFeedAndLibraryCache()
+        }
+
+        val strictMinimalPrep: (Application) -> Unit = { app ->
+            ParentalPolicyStore.replace(
+                app,
+                ParentalPolicy(
+                    filterMode = FilterMode.STRICT_ALLOWLIST,
+                    blockExplicit = true,
+                    allowedPlaylistIds = approvedPlaylists,
+                    allowedAlbumIds = approvedAlbums,
+                    allowedArtistIds = approvedArtists,
+                    allowPodcasts = false,
+                    allowAudiobooks = false,
+                    homeSections = HomeSectionConfig(
+                        minimalHomeMode = true,
+                        showFilterChips = false,
+                        showWhatsNewBell = false,
+                        showParentPicks = true,
+                    ),
+                ),
+            )
+            seedFeedAndLibraryCache()
+        }
+
+        val parentAdminPrep: (Application) -> Unit = { app ->
+            ParentSecurityManager.resetForTests(app)
+            ParentSecurityManager.setupInitialPin(app, "246810")
+            // setupInitialPin grants a 5-minute Admin Session
+            ParentalPolicyStore.replace(
+                app,
+                ParentalPolicy(
+                    filterMode = FilterMode.FILTERED_OPEN,
+                    blockExplicit = true,
+                    allowedPlaylistIds = approvedPlaylists,
+                    allowedAlbumIds = approvedAlbums,
+                    allowedArtistIds = approvedArtists,
+                    blockedKeywords = setOf("explicit remix"),
+                    allowPodcasts = false,
+                    allowAudiobooks = false,
+                    allowLyrics = true,
+                    readOnlySpotifyLibrary = true,
+                    homeSections = HomeSectionConfig(
+                        showChartsAndTrending = false,
+                        showMixesAndMadeForYou = false,
+                        showParentPicks = true,
+                    ),
+                ),
+            )
+            seedFeedAndLibraryCache()
+        }
+
+        // ── 1. Hero Screenshots (README.md top-level files) ──
+        add("Hero Overview", "immersive-home.png", "Immersive Home (Filtered Open)", "Curated shelves, Parent Picks, and floating glass mini-player.", Look.IMMERSIVE, filteredOpenPrep) {
+            ImmersiveShell(Routes.Home.route, capped = false) { nav -> ImmersiveHomeScreen(nav) }
+        }
+        add("Hero Overview", "minimal-home.png", "Minimal Home (Strict Allowlist)", "Distraction-free home showing only parent-approved playlists and albums.", Look.IMMERSIVE, strictMinimalPrep) {
+            ImmersiveShell(Routes.Home.route, capped = false) { nav -> ImmersiveHomeScreen(nav) }
+        }
+        add("Hero Overview", "parent-pin-gate.png", "Mandatory Parent PIN Gate", "Post-login security gate supporting a 4+ character PIN or password.", Look.CLASSIC, prepare = { app ->
+            ParentSecurityManager.resetForTests(app)
+        }) {
+            ParentPinSetupScreen(onPinConfigured = {}, onSwitchOrLogout = {})
+        }
+        add("Hero Overview", "parent-dashboard.png", "Parental Controls Dashboard", "PIN-locked configuration for filter modes, allowlists, and feature gates.", Look.CLASSIC, parentAdminPrep) {
+            ParentSettingsScreen(navController = rememberNavController())
+        }
+        add("Hero Overview", "kid-settings.png", "Kid-Accessible Settings", "Audio, appearance, and locked Parental Controls card.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav) }
+        }
+        add("Hero Overview", "immersive-player.png", "Immersive Full-Screen Player", "Full-screen artwork mesh backdrop, scrubber, sleep timer, and transport controls.", Look.IMMERSIVE, prepare = {
+            SongPlayer.setSleepTimer(30)
+        }) {
+            ImmersivePlayer(state = immersivePlayerState(), actions = ImmersivePlayerActions(), navController = rememberNavController())
+        }
+
+        // ── 2. Onboarding & Session States ──
+        add("Onboarding & Session", "onboarding/01-welcome.png", "Welcome Screen", "First-launch landing screen before Spotify login.", Look.CLASSIC) {
+            WelcomeScreen(onLogin = {})
+        }
+        add("Onboarding & Session", "onboarding/02-login-help-dialog.png", "Sign-In Help Dialog", "Troubleshooting modal explaining Spotify WebView sign-in options.", Look.CLASSIC) {
+            WelcomeScreen(onLogin = {})
+            LoginHelpDialog(onClose = {})
+        }
+        add("Onboarding & Session", "onboarding/03-connecting.png", "Connecting Session", "Startup loading screen while verifying the Spotify WebPlayer session.", Look.CLASSIC) {
+            ConnectingScreen()
+        }
+        add("Onboarding & Session", "onboarding/04-login-problem.png", "Connection Problem", "Offline or session verification failure screen with retry action.", Look.CLASSIC) {
+            LoginProblemScreen(onRetry = {})
+        }
+        add("Onboarding & Session", "onboarding/05-setup-intro.png", "Setup Step 1: Intro", "Initial onboarding welcome step after Spotify sign-in.", Look.CLASSIC) {
+            SetupScreen(onDone = {}, initialStep = STEP_INTRO)
+        }
+        add("Onboarding & Session", "onboarding/06-setup-look-classic.png", "Setup Step 2: Look (Classic)", "Live look chooser previewing the Classic dark layout.", Look.CLASSIC) {
+            SetupScreen(onDone = {}, initialStep = STEP_LOOK)
+        }
+        add("Onboarding & Session", "onboarding/07-setup-look-immersive.png", "Setup Step 2: Look (Immersive)", "Live look chooser previewing the Immersive mesh-glass layout.", Look.IMMERSIVE) {
+            SetupScreen(onDone = {}, initialStep = STEP_LOOK)
+        }
+        add("Onboarding & Session", "onboarding/08-setup-quality.png", "Setup Step 3: Audio Quality", "Streaming quality selection for Wi-Fi and mobile data.", Look.CLASSIC) {
+            SetupScreen(onDone = {}, initialStep = STEP_QUALITY)
+        }
+        add("Onboarding & Session", "onboarding/09-setup-permissions.png", "Setup Step 4: Permissions", "Notification & background playback permission prompt step.", Look.CLASSIC) {
+            SetupScreen(onDone = {}, initialStep = STEP_PERMISSIONS)
+        }
+
+        // ── 3. Parental Controls & Security Gates ──
+        add("Parental Controls & Security", "parental/01-pin-setup.png", "Initial Parent PIN / Password Setup", "Mandatory setup screen with 4+ character PIN or password and trusted Wi-Fi option.", Look.CLASSIC, prepare = { app ->
+            ParentSecurityManager.resetForTests(app)
+        }) {
+            ParentPinSetupScreen(onPinConfigured = {}, onSwitchOrLogout = {})
+        }
+        add("Parental Controls & Security", "parental/02-pin-unlock-prompt.png", "Parent Unlock Prompt", "Modal PIN/password prompt when tapping Unlock Parental Controls.", Look.CLASSIC, prepare = { app ->
+            ParentSecurityManager.runProtected(app, AppSurface.PARENT_CONTROLS) {}
+        }) {
+            ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav) }
+            ParentPinPromptHost()
+        }
+        add("Parental Controls & Security", "parental/03-pin-unlock-lockout.png", "Brute-Force Cooldown Lockout", "Exponential backoff lockout state after 5 failed PIN attempts.", Look.CLASSIC, prepare = { app ->
+            repeat(5) { ParentSecurityManager.verifyPin(app, "wrong") }
+            ParentSecurityManager.runProtected(app, AppSurface.PARENT_CONTROLS) {}
+        }) {
+            ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav) }
+            ParentPinPromptHost()
+        }
+        add("Parental Controls & Security", "parental/04-change-pin-dialog.png", "Change Parent PIN / Password Dialog", "Modal dialog to update the current parent PIN or password.", Look.CLASSIC, parentAdminPrep) {
+            ParentSettingsScreen(navController = rememberNavController())
+            ChangeParentPinDialog(onDismiss = {})
+        }
+        add("Parental Controls & Security", "parental/05-dashboard-top.png", "Dashboard: Security & Filter Mode", "Admin session status, PIN change, Filter Mode selector, and explicit/keyword rules.", Look.CLASSIC, parentAdminPrep) {
+            ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(0, 0))
+        }
+        add("Parental Controls & Security", "parental/06-dashboard-allowlists.png", "Dashboard: Content Allowlists", "Approved playlists, albums, and artists pickers & chips.", Look.CLASSIC, parentAdminPrep) {
+            ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(1, 520))
+        }
+        add("Parental Controls & Security", "parental/07-dashboard-home-sections.png", "Dashboard: Home Customization", "Minimal Home mode, Parent Picks shelf, and shelf visibility toggles.", Look.CLASSIC, parentAdminPrep) {
+            ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(2, 0))
+        }
+        add("Parental Controls & Security", "parental/08-dashboard-feature-gates.png", "Dashboard: Feature Gates", "Granular switches for podcasts, audiobooks, lyrics, radio, local files, and library edits.", Look.CLASSIC, parentAdminPrep) {
+            ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(3, 0))
+        }
+        add("Parental Controls & Security", "parental/09-dashboard-speakers-network.png", "Dashboard: Speakers & Trusted Wi-Fi", "Trusted home Wi-Fi SSIDs and Spotify Connect speaker visibility rules.", Look.CLASSIC, parentAdminPrep) {
+            ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(4, 0))
+        }
+        add("Parental Controls & Security", "parental/10-dashboard-backup-restore.png", "Dashboard: Encrypted Config Backup", "Passphrase-encrypted parental policy export and import.", Look.CLASSIC, parentAdminPrep) {
+            ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(5, 0))
+        }
+        add("Parental Controls & Security", "parental/11-settings-admin-unlocked.png", "Settings (Admin Session Active)", "Parental Controls banner in Settings while the 5-minute Admin Session is unlocked.", Look.CLASSIC, parentAdminPrep) {
+            ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav) }
+        }
+
+        // ── 4. Classic Look — Complete Screen & Settings Catalog ──
+        add("Classic Look", "classic/01-home-filtered-open.png", "Home (Filtered Open)", "Classic Home with filter chips, shortcuts, and family-friendly shelves.", Look.CLASSIC, filteredOpenPrep) {
+            ClassicShell(Routes.Home.route, capped = false) { nav -> HomeScreen(nav) }
+        }
+        add("Classic Look", "classic/02-home-strict-minimal.png", "Home (Strict Minimal)", "Classic Home in Strict Allowlist + Minimal Home mode.", Look.CLASSIC, strictMinimalPrep) {
+            ClassicShell(Routes.Home.route, capped = false) { nav -> HomeScreen(nav) }
+        }
+        add("Classic Look", "classic/03-search-browse-idle.png", "Search (Browse Categories)", "Classic Search idle state displaying Spotify genre browse cards.", Look.CLASSIC, prepare = {
+            seedSearchIdle()
+        }) {
+            ClassicShell(Routes.Search.route, capped = false) { nav -> SearchScreen(nav) }
+        }
+        add("Classic Look", "classic/04-search-results.png", "Search (Results)", "Classic Search with query, filter chips, and mixed track/artist/album hits.", Look.CLASSIC, prepare = {
+            seedSearchPopulated()
+        }) {
+            ClassicShell(Routes.Search.route, capped = false) { nav -> SearchScreen(nav) }
+        }
+        add("Classic Look", "classic/05-library-list.png", "Library (List View)", "Classic Your Library in list mode with playlists, albums, and artists.", Look.CLASSIC) {
+            ClassicShell(Routes.Library.route, capped = false) { nav -> LibraryScreen(nav) }
+        }
+        add("Classic Look", "classic/06-library-grid.png", "Library (Grid View)", "Classic Your Library in cover grid mode.", Look.CLASSIC, prepare = { app ->
+            setLibraryGridView(app, true)
+        }) {
+            ClassicShell(Routes.Library.route, capped = false) { nav -> LibraryScreen(nav) }
+        }
+        add("Classic Look", "classic/07-playlist-detail.png", "Playlist Detail", "Classic Playlist screen with cover header, play/shuffle controls, and tracks.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> ContextScreen(nav, type = "playlist", id = "ghibli") }
+        }
+        add("Classic Look", "classic/08-album-detail.png", "Album Detail", "Classic Album screen with release metadata, tracklist, and copyright footer.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> ContextScreen(nav, type = "album", id = "planets") }
+        }
+        add("Classic Look", "classic/09-liked-songs.png", "Liked Songs", "Classic Liked Songs collection view.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> ContextScreen(nav, type = "liked", id = "") }
+        }
+        add("Classic Look", "classic/10-artist-overview.png", "Artist Overview", "Classic Artist page with monthly listeners, top tracks, releases, and related artists.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> ArtistScreen(nav, "Gustav Holst", "holst") }
+        }
+        add("Classic Look", "classic/11-artist-releases.png", "Artist Discography", "Classic Artist Releases screen with spotlight and Album/Single filter chips.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> ArtistReleasesScreen(nav, "Gustav Holst", "holst") }
+        }
+        add("Classic Look", "classic/12-category-browse.png", "Genre / Category Browse", "Classic Category playlist grid.", Look.CLASSIC) {
+            ClassicShell(Routes.Category.route, capped = false) { nav -> CategoryScreen(nav, genre = "classical", title = "Classical & Instrumental") }
+        }
+        add("Classic Look", "classic/13-podcast-show.png", "Podcast Show", "Classic Podcast Show page with episode progress bars and filter.", Look.CLASSIC, prepare = {
+            seedShowPodcast()
+        }) {
+            ClassicShell("detail", capped = true) { nav -> ShowScreen(nav, showId = "brainson", showName = "Brains On! Science Podcast") }
+        }
+        add("Classic Look", "classic/14-audiobook-detail.png", "Audiobook Detail", "Classic Audiobook page with author/narrator byline and chapters.", Look.CLASSIC, prepare = {
+            seedShowAudiobook()
+        }) {
+            ClassicShell("detail", capped = true) { nav -> ShowScreen(nav, showId = "littleprince", showName = "The Little Prince") }
+        }
+        add("Classic Look", "classic/15-podcast-episode.png", "Podcast Episode Detail", "Classic single Episode page with show link, progress, and description.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> EpisodeScreen(nav, episodeId = "ep1", fallbackName = "Why Do Stars Twinkle?") }
+        }
+        add("Classic Look", "classic/16-your-episodes.png", "Your Episodes", "Classic saved podcast episodes list.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> EpisodesScreen(nav) }
+        }
+        add("Classic Look", "classic/17-new-episodes.png", "New Episodes", "Classic unplayed episodes from followed shows.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> NewEpisodesScreen(nav) }
+        }
+        add("Classic Look", "classic/18-whats-new.png", "What's New Feed", "Classic What's New feed with New and Earlier sections.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> WhatsNewScreen(nav) }
+        }
+        add("Classic Look", "classic/19-new-releases.png", "New Releases Grid", "Classic New Releases grid from followed artists.", Look.CLASSIC) {
+            ClassicShell(Routes.NewReleases.route, capped = false) { nav -> NewReleasesScreen(nav) }
+        }
+        add("Classic Look", "classic/20-recently-played.png", "Recently Played", "Classic account play history grouped by context and day.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> RecentlyPlayedScreen(nav) }
+        }
+        add("Classic Look", "classic/21-recap-spotify-stats.png", "Listening Stats (Spotify Tab)", "Classic Listening Stats showing account top tracks and artists.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> RecapScreen(nav, initialTab = 0) }
+        }
+        add("Classic Look", "classic/22-recap-phone-stats.png", "Listening Stats (This Phone Tab)", "Classic on-device listening minutes, weekly chart, and top tracks.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> RecapScreen(nav, initialTab = 1) }
+        }
+        add("Classic Look", "classic/23-library-folder.png", "Library Folder", "Classic Spotify library folder view.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> FolderScreen(nav, uri = "spotify:folder:kids", initialName = "Bedtime & Calm") }
+        }
+        add("Classic Look", "classic/24-local-files.png", "Local Files", "Classic Local Files screen prompting for on-device audio access.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> LocalFilesScreen(nav) }
+        }
+        add("Classic Look", "classic/25-local-playlist.png", "Local Playlist", "Classic on-device playlist screen.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> LocalPlaylistScreen(nav, id = "local-bedtime") }
+        }
+        add("Classic Look", "classic/26-live-radio.png", "Live Radio", "Classic Live Radio screen with favorite stations and search.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> LiveRadioScreen(nav) }
+        }
+        add("Classic Look", "classic/27-hidden-songs.png", "Hidden Songs", "Classic PIN-protected Hidden Songs list.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> HiddenSongsScreen(nav) }
+        }
+        add("Classic Look", "classic/28-equalizer.png", "Equalizer & Audio Effects", "Classic 5-band equalizer, presets, playback speed, and silence skip.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> EqualizerScreen(nav) }
+        }
+        add("Classic Look", "classic/29-player-music.png", "Full-Screen Music Player", "Classic full-screen music player with inline lyrics card below.", Look.CLASSIC) {
+            PlayerScreen(rememberNavController())
+        }
+        add("Classic Look", "classic/30-player-podcast.png", "Full-Screen Podcast Player", "Classic podcast player with 15s skip controls, speed, and sleep timer.", Look.CLASSIC, prepare = {
+            seedEpisodeNowPlaying()
+        }) {
+            PodcastPlayerScreen(rememberNavController())
+        }
+        add("Classic Look", "classic/31-lyrics-fullscreen.png", "Full-Screen Synced Lyrics", "Classic full-screen time-synced lyrics view.", Look.CLASSIC) {
+            LyricsScreen(
+                title = "Clair de Lune",
+                artist = "Claude Debussy",
+                album = "Suite bergamasque",
+                accentColor = Color(0xFF3B82F6),
+                onClose = {},
+            )
+        }
+        add("Classic Look", "classic/32-queue.png", "Play Queue", "Classic Queue screen with Now Playing, Next in Queue, and Next Up.", Look.CLASSIC) {
+            QueueScreen(rememberNavController())
+        }
+        add("Classic Look", "classic/33-settings-playback.png", "Settings: Playback", "Classic Settings Playback tab with streaming quality, autoplay, and transitions.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav, initialTab = 0) }
+        }
+        add("Classic Look", "classic/34-settings-transitions.png", "Settings: Transitions & AutoMix", "Classic Settings Transitions sub-page (crossfade & AutoMix).", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav, initialTab = 0, initialSub = "transitions") }
+        }
+        add("Classic Look", "classic/35-settings-lyrics.png", "Settings: Lyrics", "Classic Settings Lyrics tab.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav, initialTab = 1) }
+        }
+        add("Classic Look", "classic/36-settings-storage.png", "Settings: Storage & Data", "Classic Settings Storage tab (image/audio caches & data saver).", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav, initialTab = 2) }
+        }
+        add("Classic Look", "classic/37-settings-appearance.png", "Settings: Appearance", "Classic Settings Appearance tab (Look, AMOLED theme, language).", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav, initialTab = 3) }
+        }
+        add("Classic Look", "classic/38-settings-about.png", "Settings: About", "Classic Settings About tab (version, diagnostics, credits).", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav, initialTab = 4) }
+        }
+        add("Classic Look", "classic/39-settings-accounts.png", "Settings: Accounts (PIN-Unlocked)", "Classic Settings Accounts tab after parent PIN unlock.", Look.CLASSIC, parentAdminPrep) {
+            ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav, initialTab = 5) }
+        }
+        add("Classic Look", "classic/40-settings-library.png", "Settings: Library", "Classic Settings Library tab.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav, initialTab = 6) }
+        }
+
+        // ── 5. Immersive Look — Complete Screen, Player & Settings Catalog ──
+        add("Immersive Look", "immersive/01-home-filtered-open.png", "Home (Filtered Open)", "Immersive Home with glass pills, shortcuts, and curated shelves.", Look.IMMERSIVE, filteredOpenPrep) {
+            ImmersiveShell(Routes.Home.route, capped = false) { nav -> ImmersiveHomeScreen(nav) }
+        }
+        add("Immersive Look", "immersive/02-home-strict-minimal.png", "Home (Strict Minimal)", "Immersive Home in Strict Allowlist + Minimal Home mode.", Look.IMMERSIVE, strictMinimalPrep) {
+            ImmersiveShell(Routes.Home.route, capped = false) { nav -> ImmersiveHomeScreen(nav) }
+        }
+        add("Immersive Look", "immersive/03-search-browse-idle.png", "Search (Browse Categories)", "Immersive Search idle state with large title and genre cards.", Look.IMMERSIVE, prepare = {
+            seedSearchIdle()
+        }) {
+            ImmersiveShell(Routes.Search.route, capped = false) { nav -> ImmersiveSearchScreen(nav) }
+        }
+        add("Immersive Look", "immersive/04-search-results.png", "Search (Results)", "Immersive Search with glass filter pills and mixed hits.", Look.IMMERSIVE, prepare = {
+            seedSearchPopulated()
+        }) {
+            ImmersiveShell(Routes.Search.route, capped = false) { nav -> ImmersiveSearchScreen(nav) }
+        }
+        add("Immersive Look", "immersive/05-library-list.png", "Library (List View)", "Immersive Library list with filter pills and floating glass chrome.", Look.IMMERSIVE) {
+            ImmersiveShell(Routes.Library.route, capped = false) { nav -> ImmersiveLibraryScreen(nav) }
+        }
+        add("Immersive Look", "immersive/06-library-grid.png", "Library (Grid View)", "Immersive Library cover grid view.", Look.IMMERSIVE, prepare = { app ->
+            setLibraryGridView(app, true)
+        }) {
+            ImmersiveShell(Routes.Library.route, capped = false) { nav -> ImmersiveLibraryScreen(nav) }
+        }
+        add("Immersive Look", "immersive/07-playlist-detail.png", "Playlist Detail", "Immersive Playlist page with artwork glow and glass action buttons.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveContextScreen(nav, type = "playlist", id = "ghibli") }
+        }
+        add("Immersive Look", "immersive/08-album-detail.png", "Album Detail", "Immersive Album page with centered cover art, metadata, and numbered tracks.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveContextScreen(nav, type = "album", id = "planets") }
+        }
+        add("Immersive Look", "immersive/09-liked-songs.png", "Liked Songs", "Immersive Liked Songs collection view.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveContextScreen(nav, type = "liked", id = "") }
+        }
+        add("Immersive Look", "immersive/10-artist-overview.png", "Artist Overview", "Immersive Artist page with full-bleed hero header, top tracks, and releases.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveArtistScreen(nav, "Gustav Holst", "holst") }
+        }
+        add("Immersive Look", "immersive/11-artist-releases.png", "Artist Discography", "Immersive Artist Releases screen.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveArtistReleasesScreen(nav, "Gustav Holst", "holst") }
+        }
+        add("Immersive Look", "immersive/12-category-browse.png", "Genre / Category Browse", "Immersive Category playlist grid.", Look.IMMERSIVE) {
+            ImmersiveShell(Routes.Category.route, capped = false) { nav -> ImmersiveCategoryScreen(nav, genre = "classical", title = "Classical & Instrumental") }
+        }
+        add("Immersive Look", "immersive/13-podcast-show.png", "Podcast Show", "Immersive Podcast Show page with cover glow and episode rows.", Look.IMMERSIVE, prepare = {
+            seedShowPodcast()
+        }) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveShowScreen(nav, showId = "brainson", showName = "Brains On! Science Podcast") }
+        }
+        add("Immersive Look", "immersive/14-audiobook-detail.png", "Audiobook Detail", "Immersive Audiobook page with chapters and narrator metadata.", Look.IMMERSIVE, prepare = {
+            seedShowAudiobook()
+        }) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveShowScreen(nav, showId = "littleprince", showName = "The Little Prince") }
+        }
+        add("Immersive Look", "immersive/15-podcast-episode.png", "Podcast Episode Detail", "Immersive single Episode detail page.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveEpisodeScreen(nav, episodeId = "ep1", fallbackName = "Why Do Stars Twinkle?") }
+        }
+        add("Immersive Look", "immersive/16-your-episodes.png", "Your Episodes", "Immersive saved podcast episodes screen.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveEpisodesScreen(nav) }
+        }
+        add("Immersive Look", "immersive/17-new-episodes.png", "New Episodes", "Immersive unplayed episodes from followed shows.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveNewEpisodesScreen(nav) }
+        }
+        add("Immersive Look", "immersive/18-whats-new.png", "What's New Feed", "Immersive What's New feed.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveWhatsNewScreen(nav) }
+        }
+        add("Immersive Look", "immersive/19-new-releases.png", "New Releases Grid", "Immersive New Releases grid.", Look.IMMERSIVE) {
+            ImmersiveShell(Routes.NewReleases.route, capped = false) { nav -> ImmersiveNewReleasesScreen(nav) }
+        }
+        add("Immersive Look", "immersive/20-recently-played.png", "Recently Played", "Immersive Recently Played screen with expandable context groups.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveRecentlyPlayedScreen(nav) }
+        }
+        add("Immersive Look", "immersive/21-recap-spotify-stats.png", "Listening Stats (Spotify Tab)", "Immersive Listening Stats with segmented control on Spotify rankings.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveRecapScreen(nav, initialTab = 0) }
+        }
+        add("Immersive Look", "immersive/22-recap-phone-stats.png", "Listening Stats (This Phone Tab)", "Immersive on-device listening stats and weekly bar chart.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveRecapScreen(nav, initialTab = 1) }
+        }
+        add("Immersive Look", "immersive/23-library-folder.png", "Library Folder", "Immersive Spotify library folder screen.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveFolderScreen(nav, uri = "spotify:folder:kids", initialName = "Bedtime & Calm") }
+        }
+        add("Immersive Look", "immersive/24-local-files.png", "Local Files", "Immersive Local Files permission screen.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveLocalFilesScreen(nav) }
+        }
+        add("Immersive Look", "immersive/25-local-playlist.png", "Local Playlist", "Immersive on-device playlist screen.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveLocalPlaylistScreen(nav, id = "local-bedtime") }
+        }
+        add("Immersive Look", "immersive/26-live-radio.png", "Live Radio", "Immersive Live Radio station browser and favorites.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveLiveRadioScreen(nav) }
+        }
+        add("Immersive Look", "immersive/27-hidden-songs.png", "Hidden Songs", "Immersive PIN-protected Hidden Songs screen.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveHiddenSongsScreen(nav) }
+        }
+        add("Immersive Look", "immersive/28-equalizer.png", "Equalizer & Audio Effects", "Immersive inset-grouped Equalizer & playback effects screen.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveEqualizerScreen(nav) }
+        }
+        add("Immersive Look", "immersive/29-player-music.png", "Full-Screen Music Player", "Immersive music player with dynamic artwork mesh backdrop.", Look.IMMERSIVE, prepare = {
+            SongPlayer.setSleepTimer(30)
+        }) {
+            ImmersivePlayer(state = immersivePlayerState(), actions = ImmersivePlayerActions(), navController = rememberNavController(), initialPanel = Panel.NONE)
+        }
+        add("Immersive Look", "immersive/30-player-lyrics-panel.png", "Player: Synced Lyrics Panel", "Immersive player with inline swept karaoke/synced lyrics panel open.", Look.IMMERSIVE) {
+            ImmersivePlayer(state = immersivePlayerState(), actions = ImmersivePlayerActions(), navController = rememberNavController(), initialPanel = Panel.LYRICS)
+        }
+        add("Immersive Look", "immersive/31-player-queue-panel.png", "Player: Queue Panel", "Immersive player with reorderable Up Next queue panel open.", Look.IMMERSIVE) {
+            ImmersivePlayer(state = immersivePlayerState(), actions = ImmersivePlayerActions(), navController = rememberNavController(), initialPanel = Panel.QUEUE)
+        }
+        add("Immersive Look", "immersive/32-player-podcast.png", "Full-Screen Podcast Player", "Immersive podcast player with 15s skip controls and speed pill.", Look.IMMERSIVE, prepare = {
+            seedEpisodeNowPlaying()
+        }) {
+            ImmersivePodcastPlayer(rememberNavController())
+        }
+        add("Immersive Look", "immersive/33-queue-page.png", "Standalone Queue Page", "Immersive standalone Queue route.", Look.IMMERSIVE) {
+            ImmersiveShell(Routes.Queue.route, capped = false) { nav -> ImmersiveQueueScreen(nav) }
+        }
+        add("Immersive Look", "immersive/34-settings-root.png", "Settings: Root Categories", "Immersive Settings root with inset groups and Parental Controls card.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveSettingsScreen(nav, initialPage = SettingsPage.Root) }
+        }
+        add("Immersive Look", "immersive/35-settings-playback.png", "Settings: Playback", "Immersive Settings Playback sub-page.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveSettingsScreen(nav, initialPage = SettingsPage.Playback) }
+        }
+        add("Immersive Look", "immersive/36-settings-streaming-wifi.png", "Settings: Wi-Fi Streaming Quality", "Immersive Settings Wi-Fi quality picker page.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveSettingsScreen(nav, initialPage = SettingsPage.StreamingWifi) }
+        }
+        add("Immersive Look", "immersive/37-settings-crossfade.png", "Settings: Crossfade & AutoMix", "Immersive Settings Crossfade and AutoMix transitions page.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveSettingsScreen(nav, initialPage = SettingsPage.Crossfade) }
+        }
+        add("Immersive Look", "immersive/38-settings-lyrics.png", "Settings: Lyrics", "Immersive Settings Lyrics sub-page.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveSettingsScreen(nav, initialPage = SettingsPage.Lyrics) }
+        }
+        add("Immersive Look", "immersive/39-settings-storage.png", "Settings: Storage", "Immersive Settings Storage & cache usage sub-page.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveSettingsScreen(nav, initialPage = SettingsPage.Storage) }
+        }
+        add("Immersive Look", "immersive/40-settings-data.png", "Settings: Data Saver", "Immersive Settings Data Saver & cellular quality sub-page.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveSettingsScreen(nav, initialPage = SettingsPage.Data) }
+        }
+        add("Immersive Look", "immersive/41-settings-display.png", "Settings: Display & Appearance", "Immersive Settings Display sub-page.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveSettingsScreen(nav, initialPage = SettingsPage.Display) }
+        }
+        add("Immersive Look", "immersive/42-settings-look.png", "Settings: Look Chooser", "Immersive Settings Classic vs Immersive look switcher.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveSettingsScreen(nav, initialPage = SettingsPage.Look) }
+        }
+        add("Immersive Look", "immersive/43-settings-language.png", "Settings: App Language", "Immersive Settings Language picker.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveSettingsScreen(nav, initialPage = SettingsPage.Language) }
+        }
+        add("Immersive Look", "immersive/44-settings-library.png", "Settings: Library", "Immersive Settings Library preferences sub-page.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveSettingsScreen(nav, initialPage = SettingsPage.Library) }
+        }
+        add("Immersive Look", "immersive/45-settings-accounts.png", "Settings: Accounts (PIN-Unlocked)", "Immersive Settings Spotify Accounts sub-page.", Look.IMMERSIVE, parentAdminPrep) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveSettingsScreen(nav, initialPage = SettingsPage.Accounts) }
+        }
+        add("Immersive Look", "immersive/46-settings-app-about.png", "Settings: About SoundNest", "Immersive Settings App version, diagnostics, and credits sub-page.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveSettingsScreen(nav, initialPage = SettingsPage.App) }
+        }
+
+        // ── 6. Bottom Sheets, Modals & Overlays ──
+        add("Sheets & Modals", "sheets/01-classic-song-options.png", "Classic Song Options Sheet", "Track context menu in Classic look (read-only library aware).", Look.CLASSIC) {
+            val ctx = LocalContext.current
             ClassicShell("detail", capped = true) { nav ->
-                SettingsScreen(nav)
+                ContextScreen(nav, type = "album", id = "planets")
+                SongOptionsSheet(song = sampleTrackSongs().first(), navController = nav, context = ctx, onDismiss = {}, nowPlaying = true)
+            }
+        }
+        add("Sheets & Modals", "sheets/02-immersive-song-options.png", "Immersive Song Options Sheet", "Glass track context menu over the Immersive player.", Look.IMMERSIVE) {
+            val ctx = LocalContext.current
+            val nav = rememberNavController()
+            ImmersivePlayer(state = immersivePlayerState(), actions = ImmersivePlayerActions(), navController = nav)
+            ImmersiveSongOptionsSheet(song = sampleTrackSongs().first(), navController = nav, context = ctx, onDismiss = {}, nowPlaying = true)
+        }
+        add("Sheets & Modals", "sheets/03-devices-connect-sheet.png", "Spotify Connect & Cast Devices Sheet", "Speaker & device switcher filtered by Parental Speaker Visibility rules.", Look.IMMERSIVE) {
+            ImmersivePlayer(state = immersivePlayerState(), actions = ImmersivePlayerActions(), navController = rememberNavController())
+            DevicesSheet(onDismiss = {})
+        }
+        add("Sheets & Modals", "sheets/04-classic-sleep-timer-sheet.png", "Classic Sleep Timer Sheet", "Kid-accessible sleep timer options in Classic look.", Look.CLASSIC, prepare = {
+            SongPlayer.setSleepTimer(30)
+        }) {
+            PlayerScreen(rememberNavController())
+            SleepTimerSheet(onDismiss = {})
+        }
+        add("Sheets & Modals", "sheets/05-immersive-sleep-timer-sheet.png", "Immersive Sleep Timer Sheet", "Glass sleep timer options in Immersive look.", Look.IMMERSIVE, prepare = {
+            SongPlayer.setSleepTimer(30)
+        }) {
+            ImmersivePlayer(state = immersivePlayerState(), actions = ImmersivePlayerActions(), navController = rememberNavController())
+            ImmersiveSleepTimerSheet(onDismiss = {})
+        }
+        add("Sheets & Modals", "sheets/06-streaming-quality-sheet.png", "Streaming Quality Sheet", "Quick audio quality picker sheet from the player.", Look.CLASSIC) {
+            PlayerScreen(rememberNavController())
+            QualitySheet(onDismiss = {})
+        }
+        add("Sheets & Modals", "sheets/07-about-sheet.png", "About SoundNest Sheet", "App version, license, and open-source notices modal sheet.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav, initialTab = 4) }
+            AboutSheet(onDismiss = {})
+        }
+        add("Sheets & Modals", "sheets/08-stats-for-nerds-sheet.png", "Stats for Nerds Sheet", "Playback engine, codec, buffer, and audio pipeline diagnostics sheet.", Look.CLASSIC) {
+            PlayerScreen(rememberNavController())
+            StatsForNerdsSheet(onDismiss = {})
+        }
+        add("Sheets & Modals", "sheets/09-look-offer-modal.png", "New Look Offer Screen", "One-time upgrade prompt offering existing users the Immersive look.", Look.IMMERSIVE) {
+            LookStep(onNext = {}, offer = LookOffer(onKeep = {}))
+        }
+        add("Sheets & Modals", "sheets/10-immersive-profile-sheet.png", "Immersive Home Profile Sheet", "Quick drawer sheet from Home avatar linking to Recents, Stats, and Settings.", Look.IMMERSIVE) {
+            ImmersiveShell(Routes.Home.route, capped = false) { nav ->
+                ImmersiveHomeScreen(nav)
+                ImmersiveProfileSheet(onOpen = {}, onDismiss = {})
+            }
+        }
+        add("Sheets & Modals", "sheets/11-playlist-options-sheet.png", "Playlist Options Sheet", "Playlist actions sheet (shuffle, sort, share, library controls).", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav ->
+                ContextScreen(nav, type = "playlist", id = "ghibli")
+                PlaylistOptionsSheet(
+                    page = playlistPageModel(),
+                    onDismiss = {},
+                    onChanged = {},
+                    onEdited = { _, _ -> },
+                    onDeleted = {},
+                )
+            }
+        }
+        add("Sheets & Modals", "sheets/12-episode-options-sheet.png", "Podcast Episode Options Sheet", "Episode actions sheet (save, mark played, share).", Look.CLASSIC, prepare = {
+            seedShowPodcast()
+        }) {
+            ClassicShell("detail", capped = true) { nav ->
+                ShowScreen(nav, showId = "brainson", showName = "Brains On! Science Podcast")
+                EpisodeOptionsSheet(
+                    song = sampleEpisodes().first(),
+                    finished = false,
+                    onPlay = {},
+                    onMarkFinished = {},
+                    onOpen = {},
+                    onDismiss = {},
+                )
+            }
+        }
+
+        return shots
+    }
+
+    private fun writeCatalogReadme(shots: List<ShotSpec>) {
+        val grouped = shots.groupBy { it.category }
+        val md = buildString {
+            appendLine("# SoundNest Complete Screen Catalog")
+            appendLine()
+            appendLine("Auto-generated deterministically by `./gradlew :app:generateDocScreenshots` ([`DocScreenshotTest.kt`](../../base/app/src/test/java/io/github/thake/soundnest/ui/DocScreenshotTest.kt)).")
+            appendLine()
+            appendLine("Total captured screens, panels, dialogs & sheets: **${shots.size}**.")
+            appendLine()
+            appendLine("## Contents")
+            grouped.keys.forEach { cat ->
+                val anchor = cat.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-')
+                appendLine("- [$cat (${grouped.getValue(cat).size})](#$anchor)")
+            }
+            appendLine()
+
+            grouped.forEach { (cat, list) ->
+                appendLine("## $cat")
+                appendLine()
+                appendLine("| Screen | Preview | File & Description |")
+                appendLine("| :--- | :---: | :--- |")
+                list.forEach { s ->
+                    appendLine("| **${s.title}** (`${s.look.name}`) | <img src=\"${s.relativePath}\" width=\"180\" alt=\"${s.title}\" /> | [`${s.relativePath}`](${s.relativePath})<br/>${s.description} |")
+                }
+                appendLine()
+            }
+        }
+        File(outputDir, "README.md").writeText(md)
+    }
+
+    // ── Deterministic Data & ViewModel Seeding ──────────────────────────────────
+
+    private inline fun <reified T : ViewModel> seedVm(key: String? = null): T {
+        val p = ViewModelProvider(hostActivity)
+        return if (key == null) p[T::class.java] else p[key, T::class.java]
+    }
+
+    private fun Any.poke(field: String, value: Any?) {
+        var c: Class<*>? = javaClass
+        while (c != null) {
+            runCatching { c.getDeclaredField(field) }.getOrNull()?.let { f ->
+                f.isAccessible = true
+                val cur = f.get(this)
+                if (cur is MutableStateFlow<*>) {
+                    @Suppress("UNCHECKED_CAST")
+                    (cur as MutableStateFlow<Any?>).value = value
+                } else {
+                    f.set(this, value)
+                }
+                return
+            }
+            c = c.superclass
+        }
+        error("No field '$field' on ${javaClass.name}")
+    }
+
+    private fun sampleTrackSongs(): List<SongsModel> = listOf(
+        SongsModel(
+            id = 1,
+            title = "Jupiter, the Bringer of Jollity",
+            album = "The Planets, Op. 32",
+            singer = "Gustav Holst, London Symphony Orchestra",
+            coverUri = covers.getValue("planets"),
+            url = "spotify:track:jupiter",
+            spotifyTrackId = "jupiter",
+            durationMs = 478_000,
+            albumId = "planets",
+            artistIds = listOf("holst"),
+        ),
+        SongsModel(
+            id = 2,
+            title = "One Summer's Day",
+            album = "Spirited Away Soundtrack",
+            singer = "Joe Hisaishi",
+            coverUri = covers.getValue("ghibli"),
+            url = "spotify:track:onesummersday",
+            spotifyTrackId = "onesummersday",
+            durationMs = 249_000,
+            albumId = "spirited",
+            artistIds = listOf("hisaishi"),
+        ),
+        SongsModel(
+            id = 3,
+            title = "Test Drive",
+            album = "How to Train Your Dragon",
+            singer = "John Powell",
+            coverUri = covers.getValue("dragon"),
+            url = "spotify:track:testdrive",
+            spotifyTrackId = "testdrive",
+            durationMs = 156_000,
+            albumId = "dragon",
+        ),
+        SongsModel(
+            id = 4,
+            title = "Clair de Lune",
+            album = "Suite bergamasque",
+            singer = "Claude Debussy",
+            coverUri = covers.getValue("debussy"),
+            url = "spotify:track:debussy",
+            spotifyTrackId = "debussy",
+            durationMs = 304_000,
+            albumId = "bergamasque",
+        ),
+        SongsModel(
+            id = 5,
+            title = "Aquarium",
+            album = "Carnival of the Animals",
+            singer = "Camille Saint-Saens",
+            coverUri = covers.getValue("carnival"),
+            url = "spotify:track:aquarium",
+            spotifyTrackId = "aquarium",
+            durationMs = 148_000,
+            albumId = "carnival",
+        ),
+        SongsModel(
+            id = 6,
+            title = "Surface Pressure (Instrumental)",
+            album = "Encanto (Soundtrack)",
+            singer = "Lin-Manuel Miranda",
+            coverUri = covers.getValue("encanto"),
+            url = "spotify:track:surface",
+            spotifyTrackId = "surface",
+            durationMs = 202_000,
+            albumId = "encanto",
+        ),
+    )
+
+    private fun sampleEpisodes(): List<SongsModel> = listOf(
+        SongsModel(
+            id = 101,
+            title = "Why Do Stars Twinkle in the Night Sky?",
+            album = "Brains On! Science Podcast",
+            singer = "Brains On! Science Podcast",
+            coverUri = covers.getValue("planets"),
+            url = "episode:ep1",
+            spotifyTrackId = "ep1",
+            durationMs = 1_680_000,
+            description = "Astronomer Dr. Maya Lin joins kid co-host Leo to explore how Earth's moving atmosphere bends starlight before it reaches our eyes.",
+            releaseDate = "2026-10-28",
+            played = false,
+            playedPositionMs = 620_000L,
+            showId = "brainson",
+        ),
+        SongsModel(
+            id = 102,
+            title = "How Whales Sing Across Entire Oceans",
+            album = "Brains On! Science Podcast",
+            singer = "Brains On! Science Podcast",
+            coverUri = covers.getValue("study"),
+            url = "episode:ep2",
+            spotifyTrackId = "ep2",
+            durationMs = 1_440_000,
+            description = "Dive deep beneath the waves to hear humpback whale songs and discover how sound travels four times faster in water than in air.",
+            releaseDate = "2026-10-21",
+            played = false,
+            playedPositionMs = 0L,
+            showId = "brainson",
+        ),
+        SongsModel(
+            id = 103,
+            title = "The Secret Life of Honeybees",
+            album = "Wow in the World",
+            singer = "Wow in the World",
+            coverUri = covers.getValue("carnival"),
+            url = "episode:ep3",
+            spotifyTrackId = "ep3",
+            durationMs = 1_320_000,
+            description = "How honeybees dance to share directions to the best wildflowers.",
+            releaseDate = "2026-10-14",
+            played = true,
+            playedPositionMs = 1_320_000L,
+            showId = "brainson",
+        ),
+    )
+
+    private fun playlistPageModel() = ContextPageModel(
+        uri = "spotify:playlist:ghibli",
+        type = "playlist",
+        name = "Studio Ghibli Piano",
+        coverUri = covers.getValue("ghibli"),
+        description = "Gentle solo piano arrangements from Spirited Away, My Neighbor Totoro & Kiki's Delivery Service.",
+        ownerName = "Parent Picks",
+        ownerAvatar = covers.getValue("classical"),
+        ownerUri = "spotify:user:family",
+        metaLine = "6 songs • 25 min",
+        tracks = sampleTrackSongs(),
+    )
+
+    private fun albumPageModel() = ContextPageModel(
+        uri = "spotify:album:planets",
+        type = "album",
+        name = "The Planets, Op. 32",
+        coverUri = covers.getValue("planets"),
+        ownerName = "Gustav Holst",
+        ownerAvatar = covers.getValue("classical"),
+        ownerUri = "spotify:artist:holst",
+        metaLine = "Album • 2021",
+        tracks = sampleTrackSongs(),
+        footer = listOf("September 14, 2021", "6 tracks • 25 min", "© 2021 London Symphony Orchestra"),
+    )
+
+    private fun likedPageModel() = ContextPageModel(
+        uri = "spotify:collection:tracks",
+        type = "liked",
+        name = "Liked Songs",
+        coverUri = covers.getValue("debussy"),
+        ownerName = "Emma's Music",
+        metaLine = "6 songs",
+        tracks = sampleTrackSongs(),
+    )
+
+    private fun seedAllStoresAndViewModels(app: Application) {
+        seedFeedAndLibraryCache()
+        seedMusicNowPlaying()
+
+        // Queue (for Classic QueueScreen, ImmersiveQueueScreen & ImmersivePlayer Queue panel)
+        val tracks = sampleTrackSongs()
+        SongPlayer.showProbeQueue(
+            SongPlayer.EngineQueue(
+                current = tracks[0],
+                queued = listOf(
+                    SongPlayer.QueueItem(tracks[1], tracks[1].url, "q1", "queue"),
+                    SongPlayer.QueueItem(tracks[2], tracks[2].url, "q2", "queue"),
+                ),
+                nextUp = tracks.drop(3).mapIndexed { idx, s ->
+                    SongPlayer.QueueItem(s, s.url, "c$idx", "context")
+                },
+            ),
+        )
+
+        // Context pages (Playlist, Album, Liked Songs)
+        seedVm<ContextViewModel>("playlist:ghibli").apply {
+            poke("key", "playlist:ghibli")
+            poke("_page", Response.Success(playlistPageModel()))
+        }
+        seedVm<ContextViewModel>("album:planets").apply {
+            poke("key", "album:planets")
+            poke("_page", Response.Success(albumPageModel()))
+        }
+        seedVm<ContextViewModel>("liked:").apply {
+            poke("key", "liked:")
+            poke("_page", Response.Success(likedPageModel()))
+        }
+
+        // Artist & Discography
+        val releases = listOf(
+            AlbumsModel(1, "Gustav Holst", covers.getValue("planets"), "The Planets, Op. 32", "2021-09-14", "ALBUM", "planets"),
+            AlbumsModel(2, "Gustav Holst", covers.getValue("classical"), "St Paul's Suite", "2020-04-10", "ALBUM", "stpauls"),
+            AlbumsModel(3, "Gustav Holst", covers.getValue("bedtime"), "Venus, the Bringer of Peace", "2023-02-01", "SINGLE", "venus"),
+            AlbumsModel(4, "Gustav Holst", covers.getValue("study"), "First Suite in E-Flat", "2019-11-20", "EP", "suite1"),
+        )
+        val artistOverview = ArtistOverviewModel(
+            id = "holst",
+            name = "Gustav Holst",
+            verified = true,
+            monthlyListeners = 2_845_120L,
+            biography = "English composer, arranger and teacher best known for his orchestral suite The Planets.",
+            headerImage = covers.getValue("planets"),
+            avatarImage = covers.getValue("classical"),
+            topTracks = tracks.take(5).mapIndexed { idx, s -> ArtistTrackUi(s, playcount = 14_500_000L - idx * 2_100_000L) },
+            popularReleases = releases,
+            appearsOn = listOf(
+                AlbumsModel(5, "Various Artists", covers.getValue("carnival"), "Classical for Curious Minds", "2024-01-15", "COMPILATION", "curious"),
+            ),
+            relatedArtists = listOf(
+                ArtistsModel("Joe Hisaishi", covers.getValue("ghibli"), id = "hisaishi"),
+                ArtistsModel("Claude Debussy", covers.getValue("debussy"), id = "debussy"),
+                ArtistsModel("Camille Saint-Saens", covers.getValue("carnival"), id = "saintsaens"),
+                ArtistsModel("John Williams", covers.getValue("starwars"), id = "williams"),
+            ),
+        )
+        seedVm<ArtistViewModel>().apply {
+            poke("loadedOverview", "holst")
+            poke("_overview", Response.Success(artistOverview))
+        }
+
+        // Category
+        seedVm<CategoryViewModel>().apply {
+            poke("genreKey", "classical")
+            poke(
+                "_playlists",
+                Response.Success(
+                    listOf(
+                        LibraryEntry("curious", "Classical for Curious Minds", "Mozart, Holst & Debussy", covers.getValue("classical"), isPlaylist = true, uri = "spotify:playlist:curious"),
+                        LibraryEntry("ghibli", "Studio Ghibli Piano", "Gentle Piano Favorites", covers.getValue("ghibli"), isPlaylist = true, uri = "spotify:playlist:ghibli"),
+                        LibraryEntry("bedtime", "Bedtime Lullabies", "Soft Strings & Harp", covers.getValue("bedtime"), isPlaylist = true, uri = "spotify:playlist:bedtime"),
+                        LibraryEntry("study", "Rainy Day Study Beats", "Calm Focus Music", covers.getValue("study"), isPlaylist = true, uri = "spotify:playlist:study"),
+                    ),
+                ),
+            )
+        }
+
+        // Podcast Show & Episode
+        seedShowPodcast()
+        seedVm<EpisodeViewModel>().apply {
+            poke("key", "ep1")
+            loading.value = false
+            failed.value = false
+            finished.value = false
+            poke("_episode", sampleEpisodes().first())
+        }
+
+        // Lyrics (for Classic LyricsScreen, PlayerScreen inline card & ImmersivePlayer Lyrics panel)
+        val syncedLyrics = Lyrics(
+            lines = listOf(
+                LyricLine(0L, "♪ Soft piano introduction ♪"),
+                LyricLine(120_000L, "Moonlight shimmers quietly across the water"),
+                LyricLine(132_000L, "Silver clouds drift gently past the trees"),
+                LyricLine(140_000L, "Every star awakens in the evening sky"),
+                LyricLine(152_000L, "Carried softly on a peaceful breeze"),
+                LyricLine(166_000L, "Dreaming through the calm of night"),
+                LyricLine(180_000L, "Until the morning brings its golden light"),
+            ),
+            synced = true,
+            language = "en",
+            provider = "Musixmatch",
+            colors = LyricsColors(
+                background = 0xFF1E3A8A.toInt(),
+                text = 0xFFFFFFFF.toInt(),
+                highlight = 0xFF93C5FD.toInt(),
+            ),
+        )
+        seedVm<LyricsViewModel>().apply {
+            poke("_state", LyricsViewModel.State.Loaded(syncedLyrics))
+        }
+
+        // LibraryViewModel account & artists
+        seedVm<LibraryViewModel>().apply {
+            poke("_account", Response.Success(AccountModel("Emma's Music", "", covers.getValue("ghibli"), "Premium")))
+            poke(
+                "_followedArtists",
+                listOf(
+                    ArtistsModel("Gustav Holst", covers.getValue("planets"), id = "holst"),
+                    ArtistsModel("Joe Hisaishi", covers.getValue("ghibli"), id = "hisaishi"),
+                ),
+            )
+        }
+
+        // Local Playlist
+        LocalPlaylists.init(app)
+        LocalPlaylists.playlists["local-bedtime"] = LocalPlaylist(
+            id = "local-bedtime",
+            name = "Bedtime Stories & Lullabies",
+            createdAt = System.currentTimeMillis(),
+            items = listOf(
+                LocalItem("l1", "file:///music/brahms.mp3", "Brahms' Lullaby", "Clara Schumann Trio", "Evening Piano", 164_000L, covers.getValue("bedtime")),
+                LocalItem("l2", "file:///music/twinkle.mp3", "Twinkle Variations", "Wolfgang Amadeus Mozart", "Little Classics", 212_000L, covers.getValue("classical")),
+                LocalItem("l3", "file:///music/rain.mp3", "Forest Rain & Harp", "Nature Ensemble", "Calm Sleep", 295_000L, covers.getValue("acoustic")),
+            ),
+        )
+
+        // Hidden Songs
+        HiddenSongs.hide(
+            app,
+            SongsModel(
+                id = 99,
+                title = "Loud Late-Night Party Remix",
+                album = "Club Hits",
+                singer = "DJ Noise",
+                coverUri = covers.getValue("dragon"),
+                url = "spotify:track:hidden1",
+                spotifyTrackId = "hidden1",
+            ),
+        )
+
+        // Radio Favorites
+        RadioFavoritesStore.favorites["uuid-klassik"] = RadioFavorite(
+            station = RadioStation(
+                stationUuid = "uuid-klassik",
+                name = "Klassik Radio Movie & Orchestral",
+                streamUrl = "https://stream.klassikradio.de/movie/mp3-192",
+                homepage = "https://www.klassikradio.de",
+                favicon = covers.getValue("planets"),
+                tags = listOf("classical", "film scores", "orchestral"),
+                country = "Germany",
+                countryCode = "DE",
+                language = "german",
+                codec = "MP3",
+                bitrateKbps = 192,
+                votes = 1420,
+                clickCount = 8500,
+                lastCheckOk = true,
+            ),
+            addedAt = System.currentTimeMillis(),
+        )
+        RadioFavoritesStore.favorites["uuid-lullaby"] = RadioFavorite(
+            station = RadioStation(
+                stationUuid = "uuid-lullaby",
+                name = " Calm Kids Piano Radio",
+                streamUrl = "https://stream.example.org/kidspiano.mp3",
+                homepage = "https://example.org",
+                favicon = covers.getValue("bedtime"),
+                tags = listOf("piano", "children", "calm"),
+                country = "United Kingdom",
+                countryCode = "GB",
+                language = "english",
+                codec = "AAC",
+                bitrateKbps = 128,
+                votes = 890,
+                clickCount = 4100,
+                lastCheckOk = true,
+            ),
+            addedAt = System.currentTimeMillis() - 60_000L,
+        )
+
+        // On-device ListenHistory (for RecapScreen / ImmersiveRecapScreen "This phone" tab)
+        ListenHistory.init(app)
+        ListenHistory.clear()
+        val now = System.currentTimeMillis()
+        tracks.forEachIndexed { idx, s ->
+            repeat(4 - (idx % 3)) { rep ->
+                ListenHistory.record(
+                    ListenHistory.Listen(
+                        atMs = now - (idx * 86_400_000L) - rep * 3_600_000L,
+                        key = s.url,
+                        title = s.title,
+                        artist = s.singer,
+                        album = s.album,
+                        cover = s.coverUri,
+                        playedMs = s.durationMs.toLong(),
+                        source = if (idx % 2 == 0) ListenHistory.Source.SPOTIFY else ListenHistory.Source.LOCAL,
+                    ),
+                )
             }
         }
     }
 
-    @Test
-    fun immersivePlayer() {
-        val app = RuntimeEnvironment.getApplication()
-        ParentSecurityManager.setupInitialPin(app, "246810")
-        ParentSecurityManager.lockNow(app)
-        SongPlayer.setSleepTimer(30)
-        shootDoc("immersive-player", Look.IMMERSIVE) {
-            ImmersivePlayer(
-                state = ImmersivePlayerState(
-                    title = "Jupiter, the Bringer of Jollity",
-                    artist = "Gustav Holst • London Symphony",
-                    album = "The Planets, Op. 32",
-                    coverUrl = covers.getValue("planets"),
-                    playing = true,
-                    positionMs = { 142_000L },
-                    durationMs = 478_000L,
-                    shuffle = false,
-                    repeatMode = ImmersiveRepeat.ALL,
-                    liked = true,
-                    contextName = "Parent Picks • Classical",
-                ),
-                actions = ImmersivePlayerActions(),
-                navController = rememberNavController(),
-            )
+    private fun seedShowPodcast() {
+        val show = PodcastModel(
+            id = "brainson",
+            name = "Brains On! Science Podcast",
+            publisher = "American Public Media",
+            coverUri = covers.getValue("planets"),
+            description = "An award-winning science podcast for curious kids and adults. Every week, a different kid co-host teams up with Molly Bloom to find answers to fascinating questions about the world.",
+            rating = 4.9,
+            saved = true,
+            audiobook = false,
+        )
+        seedVm<ShowViewModel>().apply {
+            poke("showKey", "brainson")
+            following.value = true
+            poke("_page", Response.Success(ShowPage(show = show, items = sampleEpisodes(), audiobook = false, coverUri = show.coverUri)))
         }
+    }
+
+    private fun seedShowAudiobook() {
+        val book = PodcastModel(
+            id = "littleprince",
+            name = "The Little Prince",
+            publisher = "Classic Family Audiobooks",
+            coverUri = covers.getValue("bedtime"),
+            description = "Antoine de Saint-Exupery's timeless fable about friendship, curiosity, and seeing with the heart.",
+            rating = 4.9,
+            saved = true,
+            authors = listOf("Antoine de Saint-Exupery"),
+            narrators = listOf("Kenneth Branagh"),
+            audiobook = true,
+        )
+        val chapters = listOf(
+            SongsModel(201, "Chapter 1 • Drawing Number One", "The Little Prince", "Antoine de Saint-Exupery", covers.getValue("bedtime"), "episode:ch1", "ch1", durationMs = 780_000, description = "The narrator recalls his childhood drawing of a boa constrictor.", releaseDate = "2024-01-01", played = true, playedPositionMs = 780_000L, showId = "littleprince"),
+            SongsModel(202, "Chapter 2 • Meeting in the Sahara", "The Little Prince", "Antoine de Saint-Exupery", covers.getValue("bedtime"), "episode:ch2", "ch2", durationMs = 920_000, description = "Please... draw me a sheep!", releaseDate = "2024-01-01", played = false, playedPositionMs = 410_000L, showId = "littleprince"),
+            SongsModel(203, "Chapter 3 • Asteroid B-612", "The Little Prince", "Antoine de Saint-Exupery", covers.getValue("bedtime"), "episode:ch3", "ch3", durationMs = 840_000, description = "Learning where the Little Prince came from.", releaseDate = "2024-01-01", played = false, playedPositionMs = 0L, showId = "littleprince"),
+        )
+        seedVm<ShowViewModel>().apply {
+            poke("showKey", "littleprince")
+            following.value = true
+            poke("_page", Response.Success(ShowPage(show = book, items = chapters, audiobook = true, coverUri = book.coverUri)))
+        }
+    }
+
+    private fun seedSearchIdle() {
+        seedVm<SearchViewModel>().apply {
+            query = ""
+            poke("_results", Response.Success(SearchResults()))
+        }
+    }
+
+    private fun seedSearchPopulated() {
+        val results = SearchResults(
+            songs = sampleTrackSongs().take(4),
+            artists = listOf(
+                ArtistsModel("Gustav Holst", covers.getValue("planets"), id = "holst"),
+                ArtistsModel("Joe Hisaishi", covers.getValue("ghibli"), id = "hisaishi"),
+            ),
+            albums = listOf(
+                AlbumsModel(1, "Gustav Holst", covers.getValue("planets"), "The Planets, Op. 32", "2021", "ALBUM", "planets"),
+                AlbumsModel(2, "John Powell", covers.getValue("dragon"), "How to Train Your Dragon", "2010", "ALBUM", "dragon"),
+            ),
+        )
+        seedVm<SearchViewModel>().apply {
+            query = "orchestra"
+            poke("_results", Response.Success(results))
+        }
+    }
+
+    private fun seedMusicNowPlaying() {
+        Graph.currentSongState.updateSongState(
+            coverUri = covers.getValue("debussy"),
+            title = "Clair de Lune",
+            singer = "Claude Debussy",
+            playingState = true,
+            songId = 4,
+            songIndex = 0,
+            album = "Suite bergamasque",
+        )
+        setNowPlayingMeta(
+            SongPlayer.NowPlaying(
+                contextUri = "spotify:playlist:ghibli",
+                contextName = "Parent Picks • Classical",
+                provider = "context",
+                uri = "spotify:track:debussy",
+                albumUri = "spotify:album:planets",
+            ),
+        )
+    }
+
+    private fun seedEpisodeNowPlaying() {
+        Graph.currentSongState.updateSongState(
+            coverUri = covers.getValue("planets"),
+            title = "Why Do Stars Twinkle in the Night Sky?",
+            singer = "Brains On! Science Podcast",
+            playingState = true,
+            songId = 101,
+            songIndex = 0,
+            album = "Brains On! Science Podcast",
+        )
+        setNowPlayingMeta(
+            SongPlayer.NowPlaying(
+                contextUri = "spotify:show:brainson",
+                contextName = "Brains On! Science Podcast",
+                provider = "context",
+                uri = "spotify:episode:ep1",
+            ),
+        )
+    }
+
+    private fun setNowPlayingMeta(np: SongPlayer.NowPlaying) {
+        @Suppress("UNCHECKED_CAST")
+        val state = SongPlayer::class.java.getDeclaredField("_nowPlaying")
+            .apply { isAccessible = true }
+            .get(SongPlayer) as androidx.compose.runtime.MutableState<SongPlayer.NowPlaying>
+        state.value = np
     }
 
     private fun seedFeedAndLibraryCache() {
@@ -315,17 +1595,19 @@ class DocScreenshotTest {
             LibraryEntry(
                 spotifyId = "ghibli",
                 name = "Studio Ghibli Piano",
-                subtitle = "Playlist • SoundNest",
+                subtitle = "Playlist • Parent Picks",
                 coverUri = covers.getValue("ghibli"),
                 isPlaylist = true,
+                pinned = true,
                 uri = "spotify:playlist:ghibli",
             ),
             LibraryEntry(
                 spotifyId = "roadtrip",
                 name = "Family Roadtrip",
-                subtitle = "Playlist • SoundNest",
+                subtitle = "Playlist • Sing-Along",
                 coverUri = covers.getValue("roadtrip"),
                 isPlaylist = true,
+                pinned = true,
                 uri = "spotify:playlist:roadtrip",
             ),
             LibraryEntry(
@@ -344,6 +1626,34 @@ class DocScreenshotTest {
                 coverUri = covers.getValue("classical"),
                 isPlaylist = true,
                 uri = "spotify:playlist:curious",
+            ),
+            LibraryEntry(
+                spotifyId = "folder:kids",
+                name = "Bedtime & Calm",
+                subtitle = "Folder • 2 playlists",
+                coverUri = covers.getValue("bedtime"),
+                isPlaylist = false,
+                folderUri = "spotify:folder:kids",
+                childCount = 2,
+                uri = "spotify:folder:kids",
+            ),
+        )
+        val folderEntries = listOf(
+            LibraryEntry(
+                spotifyId = "bedtime",
+                name = "Bedtime Lullabies",
+                subtitle = "Playlist • Soft Piano",
+                coverUri = covers.getValue("bedtime"),
+                isPlaylist = true,
+                uri = "spotify:playlist:bedtime",
+            ),
+            LibraryEntry(
+                spotifyId = "acoustic",
+                name = "Acoustic Morning",
+                subtitle = "Playlist • Warm Guitar",
+                coverUri = covers.getValue("acoustic"),
+                isPlaylist = true,
+                uri = "spotify:playlist:acoustic",
             ),
         )
         val curatedFeed = HomeFeedModel(
@@ -381,49 +1691,242 @@ class DocScreenshotTest {
         )
         Api.HomeCache.library = libraryEntries
         Api.HomeCache.libraryRoot = libraryEntries
+        Api.HomeCache.folders["spotify:folder:kids"] = folderEntries
         Api.HomeCache.home = curatedFeed
     }
 
-    private fun shootDoc(name: String, look: Look, content: @Composable () -> Unit) {
-        val target = File(outputDir, "$name.png")
-        rule.mainClock.autoAdvance = false
-        rule.setContent {
-            SpotuiTheme {
-                CompositionLocalProvider(LocalLook provides look) {
-                    ProvideWindowSize {
-                        Box(
-                            Modifier
-                                .fillMaxSize()
-                                .background(if (look == Look.IMMERSIVE) Color.Black else Color(0xFF121212)),
-                        ) {
-                            content()
-                        }
-                    }
-                }
+    /**
+     * Installs a deterministic offline `SoundNestApi` that immediately answers secondary page
+     * queries (Browse categories, What's New, New Releases, Saved/New Episodes, Recently Played,
+     * Spotify Top Stats, Credits, and Connect Devices) while keeping primary feed/library fetches
+     * suspended so `Api.HomeCache` and `poke`-seeded ViewModels remain authoritative.
+     */
+    private fun installRichFakeApi() {
+        val img = { key: String -> listOf(Image(covers.getValue(key), 512, 512)) }
+        val apiAlbums = listOf(
+            Album("spotify:album:planets", "The Planets, Op. 32", listOf(ArtistRef("spotify:artist:holst", "Gustav Holst")), img("planets"), "ALBUM", "2026-10-30", 7),
+            Album("spotify:album:dragon", "How to Train Your Dragon", listOf(ArtistRef("spotify:artist:powell", "John Powell")), img("dragon"), "ALBUM", "2026-10-24", 12),
+            Album("spotify:album:carnival", "Carnival of the Animals", listOf(ArtistRef("spotify:artist:saintsaens", "Camille Saint-Saens")), img("carnival"), "ALBUM", "2026-10-12", 14),
+            Album("spotify:album:encanto", "Encanto (Instrumental)", listOf(ArtistRef("spotify:artist:miranda", "Lin-Manuel Miranda")), img("encanto"), "ALBUM", "2026-10-02", 9),
+        )
+        val apiEpisodes = listOf(
+            Episode(
+                uri = "spotify:episode:ep1",
+                name = "Why Do Stars Twinkle in the Night Sky?",
+                description = "Astronomer Dr. Maya Lin joins kid co-host Leo to explore starlight.",
+                durationMs = 1_680_000L,
+                releaseDate = "2026-10-28",
+                images = img("planets"),
+                show = AlbumRef("spotify:show:brainson", "Brains On! Science Podcast", img("planets")),
+                playedPositionMs = 620_000L,
+                played = false,
+                explicit = false,
+                playable = true,
+                previewUrl = null,
+            ),
+            Episode(
+                uri = "spotify:episode:ep2",
+                name = "How Whales Sing Across Entire Oceans",
+                description = "Dive beneath the waves to hear humpback whale songs.",
+                durationMs = 1_440_000L,
+                releaseDate = "2026-10-21",
+                images = img("study"),
+                show = AlbumRef("spotify:show:brainson", "Brains On! Science Podcast", img("study")),
+                playedPositionMs = 0L,
+                played = false,
+                explicit = false,
+                playable = true,
+                previewUrl = null,
+            ),
+            Episode(
+                uri = "spotify:episode:ep3",
+                name = "The Secret Life of Honeybees",
+                description = "How honeybees dance to share directions to wildflowers.",
+                durationMs = 1_320_000L,
+                releaseDate = "2026-10-14",
+                images = img("carnival"),
+                show = AlbumRef("spotify:show:brainson", "Wow in the World", img("carnival")),
+                playedPositionMs = 1_320_000L,
+                played = true,
+                explicit = false,
+                playable = true,
+                previewUrl = null,
+            ),
+        )
+        val categories = listOf(
+            Category("spotify:genre:classical", "Classical", img("classical"), "#7C3AED"),
+            Category("spotify:genre:soundtracks", "Soundtracks", img("dragon"), "#DC2626"),
+            Category("spotify:genre:kids", "Kids & Family", img("roadtrip"), "#EA580C"),
+            Category("spotify:genre:instrumental", "Instrumental", img("ghibli"), "#0F766E"),
+            Category("spotify:genre:sleep", "Sleep & Lullabies", img("bedtime"), "#1D4ED8"),
+            Category("spotify:genre:focus", "Study & Focus", img("study"), "#0891B2"),
+            Category("spotify:genre:acoustic", "Acoustic Folk", img("acoustic"), "#059669"),
+            Category("spotify:genre:nature", "Nature Sounds", img("carnival"), "#15803D"),
+        )
+        val whatsNewItems = listOf(
+            WhatsNewItem("wn1", WhatsNewState.NEW, album = apiAlbums[0]),
+            WhatsNewItem("wn2", WhatsNewState.NEW, episode = apiEpisodes[0]),
+            WhatsNewItem("wn3", WhatsNewState.SEEN, stateAt = "2020-01-01T00:00:00Z", album = apiAlbums[1]),
+            WhatsNewItem("wn4", WhatsNewState.SEEN, stateAt = "2020-01-01T00:00:00Z", episode = apiEpisodes[1]),
+        )
+        val todayMs = 1_793_404_800_000L
+        val yesterdayMs = todayMs - 86_400_000L
+        val recentEntries = listOf(
+            RecentEntry(
+                item = RecentItem("spotify:playlist:ghibli", MediaKind.PLAYLIST, "Studio Ghibli Piano", "Parent Picks", img("ghibli"), playedAtMs = todayMs, typeLabel = "Playlist"),
+                childrenGroup = "g1",
+                groupCount = 2,
+            ),
+            RecentEntry(
+                item = RecentItem("spotify:track:onesummersday", MediaKind.TRACK, "One Summer's Day", "Joe Hisaishi", img("ghibli"), durationMs = 249_000L, playedAtMs = todayMs),
+                group = "g1",
+            ),
+            RecentEntry(
+                item = RecentItem("spotify:album:planets", MediaKind.ALBUM, "The Planets, Op. 32", "Gustav Holst", img("planets"), playedAtMs = yesterdayMs, typeLabel = "Album"),
+                childrenGroup = "g2",
+                groupCount = 3,
+            ),
+            RecentEntry(
+                item = RecentItem("spotify:track:jupiter", MediaKind.TRACK, "Jupiter, the Bringer of Jollity", "Gustav Holst", img("planets"), durationMs = 478_000L, playedAtMs = yesterdayMs),
+                group = "g2",
+            ),
+        )
+        val topContent = TopContent(
+            artists = listOf(
+                Artist("spotify:artist:holst", "Gustav Holst", img("planets"), monthlyListeners = 2_845_120L, verified = true),
+                Artist("spotify:artist:hisaishi", "Joe Hisaishi", img("ghibli"), monthlyListeners = 6_410_000L, verified = true),
+                Artist("spotify:artist:debussy", "Claude Debussy", img("debussy"), monthlyListeners = 8_120_000L, verified = true),
+            ),
+            tracks = listOf(
+                Track("spotify:track:jupiter", "Jupiter, the Bringer of Jollity", 478_000L, listOf(ArtistRef("spotify:artist:holst", "Gustav Holst")), AlbumRef("spotify:album:planets", "The Planets", img("planets"))),
+                Track("spotify:track:onesummersday", "One Summer's Day", 249_000L, listOf(ArtistRef("spotify:artist:hisaishi", "Joe Hisaishi")), AlbumRef("spotify:album:ghibli", "Spirited Away", img("ghibli"))),
+                Track("spotify:track:debussy", "Clair de Lune", 304_000L, listOf(ArtistRef("spotify:artist:debussy", "Claude Debussy")), AlbumRef("spotify:album:bergamasque", "Suite bergamasque", img("debussy"))),
+            ),
+            artistTotal = 3,
+            trackTotal = 3,
+        )
+        val devicesFlow = MutableStateFlow(
+            listOf(
+                Device("self-phone", "This Phone (Emma's Pixel)", "SMARTPHONE", active = true, volume = 0.65, local = true),
+                Device("living-room", "Living Room Kitchen Speaker", "SPEAKER", active = false, volume = 0.45, local = false),
+                Device("bedroom-mini", "Emma's Bedroom Speaker", "SPEAKER", active = false, volume = 0.35, local = false),
+            ),
+        )
+        val readyFlow = MutableStateFlow(true)
+
+        val musicFeedAlbums = HomeFeed(
+            greeting = "Good afternoon",
+            filters = listOf(HomeFilter.ALL, HomeFilter.MUSIC),
+            shelves = listOf(
+                Shelf(
+                    uri = "spotify:section:new-releases",
+                    title = "Latest releases",
+                    items = apiAlbums.reversed().map { a ->
+                        MediaCard(
+                            uri = a.uri,
+                            kind = MediaKind.ALBUM,
+                            title = a.name,
+                            subtitle = a.artists.joinToString(", ") { it.name },
+                            images = a.images,
+                        )
+                    },
+                    total = apiAlbums.size,
+                ),
+            ),
+        )
+        val homeProxy = stub(Home::class.java) { m, args ->
+            when {
+                m.name == "feed" && args?.firstOrNull() == HomeFilter.MUSIC -> musicFeedAlbums
+                m.name == "categories" -> categories
+                m.name == "whatsNew" -> Page(apiAlbums, 0, apiAlbums.size, null)
+                m.name == "whatsNewFeed" -> Page(whatsNewItems, 0, whatsNewItems.size, null)
+                m.name == "markWhatsNewSeen" -> Unit
+                else -> StubDefault
             }
         }
-        // Pump both Compose clock and Robolectric Looper so Glide's background decode of local file:// covers completes.
-        repeat(18) {
-            Thread.sleep(40)
-            ShadowLooper.idleMainLooper(100, TimeUnit.MILLISECONDS)
-            rule.mainClock.advanceTimeBy(120)
+        val podcastsProxy = stub(Podcasts::class.java) { m, _ ->
+            when (m.name) {
+                "savedEpisodes" -> Page(apiEpisodes, 0, apiEpisodes.size, null)
+                "episodes" -> Page(apiEpisodes.filter { !it.played }, 0, 2, null)
+                else -> StubDefault
+            }
         }
-        rule.onRoot().captureRoboImage(target.absolutePath)
-        assertTrue("Expected screenshot ${target.absolutePath} to exist", target.exists())
-        assertTrue("Expected screenshot ${target.name} to be non-empty", target.length() > 8_000L)
+        val libraryProxy = stub(Library::class.java) { m, args ->
+            when {
+                m.name == "items" && args?.firstOrNull() == LibraryFilter.PODCASTS -> {
+                    val shows = listOf(
+                        LibraryItem("spotify:show:brainson", MediaKind.SHOW, "Brains On! Science Podcast", "American Public Media", img("planets"), pinned = false, addedAt = "2026-10-01"),
+                    )
+                    Page(shows, 0, shows.size, null)
+                }
+                m.name == "contains" -> {
+                    val list = (args?.firstOrNull() as? List<*>) ?: emptyList<Any>()
+                    list.map { true }
+                }
+                else -> StubDefault
+            }
+        }
+        val usersProxy = stub(Users::class.java) { m, _ ->
+            when (m.name) {
+                "me" -> Account("spotify:user:family", "family_account", "Emma's Music", img("ghibli"), premium = true, country = "DE")
+                "top" -> topContent
+                else -> StubDefault
+            }
+        }
+        val recentsProxy = stub(Recents::class.java) { m, _ ->
+            when (m.name) {
+                "recentEntries" -> Page(recentEntries, 0, recentEntries.size, null)
+                else -> StubDefault
+            }
+        }
+        val extrasProxy = stub(TrackExtras::class.java) { m, _ ->
+            when (m.name) {
+                "credits" -> Credits(
+                    listOf(
+                        CreditRole("Composer", listOf(ArtistRef("spotify:artist:holst", "Gustav Holst"))),
+                        CreditRole("Orchestra", listOf(ArtistRef("spotify:artist:lso", "London Symphony Orchestra"))),
+                    ),
+                )
+                else -> StubDefault
+            }
+        }
+        val devicesProxy = stub(Devices::class.java) { m, _ ->
+            when (m.name) {
+                "getDevices" -> devicesFlow
+                "refresh" -> Unit
+                else -> StubDefault
+            }
+        }
+        val apiProxy = stub(SoundNestApi::class.java) { m, _ ->
+            when (m.name) {
+                "getReady" -> readyFlow
+                "getHome" -> homeProxy
+                "getPodcasts" -> podcastsProxy
+                "getLibrary" -> libraryProxy
+                "getUsers" -> usersProxy
+                "getRecents" -> recentsProxy
+                "getExtras" -> extrasProxy
+                "getDevices" -> devicesProxy
+                else -> StubDefault
+            }
+        }
+        SoundNestRuntime.useApi(apiProxy)
     }
+
+    // ── Shell Wrappers ──────────────────────────────────────────────────────────
 
     @Composable
     private fun ClassicShell(route: String, capped: Boolean, page: @Composable (NavHostController) -> Unit) {
         val nav = rememberNavController()
         val large = windowSize().large
+        val routes = listOf(Routes.Home.route, Routes.Search.route, Routes.Library.route, Routes.Category.route, Routes.NewReleases.route, "detail")
         Row(Modifier.fillMaxSize()) {
             if (windowSize().navigationRail) MainNavigationRail(nav)
             Scaffold(modifier = Modifier.weight(1f), bottomBar = { MainBottomNavigation(nav) }) { _ ->
-                NavHost(nav, startDestination = route) {
-                    listOf(Routes.Home.route, Routes.Search.route, Routes.Library.route, "detail").forEach { r ->
+                NavHost(nav, startDestination = if (route in routes) route else "detail") {
+                    routes.forEach { r ->
                         composable(r) {
-                            CompositionLocalProvider(androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner provides rule.activity) {
+                            CompositionLocalProvider(LocalViewModelStoreOwner provides hostActivity) {
                                 Box(Modifier.fillMaxSize().background(Color(0xFF121212))) {
                                     Box(
                                         Modifier.fillMaxHeight().then(
@@ -448,12 +1951,13 @@ class DocScreenshotTest {
         val nav = rememberNavController()
         val large = windowSize().large
         val chrome = rememberImmersiveChromeState()
+        val routes = listOf(Routes.Home.route, Routes.Search.route, Routes.Library.route, Routes.Category.route, Routes.NewReleases.route, Routes.Queue.route, "detail")
         CompositionLocalProvider(LocalImmersiveChrome provides chrome) {
             Box(Modifier.fillMaxSize()) {
-                NavHost(nav, startDestination = route) {
-                    listOf(Routes.Home.route, Routes.Search.route, Routes.Library.route, "detail").forEach { r ->
+                NavHost(nav, startDestination = if (route in routes) route else "detail") {
+                    routes.forEach { r ->
                         composable(r) {
-                            CompositionLocalProvider(androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner provides rule.activity) {
+                            CompositionLocalProvider(LocalViewModelStoreOwner provides hostActivity) {
                                 Box(Modifier.fillMaxSize().background(Color.Black)) {
                                     Box(
                                         Modifier.fillMaxHeight().then(
@@ -478,34 +1982,62 @@ class DocScreenshotTest {
         }
     }
 
-    private fun seedCurrentSong(title: String, artist: String, album: String, coverUri: String) {
-        Graph.currentSongState.updateSongState(
-            coverUri = coverUri,
-            title = title,
-            singer = artist,
-            playingState = true,
-            songId = 1,
-            songIndex = 0,
-            album = album,
-        )
-    }
-
-    private fun offlineRuntime() {
-        SoundNestRuntime.useApi(stub(SoundNestApi::class.java))
-    }
-
     private fun bareHost() {
         val unsafe = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe").apply { isAccessible = true }.get(null)
         val host = unsafe.javaClass.getMethod("allocateInstance", Class::class.java)
             .invoke(unsafe, WebPlayerHost::class.java) as WebPlayerHost
         val ctx = RuntimeEnvironment.getApplication()
-        WebPlayerHost::class.java.getDeclaredField("accounts").apply { isAccessible = true }
-            .set(host, AccountStore(File(ctx.filesDir, "accounts.json")))
+        val store = AccountStore(File(ctx.filesDir, "accounts.json"))
+        fun setHostField(name: String, value: Any?) {
+            WebPlayerHost::class.java.getDeclaredField(name).apply { isAccessible = true }.set(host, value)
+        }
+        setHostField("accounts", store)
+        setHostField("profile", io.github.thake.soundnest.host.android.AccountList.DEFAULT_PROFILE)
+        setHostField("_loginRequired", MutableStateFlow(false))
+        setHostField("_online", MutableStateFlow(true))
+        setHostField("_url", MutableStateFlow("https://open.spotify.com/"))
+        setHostField("_licenseLimitedUntil", MutableStateFlow(0L))
         SoundNestRuntime.host = host
+
+        val bridgeMessages = MutableSharedFlow<String>(extraBufferCapacity = 16)
+        val callIdRegex = Regex("""window\.Myspoti\.call\((\d+),""")
+        val fakeBridgeHost = object : io.github.thake.soundnest.spotify.bridge.BridgeHost {
+            override val messages: Flow<String> = bridgeMessages
+            override suspend fun evaluate(script: String) {}
+            override suspend fun evaluateValue(script: String): String {
+                if (script.contains("\"player.audioInfo\"")) {
+                    val id = callIdRegex.find(script)?.groupValues?.getOrNull(1)?.toIntOrNull()
+                    if (id != null) {
+                        bridgeMessages.tryEmit(
+                            """{"type":"result","id":$id,"ok":true,"value":{"bitrate":320000,"mime":"audio/ogg; codecs=vorbis"}}""",
+                        )
+                        return "true"
+                    }
+                }
+                return "false"
+            }
+        }
+        val job = kotlinx.coroutines.SupervisorJob()
+        spotifyJob = job
+        val scope = kotlinx.coroutines.CoroutineScope(job + kotlinx.coroutines.Dispatchers.Unconfined)
+        bridgeMessages.tryEmit("""{"type":"ready"}""")
+        val fakeSpotify = io.github.thake.soundnest.spotify.SpotifyApi(fakeBridgeHost, scope)
+        bridgeMessages.tryEmit("""{"type":"ready"}""")
+        SoundNestRuntime::class.java.getDeclaredField("spotify").apply { isAccessible = true }
+            .set(SoundNestRuntime, fakeSpotify)
     }
 
+    private object StubDefault
+
     @Suppress("UNCHECKED_CAST")
-    private fun <T> stub(type: Class<T>): T = Proxy.newProxyInstance(type.classLoader, arrayOf(type)) { proxy, m, args ->
+    private fun <T> stub(
+        type: Class<T>,
+        override: ((java.lang.reflect.Method, Array<out Any?>?) -> Any?)? = null,
+    ): T = Proxy.newProxyInstance(type.classLoader, arrayOf(type)) { proxy, m, args ->
+        if (override != null) {
+            val custom = override(m, args)
+            if (custom !== StubDefault) return@newProxyInstance custom
+        }
         val r = m.returnType
         val g = m.genericReturnType.typeName
         when {
@@ -568,7 +2100,6 @@ class DocScreenshotTest {
             )
             canvas.drawRect(0f, 0f, size.toFloat(), size.toFloat(), paint)
 
-            // Soft radial glow
             paint.shader = RadialGradient(
                 size * 0.72f, size * 0.28f, size * 0.55f,
                 (s.accent and 0x00FFFFFF) or 0x66000000,
@@ -580,7 +2111,6 @@ class DocScreenshotTest {
 
             when (s.motif) {
                 0 -> {
-                    // Rolling hills + rising sun
                     paint.color = s.accent
                     paint.alpha = 220
                     canvas.drawCircle(size * 0.68f, size * 0.32f, size * 0.14f, paint)
@@ -596,7 +2126,6 @@ class DocScreenshotTest {
                     canvas.drawPath(path, paint)
                 }
                 1 -> {
-                    // Soundwave bars
                     paint.style = Paint.Style.STROKE
                     paint.strokeCap = Paint.Cap.ROUND
                     paint.strokeWidth = 22f
@@ -611,7 +2140,6 @@ class DocScreenshotTest {
                     paint.style = Paint.Style.FILL
                 }
                 else -> {
-                    // Planet + orbital ring
                     paint.color = s.accent
                     paint.alpha = 230
                     canvas.drawCircle(size * 0.5f, size * 0.5f, size * 0.20f, paint)

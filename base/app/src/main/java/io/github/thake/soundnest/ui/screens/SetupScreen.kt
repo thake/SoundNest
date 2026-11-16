@@ -104,9 +104,9 @@ private fun granted(context: Context, permission: String) =
     context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
 
 @Composable
-fun SetupScreen(onDone: () -> Unit) {
+fun SetupScreen(onDone: () -> Unit, initialStep: Int? = null) {
     val context = LocalContext.current
-    val order = remember { Setup.steps(context) }
+    val order = remember(initialStep) { initialStep?.let { listOf(it) } ?: Setup.steps(context) }
     var index by remember { mutableIntStateOf(0) }
     val steps = order.size
     fun next() { if (index + 1 < order.size) index++ else onDone() }

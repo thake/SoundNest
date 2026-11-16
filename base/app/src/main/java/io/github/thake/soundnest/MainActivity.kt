@@ -538,7 +538,7 @@ class MainActivity : AppCompatActivity() {
 
 /** Shown between Spotify's login page and the first screen. */
 @androidx.compose.runtime.Composable
-private fun ConnectingScreen() {
+internal fun ConnectingScreen() {
     androidx.compose.foundation.layout.Box(
         androidx.compose.ui.Modifier.fillMaxSize().background(io.github.thake.soundnest.ui.theme.AppBackground),
         contentAlignment = androidx.compose.ui.Alignment.Center,
@@ -554,7 +554,7 @@ private fun ConnectingScreen() {
 
 /** The sign-in page did not come (or the player did not start after it): what happened, and a way to go again. */
 @androidx.compose.runtime.Composable
-private fun LoginProblemScreen(onRetry: () -> Unit) {
+internal fun LoginProblemScreen(onRetry: () -> Unit) {
     Column(
         Modifier.fillMaxSize().background(io.github.thake.soundnest.ui.theme.AppBackground).systemBarsPadding().padding(28.dp),
         verticalArrangement = Arrangement.Center,

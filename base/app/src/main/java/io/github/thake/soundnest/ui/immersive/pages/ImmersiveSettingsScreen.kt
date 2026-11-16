@@ -70,7 +70,7 @@ import io.github.thake.soundnest.ui.screens.shareDiagnosticReport
 import kotlinx.coroutines.launch
 
 /** Where the Immersive Settings are: the list of categories, one category, or a choice inside it. */
-private enum class SettingsPage { Root, Playback, Lyrics, StreamingWifi, StreamingCell, Crossfade, Storage, Data, Display, Look, Rotation, Language, LyricsLanguage, App, Accounts, Library }
+enum class SettingsPage { Root, Playback, Lyrics, StreamingWifi, StreamingCell, Crossfade, Storage, Data, Display, Look, Rotation, Language, LyricsLanguage, App, Accounts, Library }
 
 private val StreamingChoices = listOf(
     Triple(StreamingQuality.AUTO, R.string.quality_streaming_auto, R.string.quality_streaming_auto_detail),
@@ -88,15 +88,22 @@ private val StreamingChoices = listOf(
  * spring and back leaves it; with "reduce motion" they cross-fade.
  */
 @Composable
-fun ImmersiveSettingsScreen(navController: NavController) {
+fun ImmersiveSettingsScreen(
+    navController: NavController,
+    initialPage: SettingsPage = SettingsPage.Root,
+) {
     // The pages pushed so far, so back pops one before it leaves Settings.
     // Saved by name, so a recreation (a language change, say) keeps the page the user is on.
     val stack = rememberSaveable(
+        initialPage,
         saver = listSaver(
             save = { list -> list.map { it.name } },
             restore = { names -> names.mapNotNull { runCatching { SettingsPage.valueOf(it) }.getOrNull() }.toMutableStateList() },
         ),
-    ) { mutableStateListOf<SettingsPage>() }
+    ) {
+        if (initialPage == SettingsPage.Root) mutableStateListOf()
+        else mutableStateListOf(initialPage)
+    }
     val page = stack.lastOrNull() ?: SettingsPage.Root
     val reduce = rememberReduceMotion()
     var pushing by remember { mutableStateOf(true) }

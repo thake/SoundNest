@@ -74,7 +74,10 @@ import io.github.thake.soundnest.ui.theme.tone
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ParentSettingsScreen(navController: NavController) {
+fun ParentSettingsScreen(
+    navController: NavController,
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
+) {
     val context = LocalContext.current
     val sessionTick by ParentSecurityManager.sessionTick.collectAsState()
     val unlocked = remember(sessionTick) { ParentSecurityManager.isAdminUnlocked(context) }
@@ -192,6 +195,7 @@ fun ParentSettingsScreen(navController: NavController) {
         }
 
         LazyColumn(
+            state = listState,
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = bottomBarsSpace() + 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier.fillMaxSize().navigationBarsPadding(),

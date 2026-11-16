@@ -65,14 +65,18 @@ import io.github.thake.soundnest.ui.theme.AppBackground
  * storage, display, accounts, and the player's own repair tools.
  */
 @Composable
-fun SettingsScreen(navController: NavController) {
+fun SettingsScreen(
+    navController: NavController,
+    initialTab: Int = 0,
+    initialSub: String? = null,
+) {
     val energy by io.github.thake.soundnest.power.EnergySettings.state.collectAsStateWithLifecycle()
     val ctx = androidx.compose.ui.platform.LocalContext.current
     // A page inside Settings (Transitions and AutoMix's options): its own screen, back returns to the tab.
-    var sub by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+    var sub by androidx.compose.runtime.saveable.rememberSaveable(initialSub) { mutableStateOf(initialSub) }
     androidx.activity.compose.BackHandler(enabled = sub != null) { sub = null }
     // One tab per group (see below); kept up here so a search hit can open one.
-    var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
+    var tab by androidx.compose.runtime.saveable.rememberSaveable(initialTab) { mutableStateOf(initialTab) }
     // Settings' search: null while closed.
     var query by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     androidx.activity.compose.BackHandler(enabled = query != null) { query = null }

@@ -248,7 +248,7 @@ private fun formatMinutes(min: Long) = if (min >= 60) "${min / 60} h ${min % 60}
  */
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
-fun RecapScreen(navController: NavController) {
+fun RecapScreen(navController: NavController, initialTab: Int = 0) {
     val periods = listOf(R.string.recap_month to 30L, R.string.recap_year to 365L, R.string.recap_all to 36_500L)
     var period by remember { mutableStateOf(1) }
     // Off the main thread: the history file grows with every listen, and reading
@@ -260,7 +260,7 @@ fun RecapScreen(navController: NavController) {
     }
     val recap = loaded ?: ListenHistory.Recap(0, 0, emptyMap(), emptyList(), emptyList(), emptyList())
     // Spotify's ranking of the account first (the official "Listening stats"), then this phone's counter.
-    var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
+    var tab by androidx.compose.runtime.saveable.rememberSaveable(initialTab) { mutableStateOf(initialTab) }
     Column(Modifier.fillMaxSize().background(Background).statusBarsPadding()) {
         ScreenHeader(stringResource(R.string.recap_title), navController)
         StatsTabs(tab) { tab = it }
