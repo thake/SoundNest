@@ -142,6 +142,11 @@ object LibraryEdits {
      */
     fun run(context: Context, edit: Edit?, write: suspend () -> Unit, onDone: (Boolean) -> Unit = {}) {
         val app = context.applicationContext
+        if (!com.music.spotui.parental.FeatureGates.canModifySpotifyLibrary(app)) {
+            Log.w(TAG, "library write refused: read-only Spotify library policy active")
+            onDone(false)
+            return
+        }
         if (edit != null) begin(edit)
         scope.launch {
             val failure = runCatching { write() }.exceptionOrNull()

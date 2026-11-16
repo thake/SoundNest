@@ -548,28 +548,13 @@ class MainActivity : AppCompatActivity() {
         when (intent.action) {
             Intent.ACTION_VIEW -> {
                 val link = intent.data?.toString() ?: return
-                if (com.music.spotui.data.api.InviteLinks.handle(link)) return
-                val uri = spotifyUri(link) ?: return
-                if (uri.split(':').getOrNull(1) in setOf("playlist", "album", "artist", "show")) {
-                    com.music.spotui.data.api.InviteLinks.page.value = uri
-                    return
-                }
-                lifecycleScope.launch {
-                    MyspotiRuntime.api.ready.first { it }
-                    runCatching { MyspotiRuntime.api.player.play(uri) }
-                }
+                com.music.spotui.data.api.InviteLinks.handle(link)
             }
             android.provider.MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH -> {
                 val query = intent.getStringExtra(android.app.SearchManager.QUERY).orEmpty()
                 if (query.isNotBlank()) lifecycleScope.launch { AutoBrowser.playFromSearch(query) }
             }
         }
-    }
-
-    /** `https://open.spotify.com/intl-fr/album/{id}?si=…` -> `spotify:album:{id}`. */
-    private fun spotifyUri(link: String): String? {
-        val m = Regex("(?:open|www|play)\\.spotify\\.com/(?:intl-[a-z-]+/)?(track|album|playlist|artist|show|episode)/([A-Za-z0-9]{22})").find(link) ?: return null
-        return "spotify:${m.groupValues[1]}:${m.groupValues[2]}"
     }
 }
 

@@ -1449,6 +1449,7 @@ object SmartShuffle {
      * into (Liked Songs: it is liked), and is no longer marked as a recommendation.
      */
     fun keep(context: android.content.Context, song: SongsModel) {
+        if (!com.music.spotui.parental.FeatureGates.canModifySpotifyLibrary(context)) return
         val list = on.value ?: return
         val id = song.spotifyTrackId
         recommended.value = recommended.value - id
@@ -1470,27 +1471,36 @@ object SmartShuffle {
         }
     }
 
-    /** Smart shuffle can play [contextUri]: a playlist or Liked Songs. */
-    fun canPlay(contextUri: String): Boolean = contextUri.startsWith("spotify:playlist:") || contextUri.contains(":collection")
+    /** Smart shuffle can play [contextUri]: a playlist or Liked Songs, when autoplay/radio is allowed. */
+    fun canPlay(contextUri: String): Boolean =
+        com.music.spotui.parental.FeatureGates.canUseAutoplayAndRadio() &&
+            (contextUri.startsWith("spotify:playlist:") || contextUri.contains(":collection"))
 
     /**
      * Smart shuffle (Spotify keeps its own for Premium): the playlist shuffled, with one of
      * Spotify's recommendations for it after every [EVERY] songs.
      */
     suspend fun start(p: ContextPageModel, first: SongsModel?, fromPositionMs: Long? = null) {
+        if (!com.music.spotui.parental.FeatureGates.canUseAutoplayAndRadio()) return
+        val policy = com.music.spotui.parental.ParentalPolicyStore.current()
         val api = Graph.api
         val state = Graph.currentSongState
         on.value = p.uri
-        val inList = p.tracks.map { it.spotifyTrackId }.toSet()
-        val recs = withContext(Dispatchers.IO) {
+        val allowedPlaylistTracks = com.music.spotui.parental.PlaybackGuardrail.sanitizeSongs(p.tracks, policy, p.uri)
+        val inList = allowedPlaylistTracks.map { it.spotifyTrackId }.toSet()
+        val rawRecs = withContext(Dispatchers.IO) {
             if (p.type == "liked") {
                 // Spotify's playlist extender refuses Liked Songs: the radios of a few liked songs instead.
-                p.tracks.shuffled().take(3).flatMap { api.getRecommendations(listOf(it.spotifyTrackId)).take(8) }
+                allowedPlaylistTracks.shuffled().take(3).flatMap { api.getRecommendations(listOf(it.spotifyTrackId)).take(8) }
             } else runCatching { MyspotiRuntime.api.playlists.recommended(p.uri, limit = 20) }.getOrDefault(emptyList()).map(api::songOf)
                 // Spotify's extender gives nothing for some playlists: the radios of a few of its songs.
-                .ifEmpty { p.tracks.shuffled().take(3).flatMap { runCatching { api.getRecommendations(listOf(it.spotifyTrackId)).take(8) }.getOrDefault(emptyList()) } }
+                .ifEmpty { allowedPlaylistTracks.shuffled().take(3).flatMap { runCatching { api.getRecommendations(listOf(it.spotifyTrackId)).take(8) }.getOrDefault(emptyList()) } }
         }.filter { it.spotifyTrackId !in inList }.distinctBy { it.spotifyTrackId }.shuffled()
-        val shuffled = p.tracks.shuffled().let { list -> first?.let { f -> listOf(f) + list.filter { it.spotifyTrackId != f.spotifyTrackId } } ?: list }
+        val recs = com.music.spotui.parental.PlaybackGuardrail.sanitizeSongs(rawRecs, policy)
+        val safeFirst = first?.takeIf { com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(it, policy, p.uri) }
+        val shuffled = allowedPlaylistTracks.shuffled().let { list ->
+            safeFirst?.let { f -> listOf(f) + list.filter { it.spotifyTrackId != f.spotifyTrackId } } ?: list
+        }
         if (shuffled.isEmpty()) return
         val mixed = ArrayList<SongsModel>()
         val more = recs.iterator()
@@ -1504,7 +1514,7 @@ object SmartShuffle {
         state.updateQueue(mixed)
         val startSong = mixed.first()
         // Turned on from the player: the song playing goes on where it is, not from its start.
-        val position = fromPositionMs?.takeIf { first != null && it > 0 }
+        val position = fromPositionMs?.takeIf { safeFirst != null && it > 0 }
         SongPlayer.playSong(startSong.url, contextUri = p.uri, order = mixed.map { "spotify:track:${it.spotifyTrackId}" }, positionMs = position,
             songs = mixed)
         state.updateSongState(startSong.coverUri, startSong.title, startSong.singer, true, startSong.id, 0, startSong.album)
@@ -1512,6 +1522,7 @@ object SmartShuffle {
 
     /** From the player: loads the playing list, then smart-shuffles it, the current song first. */
     suspend fun startFor(contextUri: String): Boolean {
+        if (!com.music.spotui.parental.FeatureGates.canUseAutoplayAndRadio()) return false
         val api = Graph.api
         val flow = when {
             contextUri.contains(":collection") -> api.getLikedPage()

@@ -103,6 +103,7 @@ fun LocalFilesScreen(navController: NavController) {
                 subtitle = stringResource(R.string.local_files_empty_section_subtitle),
                 button = stringResource(if (askedOnce) R.string.local_files_empty_section_button_go_to_settings else R.string.local_files_empty_section_dialog_permission_rationale_accept),
             ) {
+                if (!com.music.spotui.parental.FeatureGates.shouldRequestAudioStoragePermission(context)) return@EmptyState
                 if (askedOnce) context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")))
                 else launcher.launch(LocalMusic.permission)
             }

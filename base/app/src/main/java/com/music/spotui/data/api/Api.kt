@@ -267,18 +267,33 @@ class Api constructor(
         isPlaylist = true,
     )
 
-    private fun homeItem(c: MediaCard): HomeItem? {
+    private fun policy() = com.music.spotui.parental.ParentalPolicyStore.current(context)
+
+    private fun filterFeed(feed: HomeFeedModel, p: com.music.spotui.parental.ParentalPolicy = policy()): HomeFeedModel =
+        feed.copy(
+            sections = feed.sections.mapNotNull { sec ->
+                val allowed = sec.items.mapNotNull { com.music.spotui.parental.ParentalFilterEngine.filterHomeItem(it, p) }
+                if (allowed.isEmpty()) null else sec.copy(items = allowed)
+            },
+        )
+
+    private fun homeItem(c: MediaCard, p: com.music.spotui.parental.ParentalPolicy = policy()): HomeItem? {
         val id = c.uri.substringAfterLast(':')
         val image = cover(c.images)
-        return when (c.kind) {
+        if (c.kind == MediaKind.AUDIOBOOK || c.kind == MediaKind.CHAPTER) {
+            if (!com.music.spotui.parental.ParentalFilterEngine.isShowAllowed(id, c.title, c.subtitle.orEmpty(), isAudiobook = true, policy = p)) return null
+            return HomeItem.Show(id = id, name = c.title, imageUrl = image, subtitle = c.subtitle.orEmpty(), isEpisode = c.kind == MediaKind.CHAPTER)
+        }
+        val mapped = when (c.kind) {
             MediaKind.ALBUM -> HomeItem.Album(id = id, name = c.title, imageUrl = image, subtitle = c.subtitle ?: context.getString(R.string.album_type_album), artists = c.subtitle.orEmpty())
             MediaKind.ARTIST -> HomeItem.Artist(name = c.title, imageUrl = image, id = id)
             MediaKind.PLAYLIST -> HomeItem.Playlist(name = c.title, imageUrl = image, subtitle = c.subtitle?.let { context.getString(R.string.assisted_curation_search_playlist) + " • $it" } ?: context.getString(R.string.assisted_curation_search_playlist), id = id)
-            MediaKind.SHOW, MediaKind.AUDIOBOOK -> HomeItem.Show(id = id, name = c.title, imageUrl = image, subtitle = c.subtitle.orEmpty(), isEpisode = false)
-            MediaKind.EPISODE, MediaKind.CHAPTER -> HomeItem.Show(id = id, name = c.title, imageUrl = image, subtitle = c.subtitle.orEmpty(), isEpisode = true)
+            MediaKind.SHOW -> HomeItem.Show(id = id, name = c.title, imageUrl = image, subtitle = c.subtitle.orEmpty(), isEpisode = false)
+            MediaKind.EPISODE -> HomeItem.Show(id = id, name = c.title, imageUrl = image, subtitle = c.subtitle.orEmpty(), isEpisode = true)
             MediaKind.COLLECTION -> HomeItem.Playlist(name = c.title, imageUrl = image.ifBlank { LIKED_COVER }, subtitle = context.getString(R.string.assisted_curation_search_playlist), id = LIKED_SONGS_ID)
             else -> null
-        }
+        } ?: return null
+        return com.music.spotui.parental.ParentalFilterEngine.filterHomeItem(mapped, p)
     }
 
     private fun likedEntry() = LibraryEntry(
@@ -296,17 +311,19 @@ class Api constructor(
      * (home shelves), then Spotify's new-release editorial playlists' albums.
      */
     suspend fun newReleases(): List<AlbumsModel> {
+        val p = policy()
         val feed = api.home.feed(app.myspoti.api.HomeFilter.MUSIC, itemsPerShelf = 30)
         val albums = feed.shelves.flatMap { it.items }.filter { it.kind == MediaKind.ALBUM }.distinctBy { it.uri }
         return albums.map { c ->
             AlbumsModel(spotifyId = c.uri.substringAfterLast(':'), id = stableId("album:${c.uri}"), artists = c.subtitle.orEmpty(),
                 coverUri = cover(c.images), name = c.title, time = "", type = "ALBUM")
-        }
+        }.filter { com.music.spotui.parental.ParentalFilterEngine.isAlbumAllowed(it, p) }
     }
 
     /** Artists the user follows (library "Artists" filter). */
     suspend fun getFollowedArtists(): List<ArtistsModel> {
         if (!ready()) return emptyList()
+        val p = policy()
         val out = ArrayList<ArtistsModel>()
         var offset = 0
         while (true) {
@@ -314,7 +331,7 @@ class Api constructor(
             page.items.filter { it.kind == MediaKind.ARTIST }.forEach { out += ArtistsModel(it.name, cover(it.images), it.uri.substringAfterLast(':'), it.addedAt.orEmpty()) }
             offset = page.nextOffset ?: break
         }
-        return out
+        return out.filter { com.music.spotui.parental.ParentalFilterEngine.isArtistAllowed(it, p) }
     }
 
     /**
@@ -335,12 +352,15 @@ class Api constructor(
      * is read and its shows kept: the unfiltered list carries them whatever the filters are called.
      */
     suspend fun followedShows(): Result<List<LibraryEntry>> {
+        val p = policy()
+        if (!p.allowPodcasts) return Result.success(emptyList())
         if (!ready()) return Result.failure(IllegalStateException(notSignedIn()))
         val filtered = readShows(LibraryFilter.PODCASTS)
         val shows = if (filtered.getOrNull().isNullOrEmpty()) readShows(LibraryFilter.ALL).takeIf { it.isSuccess || filtered.isFailure } ?: filtered else filtered
-        val out = shows.getOrElse { return Result.failure(it) }.map {
-            LibraryEntry(SHOW_PREFIX + it.uri.substringAfterLast(':'), it.name,
+        val out = shows.getOrElse { return Result.failure(it) }.mapNotNull {
+            val entry = LibraryEntry(SHOW_PREFIX + it.uri.substringAfterLast(':'), it.name,
                 context.getString(R.string.album_type_podcast) + (it.subtitle?.let { s -> " • $s" } ?: ""), cover(it.images), isPlaylist = false)
+            com.music.spotui.parental.ParentalFilterEngine.filterLibraryEntry(entry, p)
         }
         if (out.isEmpty()) return Result.success(out)
         val news = LibraryEntry(NEW_EPISODES_ID, context.getString(R.string.new_episodes_title), context.getString(R.string.new_episodes_subtitle),
@@ -378,8 +398,13 @@ class Api constructor(
      * an hour, so opening the screen again asks nothing.
      */
     suspend fun getNewEpisodes(): List<SongsModel> {
-        if (!ready()) return emptyList()
-        newEpisodes?.let { (at, list) -> if (System.currentTimeMillis() - at < NEW_EPISODES_TTL_MS) return list }
+        val p = policy()
+        if (!p.allowPodcasts || !ready()) return emptyList()
+        newEpisodes?.let { (at, list) ->
+            if (System.currentTimeMillis() - at < NEW_EPISODES_TTL_MS) {
+                return list.filter { com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(it, p) }
+            }
+        }
         val shows = getFollowedShows().filter { it.spotifyId.startsWith(SHOW_PREFIX) }.map { it.spotifyId.removePrefix(SHOW_PREFIX) }
         val gate = kotlinx.coroutines.sync.Semaphore(PLAYLIST_PARALLEL)
         val found = coroutineScope {
@@ -387,7 +412,8 @@ class Api constructor(
                 async(Dispatchers.IO) { gate.withPermit { runCatching { api.podcasts.episodes("spotify:show:$id", 0, NEW_PER_SHOW).items }.getOrDefault(emptyList()) } }
             }.map { it.await() }.flatten()
         }
-        val list = found.map(::episodeSong).filter { !it.played && it.releaseDate.isNotBlank() }
+        val list = found.map(::episodeSong)
+            .filter { !it.played && it.releaseDate.isNotBlank() && com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(it, p) }
             .sortedByDescending { it.releaseDate }.take(NEW_EPISODES_MAX)
         if (list.isNotEmpty()) newEpisodes = System.currentTimeMillis() to list
         return list
@@ -395,15 +421,22 @@ class Api constructor(
 
     /** [facet]: "" (all), "music-chip", "podcasts-chip", "audiobooks-chip", or a sub-chip Spotify sent (HomeSubChips). */
     suspend fun getHomeFeed(facet: String = ""): Flow<Response<HomeFeedModel>> = flow {
+        val p = policy()
+        if (facet.contains("podcast", ignoreCase = true) && !p.allowPodcasts) {
+            emit(Response.Success(HomeFeedModel())); return@flow
+        }
+        if (facet.contains("audiobook", ignoreCase = true) && !p.allowAudiobooks) {
+            emit(Response.Success(HomeFeedModel())); return@flow
+        }
         val cached = if (facet.isEmpty()) HomeCache.home ?: diskHome() else HomeCache.facets[facet]
-        cached?.let { emit(Response.Success(it)) } ?: emit(Response.Loading())
+        cached?.let { emit(Response.Success(filterFeed(it, p))) } ?: emit(Response.Loading())
         if (!ready()) { if (cached == null) emit(Response.Error(notSignedIn())); return@flow }
         // Any facet Spotify offers: a top chip, or one opened beside it (Music > Following).
         runCatching { api.home.feed(facet, itemsPerShelf = 20) }.fold(
             onSuccess = { feed ->
                 com.music.spotui.data.entity.HomeSubChips.learn(feed.chips)
                 val sections = feed.shelves.mapNotNull { shelf ->
-                    val items = shelf.items.distinctBy { it.uri }.mapNotNull(::homeItem)
+                    val items = shelf.items.distinctBy { it.uri }.mapNotNull { homeItem(it, p) }
                         .distinctBy { it::class.simpleName + "|" + it.name.lowercase() }
                     if (items.isEmpty()) null else HomeSection(title = shelf.title.orEmpty(), items = items)
                 }.distinctBy { it.title.lowercase().ifBlank { it.hashCode().toString() } }
@@ -421,7 +454,8 @@ class Api constructor(
         emit(Response.Loading())
         if (query.isBlank()) { emit(Response.Success(emptyList())); return@flow }
         if (!ready()) { emit(Response.Error(notSignedIn())); return@flow }
-        runCatching { api.search.tracks(query, limit = 30).items.map(::songOf) }.fold(
+        val p = policy()
+        runCatching { api.search.tracks(query, limit = 30).items.map(::songOf).filter { com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(it, p) } }.fold(
             onSuccess = { emit(Response.Success(it)) },
             onFailure = { Log.e("Api", "searchTracks failed", it); emit(Response.Error(it.message ?: "error")) },
         )
@@ -432,24 +466,41 @@ class Api constructor(
         emit(Response.Loading())
         if (query.isBlank()) { emit(Response.Success(SearchResults())); return@flow }
         if (!readyToRead()) { emit(Response.Error(notSignedIn())); return@flow }
+        val p = policy()
         val music = runCatching { api.search.all(query, limit = 20) }.getOrElse {
             Log.e("Api", "searchEverything failed", it); emit(Response.Error(it.message ?: "error")); return@flow
         }
         val base = SearchResults(
-            songs = music.tracks.items.map(::songOf),
-            albums = music.albums.items.map(::albumOf),
-            artists = music.artists.items.map(::artistOf),
-            playlists = music.playlists.items.map(::playlistEntry),
+            songs = music.tracks.items.map(::songOf).filter { com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(it, p) },
+            albums = music.albums.items.map { a ->
+                val m = albumOf(a)
+                m.takeIf {
+                    com.music.spotui.parental.ParentalFilterEngine.isAlbumAllowed(
+                        albumId = m.spotifyId,
+                        name = m.name,
+                        artists = m.artists,
+                        artistIds = a.artists.map { ar -> ar.uri.substringAfterLast(':') },
+                        policy = p,
+                    )
+                }
+            }.filterNotNull(),
+            artists = music.artists.items.map(::artistOf).filter { com.music.spotui.parental.ParentalFilterEngine.isArtistAllowed(it, p) },
+            playlists = music.playlists.items.map(::playlistEntry).mapNotNull { com.music.spotui.parental.ParentalFilterEngine.filterLibraryEntry(it, p) },
         )
         emit(Response.Success(base))
+        if (!p.allowPodcasts) return@flow
         val (shows, episodes) = coroutineScope {
             val s = async { runCatching { api.search.shows(query, limit = 12).items }.getOrDefault(emptyList()) }
             val e = async { runCatching { api.search.episodes(query, limit = 12).items }.getOrDefault(emptyList()) }
             s.await() to e.await()
         }
-        if (shows.isNotEmpty() || episodes.isNotEmpty()) emit(Response.Success(base.copy(
-            shows = shows.map { PodcastModel(it.uri.substringAfterLast(':'), it.title, it.subtitle.orEmpty(), cover(it.images)) },
-            episodes = episodes.map(::episodeSong),
+        val filteredShows = shows.map { PodcastModel(it.uri.substringAfterLast(':'), it.title, it.subtitle.orEmpty(), cover(it.images)) }
+            .filter { com.music.spotui.parental.ParentalFilterEngine.isShowAllowed(it, p) }
+        val filteredEpisodes = episodes.map(::episodeSong)
+            .filter { com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(it, p) }
+        if (filteredShows.isNotEmpty() || filteredEpisodes.isNotEmpty()) emit(Response.Success(base.copy(
+            shows = filteredShows,
+            episodes = filteredEpisodes,
         )))
     }
 
@@ -458,6 +509,8 @@ class Api constructor(
     /** A podcast's episodes, newest first, as playable songs (url = "episode:<id>"). */
     suspend fun getShowEpisodes(showId: String): Flow<Response<List<SongsModel>>> = flow {
         emit(Response.Loading())
+        val p = policy()
+        if (!p.allowPodcasts) { emit(Response.Success(emptyList())); return@flow }
         if (!ready()) { emit(Response.Error(notSignedIn())); return@flow }
         val uri = "spotify:show:$showId"
         val episodes = runCatching {
@@ -465,7 +518,7 @@ class Api constructor(
             var offset = 0
             repeat(10) {
                 val page = api.podcasts.episodes(uri, offset, 50)
-                out += page.items.map(::episodeSong)
+                out += page.items.map(::episodeSong).filter { com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(it, p, parentContextUri = uri) }
                 emit(Response.Success(out.toList()))
                 offset = page.nextOffset ?: return@runCatching out
             }
@@ -487,30 +540,40 @@ class Api constructor(
      */
     suspend fun getShowPage(showId: String): Flow<Response<ShowPage>> = flow {
         emit(Response.Loading())
+        val pol = policy()
+        if (!pol.allowPodcasts && !pol.allowAudiobooks) { emit(Response.Error(context.getString(R.string.page_load_failed))); return@flow }
         if (!ready()) { emit(Response.Error(notSignedIn())); return@flow }
         val uri = "spotify:show:$showId"
-        val head = runCatching { api.podcasts.show(uri) }.getOrNull()
+        val head = if (pol.allowPodcasts) runCatching { api.podcasts.show(uri) }.getOrNull() else null
         val rows = ArrayList<SongsModel>()
         var failure: Throwable? = null
         var audiobook = false
         var book: app.myspoti.api.Audiobook? = null
 
-        try {
-            var offset = 0
-            loop@ for (page in 0 until MAX_EPISODE_PAGES) {
-                val p = api.podcasts.episodes(uri, offset, 50)
-                if (p.items.isEmpty()) break@loop
-                rows += p.items.map(::episodeSong)
-                emit(Response.Success(pageOf(showId, head, book, rows, audiobook = false)))
-                offset = p.nextOffset ?: break@loop
+        if (pol.allowPodcasts) {
+            try {
+                var offset = 0
+                loop@ for (page in 0 until MAX_EPISODE_PAGES) {
+                    val p = api.podcasts.episodes(uri, offset, 50)
+                    if (p.items.isEmpty()) break@loop
+                    rows += p.items.map(::episodeSong).filter {
+                        com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(it, pol, parentContextUri = uri, isAudiobookChapter = false)
+                    }
+                    val built = pageOf(showId, head, book, rows, audiobook = false)
+                    if (!com.music.spotui.parental.ParentalFilterEngine.isShowAllowed(built.show, pol)) {
+                        emit(Response.Error(context.getString(R.string.page_load_failed))); return@flow
+                    }
+                    emit(Response.Success(built))
+                    offset = p.nextOffset ?: break@loop
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                failure = e
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            failure = e
         }
 
-        if (rows.isEmpty()) {
+        if (rows.isEmpty() && pol.allowAudiobooks) {
             // A book: its chapters come from queryBookChapters, not from the episodes query.
             audiobook = true
             book = runCatching { api.podcasts.audiobook(uri) }.getOrNull()
@@ -519,8 +582,14 @@ class Api constructor(
                 loop@ for (page in 0 until MAX_EPISODE_PAGES) {
                     val p = api.podcasts.chapters(uri, offset, 50)
                     if (p.items.isEmpty()) break@loop
-                    rows += p.items.map(::episodeSong)
-                    emit(Response.Success(pageOf(showId, head, book, rows, audiobook = true)))
+                    rows += p.items.map(::episodeSong).filter {
+                        com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(it, pol, parentContextUri = uri, isAudiobookChapter = true)
+                    }
+                    val built = pageOf(showId, head, book, rows, audiobook = true)
+                    if (!com.music.spotui.parental.ParentalFilterEngine.isShowAllowed(built.show, pol)) {
+                        emit(Response.Error(context.getString(R.string.page_load_failed))); return@flow
+                    }
+                    emit(Response.Success(built))
                     offset = p.nextOffset ?: break@loop
                 }
             } catch (e: CancellationException) {
@@ -535,8 +604,13 @@ class Api constructor(
             emit(Response.Error(failure.message ?: "error"))
             return@flow
         }
+        val finalPage = pageOf(showId, head, book, rows, audiobook)
+        if (!com.music.spotui.parental.ParentalFilterEngine.isShowAllowed(finalPage.show, pol)) {
+            emit(Response.Error(context.getString(R.string.page_load_failed)))
+            return@flow
+        }
         SongPlayer.registerContext(rows.map { it.url }, uri)
-        emit(Response.Success(pageOf(showId, head, book, rows, audiobook)))
+        emit(Response.Success(finalPage))
     }
 
     private fun pageOf(
@@ -567,8 +641,11 @@ class Api constructor(
 
     /** One episode (or chapter) by raw Spotify id, for the episode page. */
     suspend fun getEpisode(episodeId: String): SongsModel? {
-        if (!ready()) return null
-        return runCatching { episodeSong(api.podcasts.episode("spotify:episode:$episodeId")) }.getOrNull()
+        val pol = policy()
+        if (!pol.allowPodcasts || !ready()) return null
+        return runCatching { episodeSong(api.podcasts.episode("spotify:episode:$episodeId")) }
+            .getOrNull()
+            ?.takeIf { com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(it, pol) }
     }
 
     /**
@@ -577,7 +654,7 @@ class Api constructor(
      * change follows the account like Spotify's own menu does.
      */
     suspend fun setEpisodePlayed(episodeUri: String, played: Boolean) {
-        if (episodeUri.isBlank()) return
+        if (episodeUri.isBlank() || !com.music.spotui.parental.FeatureGates.canModifySpotifyLibrary(context)) return
         MyspotiRuntime.spotify.raw.service(
             "CollectionPlatformAPI",
             if (played) "add" else "remove",
@@ -602,13 +679,17 @@ class Api constructor(
 
     /** "Your Episodes": saved podcast episodes. */
     suspend fun getSavedEpisodes(): List<SongsModel> {
-        if (!ready()) return emptyList()
-        return runCatching { api.podcasts.savedEpisodes(limit = 100).items.map(::episodeSong) }.getOrDefault(emptyList())
+        val pol = policy()
+        if (!pol.allowPodcasts || !ready()) return emptyList()
+        return runCatching {
+            api.podcasts.savedEpisodes(limit = 100).items.map(::episodeSong)
+                .filter { com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(it, pol) }
+        }.getOrDefault(emptyList())
     }
 
     /** Release date of a show's newest episode (one episode asked for), "" when unknown. */
     suspend fun latestEpisodeDate(showId: String): String {
-        if (!ready()) return ""
+        if (!policy().allowPodcasts || !ready()) return ""
         return runCatching { api.podcasts.episodes("spotify:show:$showId", 0, 1).items.firstOrNull()?.releaseDate.orEmpty() }.getOrDefault("")
     }
 
@@ -616,15 +697,21 @@ class Api constructor(
 
     /** The song radio after [seedTrackIds]' last track: Spotify's own radio playlist. */
     suspend fun getRecommendations(seedTrackIds: List<String>): List<SongsModel> {
+        val pol = policy()
+        if (!pol.effectiveAllowAutoplayAndRadio) return emptyList()
         val seed = seedTrackIds.lastOrNull { it.isNotBlank() } ?: return emptyList()
         if (!ready()) return emptyList()
         val radio = runCatching { api.extras.radio("spotify:track:$seed") }.getOrNull() ?: return emptyList()
-        return runCatching { api.playlists.tracks(radio, 0, 50).items.map(::songOf).filter { it.spotifyTrackId != seed } }.getOrDefault(emptyList())
+        return runCatching {
+            api.playlists.tracks(radio, 0, 50).items.map(::songOf)
+                .filter { it.spotifyTrackId != seed && com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(it, pol) }
+        }.getOrDefault(emptyList())
     }
 
     /** The radio playlist id for a track or artist uri (for "Go to song radio"). */
     suspend fun radioPlaylistId(seedUri: String): String? =
-        if (!ready()) null else runCatching { api.extras.radio(seedUri) }.getOrNull()?.substringAfterLast(':')
+        if (!policy().effectiveAllowAutoplayAndRadio || !ready()) null
+        else runCatching { api.extras.radio(seedUri) }.getOrNull()?.substringAfterLast(':')
 
     /**
      * A browse category: Spotify's own category page when [genre] is a page/genre uri or id,
@@ -632,14 +719,15 @@ class Api constructor(
      */
     suspend fun getCategoryPlaylists(genre: String): Flow<Response<List<LibraryEntry>>> = flow {
         emit(Response.Loading())
-        if (genre.isBlank()) { emit(Response.Success(emptyList())); return@flow }
+        val pol = policy()
+        if (genre.isBlank() || !pol.effectiveAllowAutoplayAndRadio) { emit(Response.Success(emptyList())); return@flow }
         if (!ready()) { emit(Response.Error(notSignedIn())); return@flow }
         val pageUri = when {
             genre.startsWith("spotify:page:") || genre.startsWith("spotify:genre:") -> genre
             else -> runCatching { api.home.categories() }.getOrNull()?.firstOrNull { it.title.equals(genre, ignoreCase = true) }?.uri
         }
         val entries = runCatching {
-            if (pageUri != null) {
+            val raw = if (pageUri != null) {
                 // Shows, episodes and books too: the Podcasts and Documentaries pages hold little else
                 // and showed empty (reported). Each opens by the kind its uri says (categoryEntryRoute).
                 api.home.category(pageUri).shelves.flatMap { it.items }.distinctBy { it.uri }.mapNotNull { c ->
@@ -647,6 +735,7 @@ class Api constructor(
                     LibraryEntry(c.uri.substringAfterLast(':'), c.title, c.subtitle.orEmpty(), cover(c.images), isPlaylist = c.kind == MediaKind.PLAYLIST, uri = c.uri)
                 }
             } else api.search.playlists(genre, limit = 24).items.map(::playlistEntry)
+            raw.mapNotNull { com.music.spotui.parental.ParentalFilterEngine.filterLibraryEntry(it, pol) }
         }
         entries.fold(
             onSuccess = { emit(Response.Success(it)) },
@@ -664,9 +753,20 @@ class Api constructor(
         return hits.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: hits.firstOrNull()
     }
 
+    private fun filterArtistOverview(model: ArtistOverviewModel, pol: com.music.spotui.parental.ParentalPolicy, uri: String): ArtistOverviewModel? {
+        if (!com.music.spotui.parental.ParentalFilterEngine.isArtistAllowed(model.id, model.name, model.biography.orEmpty(), pol)) return null
+        return model.copy(
+            topTracks = model.topTracks.filter { com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(it.song, pol, parentContextUri = uri) },
+            popularReleases = model.popularReleases.filter { com.music.spotui.parental.ParentalFilterEngine.isAlbumAllowed(it, pol) },
+            appearsOn = model.appearsOn.filter { com.music.spotui.parental.ParentalFilterEngine.isAlbumAllowed(it, pol) },
+            relatedArtists = model.relatedArtists.filter { com.music.spotui.parental.ParentalFilterEngine.isArtistAllowed(it, pol) },
+        )
+    }
+
     /** The full artist page; [knownArtistId] avoids the fuzzy name lookup. */
     suspend fun getArtistOverview(artistName: String, knownArtistId: String = ""): Flow<Response<ArtistOverviewModel>> = flow {
         emit(Response.Loading())
+        val pol = policy()
         if (artistName.isBlank() && knownArtistId.isBlank()) { emit(Response.Success(ArtistOverviewModel(name = artistName))); return@flow }
         if (!ready()) { emit(Response.Error(notSignedIn())); return@flow }
         val uri = when {
@@ -678,7 +778,9 @@ class Api constructor(
         // Shown again within a few minutes (back, the releases page, another tap): from memory,
         // without asking Spotify for the page and the whole discography once more.
         ArtistCache.map[uri]?.let { (at, cached) ->
-            emit(Response.Success(cached))
+            val filtered = filterArtistOverview(cached, pol, uri)
+            if (filtered == null) { emit(Response.Error(context.getString(R.string.artist_not_found))); return@flow }
+            emit(Response.Success(filtered))
             if (System.currentTimeMillis() - at < ArtistCache.FRESH_MS) return@flow
         }
         val firstReleases = kotlinx.coroutines.coroutineScope {
@@ -697,8 +799,7 @@ class Api constructor(
         val page = firstReleases.first
         val avatar = big(page.artist.images)
         val top = page.topTracks.map { t -> songOf(t.track).let { if (it.coverUri.isBlank()) it.copy(coverUri = avatar) else it } to t.playcount }
-        SongPlayer.registerContext(top.map { it.first.url }, uri)
-        val model = ArtistOverviewModel(
+        val rawModel = ArtistOverviewModel(
             id = idOf(uri),
             name = page.artist.name.ifBlank { artistName },
             verified = page.artist.verified,
@@ -712,8 +813,13 @@ class Api constructor(
             appearsOn = page.appearsOn.map(::albumOf),
             relatedArtists = page.related.map(::artistOf),
         )
-        emit(Response.Success(model))
-        ArtistCache.map[uri] = System.currentTimeMillis() to model
+        ArtistCache.map[uri] = System.currentTimeMillis() to rawModel
+        val filtered = filterArtistOverview(rawModel, pol, uri) ?: run {
+            emit(Response.Error(context.getString(R.string.artist_not_found)))
+            return@flow
+        }
+        SongPlayer.registerContext(filtered.topTracks.map { it.song.url }, uri)
+        emit(Response.Success(filtered))
         // The overview carries only part of the discography: the whole list follows.
         // Every page of it (big artists have hundreds of singles), up to a sane cap.
         val all = runCatching {
@@ -730,10 +836,10 @@ class Api constructor(
         }.getOrNull().orEmpty()
         // Shown again when the discography adds releases or puts them in their real order (its dates are full ones).
         val merged = app.myspoti.api.Releases.newestFirst(page.popularReleases, all).map(::albumOf)
-        if (merged != model.popularReleases) {
-            val full = model.copy(popularReleases = merged)
-            ArtistCache.map[uri] = System.currentTimeMillis() to full
-            emit(Response.Success(full))
+        if (merged != rawModel.popularReleases) {
+            val fullRaw = rawModel.copy(popularReleases = merged)
+            ArtistCache.map[uri] = System.currentTimeMillis() to fullRaw
+            filterArtistOverview(fullRaw, pol, uri)?.let { emit(Response.Success(it)) }
         }
     }
 
@@ -793,11 +899,16 @@ class Api constructor(
      */
     suspend fun getLikedByArtistPage(artistId: String, artistName: String): Flow<Response<ContextPageModel>> = flow {
         emit(Response.Loading())
+        val pol = policy()
+        if (!com.music.spotui.parental.ParentalFilterEngine.isArtistAllowed(artistId, artistName, policy = pol)) {
+            emit(Response.Error(context.getString(R.string.artist_not_found))); return@flow
+        }
         val all = LikedCache.tracks ?: LikedCache.loadOnce().await()
             ?: run { emit(Response.Error(context.getString(R.string.page_load_failed))); return@flow }
         val songs = all.filter { s ->
-            if (s.artistIds.isNotEmpty()) artistId in s.artistIds
+            val byArtist = if (s.artistIds.isNotEmpty()) artistId in s.artistIds
             else artistName.isNotBlank() && s.singer.split(", ").any { it.equals(artistName, ignoreCase = true) }
+            byArtist && com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(s, pol)
         }
         emit(Response.Success(ContextPageModel(
             uri = "spotify:collection:tracks",
@@ -819,17 +930,22 @@ class Api constructor(
      * with [full] (a pull-to-refresh), every page is read.
      */
     suspend fun getLikedPage(full: Boolean = false): Flow<Response<ContextPageModel>> = flow {
-        fun page(tracks: List<SongsModel>, complete: Boolean) = ContextPageModel(
-            uri = "spotify:collection:tracks",
-            type = "liked",
-            name = context.getString(R.string.collection_liked_songs_title),
-            coverUri = "",
-            ownerName = ProfileCache.name.orEmpty(),
-            ownerAvatar = ProfileCache.imageUrl.orEmpty(),
-            metaLine = context.resources.getQuantityString(R.plurals.liked_songs_header_metadata_text, tracks.size, tracks.size),
-            tracks = tracks,
-            complete = complete,
-        )
+        val pol = policy()
+        fun page(tracks: List<SongsModel>, complete: Boolean): ContextPageModel {
+            val allowed = tracks.filter { com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(it, pol) }
+            SongPlayer.registerLikedSongs(allowed.map { it.url })
+            return ContextPageModel(
+                uri = "spotify:collection:tracks",
+                type = "liked",
+                name = context.getString(R.string.collection_liked_songs_title),
+                coverUri = "",
+                ownerName = ProfileCache.name.orEmpty(),
+                ownerAvatar = ProfileCache.imageUrl.orEmpty(),
+                metaLine = context.resources.getQuantityString(R.plurals.liked_songs_header_metadata_text, allowed.size, allowed.size),
+                tracks = allowed,
+                complete = complete,
+            )
+        }
         if (LikedCache.tracks == null) LikedCache.tracks = withContext(Dispatchers.IO) { ScreenCache.liked.read() }
         LikedCache.tracks?.let { emit(Response.Success(page(it, true))) } ?: emit(Response.Loading())
         if (!ready()) { if (LikedCache.tracks == null) emit(Response.Error(notSignedIn())); return@flow }
@@ -845,7 +961,6 @@ class Api constructor(
                     val merged = LikedCache.merge(head, known)
                     LikedCache.tracks = merged
                     ScreenCache.liked.write(merged)
-                    SongPlayer.registerLikedSongs(merged.map { it.url })
                     emit(Response.Success(page(merged, true)))
                     return@flow
                 }
@@ -864,7 +979,6 @@ class Api constructor(
         LikedCache.tracks = tracks
         ScreenCache.liked.write(tracks)
         ScreenCache.markLikedFull()
-        SongPlayer.registerLikedSongs(tracks.map { it.url })
         emit(Response.Success(page(tracks, true)))
     }
 
@@ -874,12 +988,14 @@ class Api constructor(
      */
     suspend fun mergeLikedHead(): List<SongsModel>? = runCatching {
         if (!ready()) return null
+        val pol = policy()
         val head = likedHead()
         val merged = LikedCache.merge(head, LikedCache.tracks.orEmpty())
         LikedCache.tracks = merged
         withContext(Dispatchers.IO) { ScreenCache.liked.write(merged) }
-        SongPlayer.registerLikedSongs(merged.map { it.url })
-        merged
+        val allowed = merged.filter { com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(it, pol) }
+        SongPlayer.registerLikedSongs(allowed.map { it.url })
+        allowed
     }.getOrNull()
 
     private val LIKED_PAGE = 50
@@ -910,14 +1026,33 @@ class Api constructor(
         return listOfNotNull(date, label?.let { context.getString(R.string.album_label, it) }) + album.copyrights
     }
 
+    private fun filterAlbumPage(raw: ContextPageModel, pol: com.music.spotui.parental.ParentalPolicy): ContextPageModel? {
+        val albumId = raw.uri.substringAfterLast(':')
+        val artistIds = listOfNotNull(raw.ownerUri.takeIf { it.isNotBlank() }?.substringAfterLast(':'))
+        if (!com.music.spotui.parental.ParentalFilterEngine.isAlbumAllowed(
+                albumId = albumId,
+                name = raw.name,
+                artists = raw.ownerName,
+                artistIds = artistIds,
+                policy = pol,
+            )
+        ) return null
+        val allowedTracks = raw.tracks.filter { com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(it, pol, parentContextUri = raw.uri) }
+        return raw.copy(tracks = allowedTracks, explicit = allowedTracks.any { it.explicit })
+    }
+
     suspend fun getAlbumPage(asked: String, stored: Boolean = true): Flow<Response<ContextPageModel>> = flow {
         emit(Response.Loading())
+        val pol = policy()
         val albumId = asked.substringAfterLast(':')
         val uri = "spotify:album:$albumId"
         val saved = if (stored) withContext(Dispatchers.IO) { ScreenCache.albumPage(albumId).read() } else null
         if (saved != null) {
-            SongPlayer.registerContext(saved.tracks.map { it.url }, uri)
-            emit(Response.Success(saved))
+            val filteredSaved = filterAlbumPage(saved, pol)
+            if (filteredSaved != null) {
+                SongPlayer.registerContext(filteredSaved.tracks.map { it.url }, uri)
+                emit(Response.Success(filteredSaved))
+            }
         }
         if (!ready()) { if (saved == null) emit(Response.Error(notSignedIn())); return@flow }
         val (album, tracks) = runCatching {
@@ -936,14 +1071,27 @@ class Api constructor(
                 a.await() to t.await()
             }
         }.getOrElse { if (saved == null) emit(Response.Error(context.getString(R.string.album_not_found))); return@flow }
-        val songs = tracks.map { songOf(it).copy(album = album.name, coverUri = cover(album.images), albumId = albumId) }
-        SongPlayer.registerContext(songs.map { it.url }, uri)
+        val artistIds = album.artists.map { it.uri.substringAfterLast(':') }
+        if (!com.music.spotui.parental.ParentalFilterEngine.isAlbumAllowed(
+                albumId = albumId,
+                name = album.name,
+                artists = album.artists.joinToString(", ") { it.name },
+                artistIds = artistIds,
+                policy = pol,
+            )
+        ) {
+            emit(Response.Error(context.getString(R.string.album_not_found)))
+            return@flow
+        }
+        val rawSongs = tracks.map { songOf(it).copy(album = album.name, coverUri = cover(album.images), albumId = albumId) }
+        val allowedSongs = rawSongs.filter { com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(it, pol, parentContextUri = uri) }
+        SongPlayer.registerContext(allowedSongs.map { it.url }, uri)
         val type = context.getString(when (album.type) {
             "SINGLE" -> R.string.album_type_single; "EP" -> R.string.album_type_ep
             "COMPILATION" -> R.string.album_type_compilation; else -> R.string.album_type_album
         })
         val firstArtist = album.artists.firstOrNull()
-        val page = ContextPageModel(
+        val rawPage = ContextPageModel(
             uri = uri,
             type = "album",
             name = album.name,
@@ -953,19 +1101,19 @@ class Api constructor(
             ownerAvatar = saved?.takeIf { it.ownerUri == firstArtist?.uri.orEmpty() }?.ownerAvatar.orEmpty(),
             ownerUri = firstArtist?.uri.orEmpty(),
             metaLine = listOf(type, dateLabel(album.releaseDate)).filter { it.isNotBlank() }.joinToString(" • "),
-            explicit = songs.any { it.explicit },
-            tracks = songs,
+            explicit = rawSongs.any { it.explicit },
+            tracks = rawSongs,
             footer = albumFooter(album),
         )
         // Written before the first emit: a collector that only wants the first page stops the flow there.
-        ScreenCache.albumPage(albumId).write(page)
+        ScreenCache.albumPage(albumId).write(rawPage)
         ScreenCache.pruneAlbumPages(ALBUM_PAGES_KEPT)
+        val page = rawPage.copy(tracks = allowedSongs, explicit = allowedSongs.any { it.explicit })
         emit(Response.Success(page))
         val avatar = firstArtist?.let { runCatching { api.catalog.artist(it.uri) }.getOrNull() }?.images?.let(::cover).orEmpty()
         if (avatar.isNotBlank() && avatar != page.ownerAvatar) {
-            val withAvatar = page.copy(ownerAvatar = avatar)
-            ScreenCache.albumPage(albumId).write(withAvatar)
-            emit(Response.Success(withAvatar))
+            ScreenCache.albumPage(albumId).write(rawPage.copy(ownerAvatar = avatar))
+            emit(Response.Success(page.copy(ownerAvatar = avatar)))
         }
     }
 
@@ -977,6 +1125,7 @@ class Api constructor(
      */
     suspend fun getPlaylistPage(playlistId: String, force: Boolean = false): Flow<Response<ContextPageModel>> = flow {
         emit(Response.Loading())
+        val pol = policy()
         if (!ready()) { emit(Response.Error(notSignedIn())); return@flow }
         val uri = "spotify:playlist:$playlistId"
         val fresh = if (force) null else PlaylistFresh.get(uri)
@@ -990,6 +1139,19 @@ class Api constructor(
             firstPage?.cancel()
             emit(Response.Error(context.getString(R.string.playlist_not_found))); return@flow
         }
+        val strippedDesc = stripHtml(pl.description)
+        if (!com.music.spotui.parental.ParentalFilterEngine.isPlaylistAllowed(
+                playlistId = playlistId,
+                name = pl.name,
+                subtitleOrOwner = pl.owner.orEmpty(),
+                description = strippedDesc,
+                policy = pol,
+            )
+        ) {
+            firstPage?.cancel()
+            emit(Response.Error(context.getString(R.string.playlist_not_found)))
+            return@flow
+        }
         if (fresh != null && fresh.size != pl.trackCount) firstPage = startFirstPage()
         val saves = pl.followers?.takeIf { it > 0 }?.let {
             context.resources.getQuantityString(R.plurals.profile_list_item_saves_count, it.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), it)
@@ -999,12 +1161,12 @@ class Api constructor(
             type = "playlist",
             name = pl.name,
             coverUri = big(pl.images),
-            description = stripHtml(pl.description),
+            description = strippedDesc,
             ownerName = pl.owner.orEmpty(),
             ownerAvatar = cover(pl.ownerImages),
             ownerUri = pl.ownerUri.orEmpty(),
             metaLine = saves,
-            canLeave = pl.canLeave,
+            canLeave = pl.canLeave && com.music.spotui.parental.FeatureGates.canModifySpotifyLibrary(context),
         )
         // The first page gives the total: the rest is asked for PLAYLIST_PARALLEL pages at a time
         // and shown in order as it lands, at most every PLAYLIST_EMIT_MS. One page after the
@@ -1013,20 +1175,21 @@ class Api constructor(
         val songs = ArrayList<SongsModel>()
         var failed = false
         fun publish(done: Boolean): Response<ContextPageModel> {
-            SongPlayer.registerContext(songs.map { it.url }, uri)
             // Kept before the emit: a collector that stops at the complete page ends the flow there.
             if (done && !failed) PlaylistFresh.put(uri, songs.toList())
-            val total = songs.sumOf { it.durationMs.toLong() }
+            val allowedSongs = songs.filter { com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(it, pol, parentContextUri = uri) }
+            SongPlayer.registerContext(allowedSongs.map { it.url }, uri)
+            val total = allowedSongs.sumOf { it.durationMs.toLong() }
             // The song count rides along with the duration ("1 h 2 min / 12 songs") so the two
             // numbers that grow together as pages arrive stay next to each other.
-            val durationAndCount = if (songs.isNotEmpty()) {
-                val count = context.resources.getQuantityString(R.plurals.liked_songs_header_metadata_text, songs.size, songs.size)
+            val durationAndCount = if (allowedSongs.isNotEmpty()) {
+                val count = context.resources.getQuantityString(R.plurals.liked_songs_header_metadata_text, allowedSongs.size, allowedSongs.size)
                 if (total > 0) "${durationLabel(total)} / $count" else count
             } else ""
             val meta = listOf(saves, durationAndCount).filter { it.isNotBlank() }.joinToString(" • ")
             // A playlist without a cover of its own shows the mosaic of its songs' albums, as in the official app.
-            val cover = header.coverUri.ifBlank { com.music.spotui.ui.components.mosaicCoverFor(songs.take(200).map { it.coverUri }) }
-            return Response.Success(header.copy(coverUri = cover, metaLine = meta, tracks = songs.toList(), complete = done))
+            val cover = header.coverUri.ifBlank { com.music.spotui.ui.components.mosaicCoverFor(allowedSongs.take(200).map { it.coverUri }) }
+            return Response.Success(header.copy(coverUri = cover, metaLine = meta, tracks = allowedSongs, complete = done))
         }
         if (firstPage == null) {
             songs += fresh!!
@@ -1088,37 +1251,49 @@ class Api constructor(
             fetch = { o -> api.library.items(filter = filter, folderUri = folderUri, offset = o, limit = 50).items })
     }
 
+    private fun filterLibraryEntries(entries: List<LibraryEntry>, pol: com.music.spotui.parental.ParentalPolicy = policy()): List<LibraryEntry> =
+        entries.mapNotNull { com.music.spotui.parental.ParentalFilterEngine.filterLibraryEntry(it, pol) }
+
     /** Flat library (Android Auto, pickers): Liked Songs, playlists, then albums. */
     suspend fun getLibrary(): Flow<Response<List<LibraryEntry>>> = flow {
-        HomeCache.library?.let { emit(Response.Success(it)) } ?: emit(Response.Loading())
+        val pol = policy()
+        HomeCache.library?.let { emit(Response.Success(filterLibraryEntries(it, pol))) } ?: emit(Response.Loading())
         if (!ready()) { if (HomeCache.library == null) emit(Response.Error(notSignedIn())); return@flow }
         runCatching {
             val playlists = api.playlists.mine().map(::playlistEntry)
             val albums = libraryLevel(null, LibraryFilter.ALBUMS).mapNotNull(::entryOf).filter { !it.isPlaylist }
             listOf(likedEntry()) + playlists + albums
         }.fold(
-            onSuccess = { HomeCache.library = it; emit(Response.Success(it)) },
+            onSuccess = { HomeCache.library = it; emit(Response.Success(filterLibraryEntries(it, pol))) },
             onFailure = { Log.e("Api", "getLibrary failed", it); if (HomeCache.library == null) emit(Response.Error(it.message ?: "error")) },
         )
     }
 
     /** "Your Library" as Spotify shows it: Liked Songs, then folders, playlists and albums in the user's order. */
     suspend fun getLibraryRoot(): Flow<Response<List<LibraryEntry>>> = flow {
+        val pol = policy()
         if (HomeCache.libraryRoot == null) HomeCache.libraryRoot = withContext(Dispatchers.IO) { ScreenCache.libraryRoot.read() }
-        HomeCache.libraryRoot?.let { emit(Response.Success(it)) } ?: emit(Response.Loading())
+        HomeCache.libraryRoot?.let { emit(Response.Success(filterLibraryEntries(it, pol))) } ?: emit(Response.Loading())
         if (!ready()) { if (HomeCache.libraryRoot == null) emit(Response.Error(notSignedIn())); return@flow }
         runCatching { listOf(likedEntry()) + libraryLevel(null).mapNotNull(::entryOf) }.fold(
-            onSuccess = { HomeCache.libraryRoot = it; ScreenCache.libraryRoot.write(it); PagePrefetch.schedule(it); emit(Response.Success(it)) },
+            onSuccess = {
+                HomeCache.libraryRoot = it
+                ScreenCache.libraryRoot.write(it)
+                val filtered = filterLibraryEntries(it, pol)
+                PagePrefetch.schedule(filtered)
+                emit(Response.Success(filtered))
+            },
             onFailure = { Log.e("Api", "getLibraryRoot failed", it); if (HomeCache.libraryRoot == null) emit(Response.Error(it.message ?: "error")) },
         )
     }
 
     /** The folders and playlists inside one library folder. */
     suspend fun getLibraryFolder(folderUri: String): Flow<Response<List<LibraryEntry>>> = flow {
-        HomeCache.folders[folderUri]?.let { emit(Response.Success(it)) } ?: emit(Response.Loading())
+        val pol = policy()
+        HomeCache.folders[folderUri]?.let { emit(Response.Success(filterLibraryEntries(it, pol))) } ?: emit(Response.Loading())
         if (!ready()) { if (HomeCache.folders[folderUri] == null) emit(Response.Error(notSignedIn())); return@flow }
         runCatching { libraryLevel(folderUri).mapNotNull(::entryOf) }.fold(
-            onSuccess = { HomeCache.folders[folderUri] = it; emit(Response.Success(it)) },
+            onSuccess = { HomeCache.folders[folderUri] = it; emit(Response.Success(filterLibraryEntries(it, pol))) },
             onFailure = { Log.e("Api", "getLibraryFolder failed", it); if (HomeCache.folders[folderUri] == null) emit(Response.Error(it.message ?: "error")) },
         )
     }

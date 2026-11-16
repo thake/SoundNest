@@ -66,13 +66,34 @@ object NewReleaseNotifier {
 
     private fun signedIn(context: Context) = context.getSharedPreferences("myspoti_prefs", Context.MODE_PRIVATE).getBoolean("LoggedIn", false)
 
+    internal fun filterCandidateReleases(
+        releases: List<app.myspoti.api.Album>,
+        policy: com.music.spotui.parental.ParentalPolicy,
+        whatsNewEnabled: Boolean = true,
+    ): List<app.myspoti.api.Album> {
+        if (!whatsNewEnabled) return emptyList()
+        return releases.filter { a ->
+            com.music.spotui.parental.ParentalFilterEngine.isAlbumAllowed(
+                albumId = a.uri.substringAfterLast(':'),
+                name = a.name,
+                artists = a.artists.joinToString(", ") { it.name },
+                artistIds = a.artists.map { it.uri.substringAfterLast(':') },
+                policy = policy,
+            )
+        }
+    }
+
     private suspend fun checkIfDue(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, 0)
         val now = System.currentTimeMillis()
         if (now - prefs.getLong(KEY_AT, 0L) in 0 until GAP_MS) return
+        val policy = com.music.spotui.parental.ParentalPolicyStore.current(context)
         val feed = MyspotiRuntime.api.home.whatsNew(0, 30).items
         val seen = prefs.getString(KEY_SEEN, null)?.split('\n')?.filter { it.isNotBlank() }
-        val fresh = if (seen == null) emptyList() else feed.filter { it.uri !in seen }
+        val fresh = if (seen == null) emptyList() else filterCandidateReleases(
+            releases = feed.filter { it.uri !in seen },
+            policy = policy,
+        )
         prefs.edit()
             .putString(KEY_SEEN, (feed.map { it.uri } + seen.orEmpty()).distinct().take(SEEN_KEPT).joinToString("\n"))
             .putLong(KEY_AT, now).apply()

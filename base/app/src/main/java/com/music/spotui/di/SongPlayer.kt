@@ -414,11 +414,23 @@ object SongPlayer {
 
     private fun restoreLastTrack(state: CurrentSongState) {
         if (state.title.value.isNotBlank() || !acceptsSessionUpdates()) return
+        val policy = com.music.spotui.parental.ParentalPolicyStore.current(Graph.app)
         val p = lastTrackPrefs()
         val uri = p.getString("uri", "").orEmpty()
         val title = p.getString("title", "").orEmpty()
         if (uri.isBlank() || title.isBlank()) return
         val id = trackIdOf(uri)
+        val contextUri = p.getString("contextUri", "").orEmpty()
+        val restoredSong = SongsModel(
+            id = songIdFor(id, uri),
+            title = title,
+            album = p.getString("album", "").orEmpty(),
+            singer = p.getString("singer", "").orEmpty(),
+            coverUri = p.getString("cover", "").orEmpty(),
+            url = if (uri.startsWith("spotify:episode:")) "episode:" + uri.substringAfterLast(':') else buildSpotifyPlayQuery(id, title, p.getString("singer", "").orEmpty()),
+            spotifyTrackId = id,
+        )
+        if (!com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(restoredSong, policy, contextUri)) return
         currentTrackId = id
         savedSource = p.getString("source", null) ?: com.music.spotui.data.preferences.LastSession.SOURCE_SPOTIFY
         savedAtMs = p.getLong("savedAt", 0L)
@@ -426,7 +438,6 @@ object SongPlayer {
         positionMs = p.getLong("position", 0L)
         positionAt = SystemClock.elapsedRealtime()
         playing = false
-        val contextUri = p.getString("contextUri", "").orEmpty()
         val contextName = p.getString("contextName", "").orEmpty()
         registerContextName(contextUri, contextName)
         currentContextUri = contextUri
@@ -452,11 +463,15 @@ object SongPlayer {
         // Spotify's own queue too: the page's replaces it once it reports.
         val rest = com.music.spotui.data.preferences.LastSession.decodeQueue(p.getString("queue", null))
         if (rest.isNotEmpty()) {
-            restoredQueuePending = true
-            _queue.value = EngineQueue(
+            val rawQueue = EngineQueue(
                 current = rest.first(),
                 nextUp = rest.drop(1).map { QueueItem(it, SPOTIFY_TRACK_PREFIX + it.spotifyTrackId, "", "") },
             )
+            val sanitized = com.music.spotui.parental.PlaybackGuardrail.sanitizeQueue(rawQueue, policy, contextUri)
+            if (sanitized.current != null || sanitized.nextUp.isNotEmpty()) {
+                restoredQueuePending = true
+                _queue.value = sanitized
+            }
         }
     }
 
@@ -557,6 +572,7 @@ object SongPlayer {
             explicit = n.explicit,
             durationMs = n.durationMs.toInt(),
             albumId = n.album?.uri?.substringAfterLast(':').orEmpty(),
+            artistIds = n.artists.map { it.uri.substringAfterLast(':') },
         )
     }
 
@@ -672,6 +688,9 @@ object SongPlayer {
 
     /** The autoplay item already paused on, so it is paused once, not on every state. */
     private var autoplayHandledUri = ""
+    /** Consecutive parental filter skips, capped so an empty/all-blocked list pauses instead of looping forever. */
+    private val parentalSkipped = mutableSetOf<String>()
+    private const val PARENTAL_SKIPS_MAX = 10
 
     private fun applyState(s: PlayerState?) {
         if (s == null) return
@@ -679,14 +698,50 @@ object SongPlayer {
         if (LocalPlayer.active.value && engineWhileLocal(s)) return
         // Spotify's server still shows the song played before the local-player session saved at exit.
         if (com.music.spotui.data.preferences.LastSession.engineStateIsStale(savedSource, savedAtMs, s.timestampMs, s.isPaused)) return
+        val policy = com.music.spotui.parental.ParentalPolicyStore.current(Graph.app)
+        val item = s.item
+        val uri = item?.uri.orEmpty()
+        val liveSong = item?.let(::songOf)
+        val activeDev = api.devices.devices.value.firstOrNull { it.active }
+        val isRemoteActive = (activeDev != null && !activeDev.local) || _activeDevice.value != null
+        val remoteId = activeDev?.id ?: _activeDevice.value?.id.orEmpty()
+        val isRemoteAllowed = isRemoteActive && com.music.spotui.parental.TrustedNetworkGate.isDeviceAllowed(Graph.app, remoteId, isSelf = false)
+        when (com.music.spotui.parental.PlaybackGuardrail.evaluateLivePlayback(
+            item = liveSong,
+            isRemoteActive = isRemoteActive,
+            isRemoteDeviceAllowed = isRemoteAllowed,
+            policy = policy,
+            contextUri = s.contextUri,
+        )) {
+            com.music.spotui.parental.LivePlaybackDecision.SUPPRESS_REMOTE_MIRROR -> {
+                _activeDevice.value = null
+                PlaybackService.setPlaybackDevice(false, remoteVolume)
+                return
+            }
+            com.music.spotui.parental.LivePlaybackDecision.BLOCK_AND_SKIP_OR_PAUSE -> {
+                if (uri.isNotEmpty()) lastPageUri = uri
+                if (!s.isPaused) {
+                    if (uri.isNotEmpty() && parentalSkipped.add(uri) && parentalSkipped.size <= PARENTAL_SKIPS_MAX) {
+                        app.myspoti.host.android.Logbook.log("parental: $uri blocked, skipping")
+                        main.post { next(by = "parental filter") }
+                    } else {
+                        app.myspoti.host.android.Logbook.log("parental: $uri blocked, pausing")
+                        parentalSkipped.clear()
+                        pauseSilently()
+                    }
+                }
+                return
+            }
+            com.music.spotui.parental.LivePlaybackDecision.ALLOW -> {
+                if (item != null) parentalSkipped.clear()
+            }
+        }
         if (s.item != null && !s.isPaused) restoredQueuePending = false
         if (resumeWhenReady) {
             resumeWhenReady = false
             // The Web Player restored the last session paused: play what was tapped.
             if (s.isPaused) transport { api.player.resume() }
         }
-        val item = s.item
-        val uri = item?.uri.orEmpty()
         if (uri.isNotEmpty()) lastPageUri = uri
         val id = trackIdOf(uri)
         val pending = pendingTrackId
@@ -728,12 +783,11 @@ object SongPlayer {
                 setRepeatMode(LocalRepeat.OFF)
             }
         }
-        // Autoplay off: stop once, when the player moves on to a track it picked itself.
-        // Tracks only: this is the music setting (similar songs). An episode the page rolls on
-        // to after the previous one belongs to the show, not to that recommendation autoplay —
-        // pausing it there is how a podcast "stopped by itself" (B11).
+        // Autoplay off (or disabled by parental policy / strict allowlist): stop once when the player moves on to a track it picked itself.
+        val autoplayAllowed = com.music.spotui.data.preferences.AutoplayPref.on &&
+            com.music.spotui.parental.FeatureGates.canUseAutoplayAndRadio(Graph.app)
         if (item != null && item.provider == "autoplay" && uri.startsWith(SPOTIFY_TRACK_PREFIX) &&
-            uri != autoplayHandledUri && !com.music.spotui.data.preferences.AutoplayPref.on) {
+            uri != autoplayHandledUri && !autoplayAllowed) {
             autoplayHandledUri = uri
             if (!s.isPaused) pauseSilently()
         }
@@ -747,8 +801,8 @@ object SongPlayer {
             uri = uri,
             explicit = item?.explicit == true,
             albumUri = item?.album?.uri.orEmpty(),
-            prev = s.previous?.let(::songOf),
-            next = s.next?.let(::songOf),
+            prev = s.previous?.let(::songOf)?.takeIf { com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(it, policy, s.contextUri) },
+            next = s.next?.let(::songOf)?.takeIf { com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(it, policy, s.contextUri) },
         )
         val state = boundState ?: return
         val holding = SystemClock.elapsedRealtime() < shuffleWantedUntil
@@ -868,10 +922,15 @@ object SongPlayer {
         fun items(list: List<app.myspoti.api.NowPlaying>) = list
             .filter { it.uri.startsWith("spotify:track:") || it.uri.startsWith("spotify:episode:") }
             .map { QueueItem(songOf(it), it.uri, it.uid.orEmpty(), "") }
-        _queue.value = EngineQueue(
+        val raw = EngineQueue(
             current = q.current?.let(::songOf),
             queued = items(q.queued),
             nextUp = items(q.nextUp),
+        )
+        _queue.value = com.music.spotui.parental.PlaybackGuardrail.sanitizeQueue(
+            raw,
+            com.music.spotui.parental.ParentalPolicyStore.current(Graph.app),
+            currentContextUri,
         )
         saveSpotifyQueue()
     }
@@ -1140,7 +1199,7 @@ object SongPlayer {
     fun playSong(
         song: String, @Suppress("UNUSED_PARAMETER") context: Context? = null, contextUri: String? = null,
         order: List<String>? = null, positionMs: Long? = null,
-        @Suppress("UNUSED_PARAMETER") songs: List<SongsModel>? = null, alone: Boolean = false,
+        songs: List<SongsModel>? = null, alone: Boolean = false,
     ) {
         val cachedPremium = runCatching { app.myspoti.host.android.MyspotiRuntime.host.accounts.list.value.current?.premium }.getOrNull()
         if (!app.myspoti.spotify.PremiumAccountGate.canPlay(
@@ -1149,6 +1208,22 @@ object SongPlayer {
             )
         ) {
             app.myspoti.host.android.Logbook.log("playSong refused: Spotify Premium required")
+            return
+        }
+        val policy = com.music.spotui.parental.ParentalPolicyStore.current(Graph.app)
+        val episodeId = song.removePrefix("episode:").takeIf { song.startsWith("episode:") }
+        if (episodeId != null && !policy.allowPodcasts && !policy.allowAudiobooks) {
+            app.myspoti.host.android.Logbook.log("playSong refused: podcasts/audiobooks disabled by parental policy")
+            return
+        }
+        val trackId = episodeId ?: spotifyTrackIdForPlayback(song) ?: return
+        if (trackId in policy.blockedTrackIds) {
+            app.myspoti.host.android.Logbook.log("playSong refused: $trackId blocked by parental policy")
+            return
+        }
+        val candidateModel = songs?.firstOrNull { it.url == song || (trackId.isNotBlank() && it.spotifyTrackId == trackId) }
+        if (candidateModel != null && !com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(candidateModel, policy, contextUri)) {
+            app.myspoti.host.android.Logbook.log("playSong refused: ${candidateModel.title} disallowed by parental policy")
             return
         }
         // Data saver on mobile data: Spotify can't stream, only Local Files play.
@@ -1160,8 +1235,6 @@ object SongPlayer {
         }
         LocalPlayer.stop()
         cancelBurst()
-        val episodeId = song.removePrefix("episode:").takeIf { song.startsWith("episode:") }
-        val trackId = episodeId ?: spotifyTrackIdForPlayback(song) ?: return
         val itemUri = if (episodeId != null) "spotify:episode:$episodeId" else SPOTIFY_TRACK_PREFIX + trackId
         val ctx = if (alone) null else contextUri ?: contextRegistry[song]
         // What a smart shuffle ending brings back: the order of the last play that was not one.
@@ -1909,6 +1982,10 @@ object SongPlayer {
 
     /** Save / remove any item (album, playlist, track, artist, show, episode) in the user's library. */
     fun setSaved(uri: String, on: Boolean) {
+        if (!com.music.spotui.parental.FeatureGates.canModifySpotifyLibrary(Graph.app)) {
+            app.myspoti.host.android.Logbook.log("library: $uri refused (read-only Spotify library)")
+            return
+        }
         intentUri = uri
         intentValue = on
         intentUntil = SystemClock.elapsedRealtime() + 3000
@@ -2021,9 +2098,12 @@ object SongPlayer {
         scope.launch {
             runCatching { api.devices.refresh() }
             val active = api.devices.devices.value.firstOrNull { it.active }
-            _activeDevice.value = active?.takeIf { !it.local }?.let { toConnectDevice(it, forceRemoteActive = true) }
+            val allowedRemote = active?.takeIf {
+                !it.local && com.music.spotui.parental.TrustedNetworkGate.isDeviceAllowed(Graph.app, it.id, isSelf = false)
+            }
+            _activeDevice.value = allowedRemote?.let { toConnectDevice(it, forceRemoteActive = true) }
             // A negative volume is a device with a fixed one (Web Player: disable_volume): not 0 %.
-            active?.volume?.takeIf { it >= 0 }?.let { if (SystemClock.elapsedRealtime() > volumeHoldUntil) { _remoteVolume.intValue = (it * 100).toInt().coerceIn(0, 100); remoteVolumeOf = active.id } }
+            allowedRemote?.volume?.takeIf { it >= 0 }?.let { if (SystemClock.elapsedRealtime() > volumeHoldUntil) { _remoteVolume.intValue = (it * 100).toInt().coerceIn(0, 100); remoteVolumeOf = allowedRemote.id } }
             PlaybackService.setPlaybackDevice(_activeDevice.value != null, remoteVolume)
         }
     }
@@ -2407,12 +2487,16 @@ object SongPlayer {
     /** "Play next": first in the queue, right after the current track. */
     fun playNext(trackId: String) {
         if (trackId.isBlank()) return
+        val policy = com.music.spotui.parental.ParentalPolicyStore.current(Graph.app)
+        if (trackId in policy.blockedTrackIds) return
         Haptics.confirm()
         command { api.player.playNext(listOf(SPOTIFY_TRACK_PREFIX + trackId)) }
     }
 
     fun addToQueue(trackId: String) {
         if (trackId.isBlank()) return
+        val policy = com.music.spotui.parental.ParentalPolicyStore.current(Graph.app)
+        if (trackId in policy.blockedTrackIds) return
         Haptics.confirm()
         command { api.player.addToQueue(listOf(SPOTIFY_TRACK_PREFIX + trackId)) }
     }
@@ -2430,8 +2514,13 @@ object SongPlayer {
     fun queueSongs(songs: List<SongsModel>, next: Boolean, done: (Int) -> Unit) {
         Haptics.confirm()
         scope.launch {
+            val policy = com.music.spotui.parental.ParentalPolicyStore.current(Graph.app)
             val local = LocalPlayer.active.value
-            val rows = songs.filter { it.playable && !it.isUnmatchedLocal }
+            val rows = com.music.spotui.parental.PlaybackGuardrail.sanitizeSongs(
+                songs.filter { it.playable && !it.isUnmatchedLocal },
+                policy,
+                currentContextUri,
+            )
             val files = if (local && rows.any { it.isDeviceFile })
                 runCatching { com.music.spotui.data.local.LocalMusic.tracks(Graph.app) }.getOrDefault(emptyList()).associateBy { com.music.spotui.data.local.LocalFileMatch.key(it) }
             else emptyMap()

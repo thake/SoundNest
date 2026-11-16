@@ -97,12 +97,20 @@ fun MyNavHost(
         }
 
         page(Routes.LocalFiles.route){
-            if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveLocalFilesScreen(navHostController) else com.music.spotui.ui.screens.LocalFilesScreen(navHostController)
+            val allowed = com.music.spotui.parental.FeatureGates.canUseLocalFiles(context)
+            LaunchedEffect(allowed) { if (!allowed) navHostController.popBackStack() }
+            if (allowed) {
+                if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveLocalFilesScreen(navHostController) else com.music.spotui.ui.screens.LocalFilesScreen(navHostController)
+            }
         }
 
         // Live Radio (see com.music.spotui.radio): plays through LocalPlayer, as a Local Files song does.
         page(Routes.LiveRadio.route){
-            if (isImmersive()) com.music.spotui.radio.ui.ImmersiveLiveRadioScreen(navHostController) else com.music.spotui.radio.ui.LiveRadioScreen(navHostController)
+            val allowed = com.music.spotui.parental.FeatureGates.canUseLiveRadio(context)
+            LaunchedEffect(allowed) { if (!allowed) navHostController.popBackStack() }
+            if (allowed) {
+                if (isImmersive()) com.music.spotui.radio.ui.ImmersiveLiveRadioScreen(navHostController) else com.music.spotui.radio.ui.LiveRadioScreen(navHostController)
+            }
         }
 
         page(Routes.HiddenSongs.route) {
@@ -138,11 +146,19 @@ fun MyNavHost(
         }
 
         page(Routes.Episodes.route) {
-            if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveEpisodesScreen(navHostController) else com.music.spotui.ui.screens.EpisodesScreen(navHostController)
+            val allowed = com.music.spotui.parental.FeatureGates.canUsePodcasts(context)
+            LaunchedEffect(allowed) { if (!allowed) navHostController.popBackStack() }
+            if (allowed) {
+                if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveEpisodesScreen(navHostController) else com.music.spotui.ui.screens.EpisodesScreen(navHostController)
+            }
         }
 
         page(Routes.NewEpisodes.route) {
-            if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveNewEpisodesScreen(navHostController) else com.music.spotui.ui.screens.NewEpisodesScreen(navHostController)
+            val allowed = com.music.spotui.parental.FeatureGates.canUsePodcasts(context)
+            LaunchedEffect(allowed) { if (!allowed) navHostController.popBackStack() }
+            if (allowed) {
+                if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveNewEpisodesScreen(navHostController) else com.music.spotui.ui.screens.NewEpisodesScreen(navHostController)
+            }
         }
 
         page(Routes.Recap.route) {
@@ -172,9 +188,13 @@ fun MyNavHost(
             "${Routes.Category.route}/{genre}?title={title}",
             arguments = listOf(navArgument("title") { defaultValue = "" }),
         ) { navBackStackEntry ->
-            val genre = navBackStackEntry.arguments?.getString("genre").orEmpty()
-            val title = navBackStackEntry.arguments?.getString("title").orEmpty()
-            if (isImmersive()) com.music.spotui.ui.immersive.screens.ImmersiveCategoryScreen(navHostController, genre = genre, title = title.ifBlank { genre }) else CategoryScreen(navHostController, genre = genre, title = title.ifBlank { genre })
+            val allowed = com.music.spotui.parental.FeatureGates.canUseAutoplayAndRadio(context)
+            LaunchedEffect(allowed) { if (!allowed) navHostController.popBackStack() }
+            if (allowed) {
+                val genre = navBackStackEntry.arguments?.getString("genre").orEmpty()
+                val title = navBackStackEntry.arguments?.getString("title").orEmpty()
+                if (isImmersive()) com.music.spotui.ui.immersive.screens.ImmersiveCategoryScreen(navHostController, genre = genre, title = title.ifBlank { genre }) else CategoryScreen(navHostController, genre = genre, title = title.ifBlank { genre })
+            }
         }
 
         page(
@@ -212,18 +232,26 @@ fun MyNavHost(
             "${Routes.Show.route}/{sId}?name={name}",
             arguments = listOf(navArgument("name") { defaultValue = "" }),
         ) { navBackStackEntry ->
-            val sId = navBackStackEntry.arguments?.getString("sId")
-            val name = navBackStackEntry.arguments?.getString("name").orEmpty()
-            sId?.let { if (isImmersive()) com.music.spotui.ui.immersive.podcast.ImmersiveShowScreen(navHostController, showId = it, showName = name) else ShowScreen(navHostController, showId = it, showName = name) }
+            val allowed = com.music.spotui.parental.FeatureGates.canUsePodcasts(context) || com.music.spotui.parental.FeatureGates.canUseAudiobooks(context)
+            LaunchedEffect(allowed) { if (!allowed) navHostController.popBackStack() }
+            if (allowed) {
+                val sId = navBackStackEntry.arguments?.getString("sId")
+                val name = navBackStackEntry.arguments?.getString("name").orEmpty()
+                sId?.let { if (isImmersive()) com.music.spotui.ui.immersive.podcast.ImmersiveShowScreen(navHostController, showId = it, showName = name) else ShowScreen(navHostController, showId = it, showName = name) }
+            }
         }
 
         page(
             "${Routes.Episode.route}/{eId}?name={name}",
             arguments = listOf(navArgument("name") { defaultValue = "" }),
         ) { navBackStackEntry ->
-            val eId = navBackStackEntry.arguments?.getString("eId")
-            val name = navBackStackEntry.arguments?.getString("name").orEmpty()
-            eId?.let { if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveEpisodeScreen(navHostController, episodeId = it, fallbackName = name) else com.music.spotui.ui.screens.EpisodeScreen(navHostController, episodeId = it, fallbackName = name) }
+            val allowed = com.music.spotui.parental.FeatureGates.canUsePodcasts(context) || com.music.spotui.parental.FeatureGates.canUseAudiobooks(context)
+            LaunchedEffect(allowed) { if (!allowed) navHostController.popBackStack() }
+            if (allowed) {
+                val eId = navBackStackEntry.arguments?.getString("eId")
+                val name = navBackStackEntry.arguments?.getString("name").orEmpty()
+                eId?.let { if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveEpisodeScreen(navHostController, episodeId = it, fallbackName = name) else com.music.spotui.ui.screens.EpisodeScreen(navHostController, episodeId = it, fallbackName = name) }
+            }
         }
 
         page(

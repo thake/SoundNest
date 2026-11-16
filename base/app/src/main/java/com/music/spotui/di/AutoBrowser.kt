@@ -84,11 +84,13 @@ object AutoBrowser {
      */
     suspend fun children(context: Context, parentId: String): List<MediaItem> {
         when {
-            parentId == ROOT -> return listOf(
-                tab(context, "home", R.string.aa_home, "aa_ic_home", STYLE_GRID),
-                tab(context, "library", R.string.aa_library, "aa_ic_library", STYLE_LIST),
-                tab(context, "podcasts", R.string.recents_filter_podcasts, "aa_ic_podcasts", STYLE_LIST),
-            )
+            parentId == ROOT -> return buildList {
+                add(tab(context, "home", R.string.aa_home, "aa_ic_home", STYLE_GRID))
+                add(tab(context, "library", R.string.aa_library, "aa_ic_library", STYLE_LIST))
+                if (com.music.spotui.parental.FeatureGates.canUsePodcasts(context)) {
+                    add(tab(context, "podcasts", R.string.recents_filter_podcasts, "aa_ic_podcasts", STYLE_LIST))
+                }
+            }
             parentId == "library" -> return libraryTab(context)
         }
         if (!awaitPlayer()) throw AudioNotReady("browse $parentId")
@@ -105,15 +107,21 @@ object AutoBrowser {
             parentId == "artists" -> Graph.api.getFollowedArtists().filter { it.id.isNotBlank() }.take(MAX_ITEMS).map { a ->
                 browsable("ar:${a.id}|${a.name}", a.name, art(a.coverUri))
             }
-            parentId == "podcasts" -> podcastsTab(context)
-            parentId == "newep" -> Graph.api.getNewEpisodes().take(MAX_ITEMS).map { playable("", it) }
-            parentId.startsWith("sh:") -> showEpisodes(parentId.removePrefix("sh:"))
+            parentId == "podcasts" ->
+                if (com.music.spotui.parental.FeatureGates.canUsePodcasts(context)) podcastsTab(context) else emptyList()
+            parentId == "newep" ->
+                if (com.music.spotui.parental.FeatureGates.canUsePodcasts(context)) Graph.api.getNewEpisodes().take(MAX_ITEMS).map { playable("", it) } else emptyList()
+            parentId.startsWith("sh:") ->
+                if (com.music.spotui.parental.FeatureGates.canUsePodcasts(context)) showEpisodes(parentId.removePrefix("sh:")) else emptyList()
             parentId == "liked" || parentId.startsWith("pl:") || parentId.startsWith("al:") -> tracksOf(context, contextPage(parentId))
             parentId.startsWith("ar:") -> {
                 val (id, name) = parentId.removePrefix("ar:").split("|", limit = 2).let { it[0] to it.getOrElse(1) { "" } }
                 val overview = firstResult { Graph.api.getArtistOverview(name, id) } ?: return emptyList()
                 val songs = context.getString(R.string.aa_songs)
-                listOf(radioItem(context, "spotify:artist:$id", "", name)) +
+                val radio = if (com.music.spotui.parental.FeatureGates.canUseAutoplayAndRadio(context)) {
+                    listOf(radioItem(context, "spotify:artist:$id", "", name))
+                } else emptyList()
+                radio +
                     overview.topTracks.map { playable("spotify:artist:$id", it.song, songs) } +
                     overview.popularReleases.filter { it.spotifyId.isNotBlank() }.take(12).map {
                         browsable("al:${it.spotifyId}", it.name, art(it.coverUri), subtitle = it.year, group = context.getString(R.string.aa_albums))
@@ -192,12 +200,24 @@ object AutoBrowser {
 
     /** The account's recents (all devices): playlists, albums, artists and Liked Songs, as a group. */
     private suspend fun recentItems(context: Context): List<MediaItem> {
+        val policy = com.music.spotui.parental.ParentalPolicyStore.current(context)
         val entries = withTimeoutOrNull(TIMEOUT_MS) { MyspotiRuntime.api.recents.recentEntries(0, 50).items } ?: return emptyList()
         val title = context.getString(R.string.aa_recent)
         val seen = HashSet<String>()
         return groupRecents(entries).flatMap { it.groups }.filter { it.music }.mapNotNull { g ->
             val c = g.context
             val id = c.uri.substringAfterLast(':')
+            val allowed = when {
+                c.kind == MediaKind.PLAYLIST ->
+                    com.music.spotui.parental.ParentalFilterEngine.isPlaylistAllowed(id, c.title, c.subtitle.orEmpty(), policy = policy)
+                c.kind == MediaKind.ALBUM ->
+                    com.music.spotui.parental.ParentalFilterEngine.isAlbumAllowed(id, c.title, c.subtitle.orEmpty(), policy = policy)
+                c.kind == MediaKind.ARTIST ->
+                    com.music.spotui.parental.ParentalFilterEngine.isArtistAllowed(id, c.title, policy = policy)
+                c.kind == MediaKind.COLLECTION && c.uri == "spotify:collection:tracks" -> true
+                else -> false
+            }
+            if (!allowed) return@mapNotNull null
             val mediaId = when {
                 c.kind == MediaKind.PLAYLIST -> "pl:$id"
                 c.kind == MediaKind.ALBUM -> "al:$id"
@@ -219,7 +239,9 @@ object AutoBrowser {
         val context = Graph.app
         val songs = r.songs.take(10)
         val out = ArrayList<MediaItem>()
-        songs.firstOrNull()?.let { out += radioItem(context, it.url, it.url, it.title) }
+        if (com.music.spotui.parental.FeatureGates.canUseAutoplayAndRadio(context)) {
+            songs.firstOrNull()?.let { out += radioItem(context, it.url, it.url, it.title) }
+        }
         val songsTitle = context.getString(R.string.aa_songs)
         songs.forEach { out += playable("", it, songsTitle) }
         val playlists = context.getString(R.string.aa_playlists)
@@ -234,16 +256,23 @@ object AutoBrowser {
         r.artists.filter { it.id.isNotBlank() }.take(8).forEach {
             out += browsable("ar:${it.id}|${it.name}", it.name, art(it.coverUri), group = artists)
         }
-        val podcasts = context.getString(R.string.recents_filter_podcasts)
-        r.shows.filter { it.id.isNotBlank() }.take(8).forEach {
-            out += browsable("sh:${it.id}", it.name, art(it.coverUri), subtitle = it.publisher, group = podcasts)
+        if (com.music.spotui.parental.FeatureGates.canUsePodcasts(context)) {
+            val podcasts = context.getString(R.string.recents_filter_podcasts)
+            r.shows.filter { it.id.isNotBlank() }.take(8).forEach {
+                out += browsable("sh:${it.id}", it.name, art(it.coverUri), subtitle = it.publisher, group = podcasts)
+            }
+            val episodes = context.getString(R.string.show_tab_episodes)
+            r.episodes.take(8).forEach { out += playable("", it, episodes) }
         }
-        val episodes = context.getString(R.string.show_tab_episodes)
-        r.episodes.take(8).forEach { out += playable("", it, episodes) }
         return out
     }
 
-    /** Voice search ("play X on Myspoti"): the best matching track. */
+    internal fun selectVoiceSearchCandidate(
+        candidates: List<SongsModel>,
+        policy: com.music.spotui.parental.ParentalPolicy,
+    ): SongsModel? = candidates.firstOrNull { com.music.spotui.parental.ParentalFilterEngine.isTrackAllowed(it, policy) }
+
+    /** Voice search ("play X on Myspoti"): the best matching allowed track. */
     suspend fun playFromSearch(query: String): Boolean {
         // A cold start asks before the page is up: waiting gives the answer, returning at
         // once would tell the driver nothing matched.
@@ -251,7 +280,9 @@ object AutoBrowser {
             android.util.Log.w("Myspoti", "voice search dropped: the player page is not ready")
             return false
         }
-        val song = (firstResult { Graph.api.searchEverything(query) })?.songs?.firstOrNull() ?: return false
+        val candidates = (firstResult { Graph.api.searchEverything(query) })?.songs.orEmpty()
+        val song = selectVoiceSearchCandidate(candidates, com.music.spotui.parental.ParentalPolicyStore.current(Graph.app))
+            ?: return false
         play("t||${song.url}")
         return true
     }
@@ -302,6 +333,7 @@ object AutoBrowser {
      * own falls back to the radio of [fallbackSong].
      */
     private fun startRadio(seed: String, fallbackSong: String) {
+        if (!com.music.spotui.parental.FeatureGates.canUseAutoplayAndRadio(Graph.app)) return
         scope.launch {
             val id = Graph.api.radioPlaylistId(seed)
                 ?: fallbackSong.takeIf { it.startsWith("spotify:track:") }?.let { Graph.api.radioPlaylistId(it) }
@@ -319,7 +351,11 @@ object AutoBrowser {
         pages[page.uri] = page
         val first = page.tracks.firstOrNull()
         val songs = context.getString(R.string.aa_songs)
-        val radio = if (first == null) emptyList() else listOf(radioItem(context, page.uri.takeIf { page.type != "liked" } ?: first.url, first.url, page.name))
+        val radio = if (first == null || !com.music.spotui.parental.FeatureGates.canUseAutoplayAndRadio(context)) {
+            emptyList()
+        } else {
+            listOf(radioItem(context, page.uri.takeIf { page.type != "liked" } ?: first.url, first.url, page.name))
+        }
         return radio + page.tracks.take(MAX_ITEMS).map { playable(page.uri, it, songs) }
     }
 

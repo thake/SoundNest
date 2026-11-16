@@ -44,12 +44,14 @@ object LocalMusic {
         if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
 
     fun hasPermission(context: Context) =
-        context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+        com.music.spotui.parental.FeatureGates.canUseLocalFiles(context) &&
+            context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
 
     @Volatile private var cache: List<LocalTrack>? = null
 
     /** The tracks shown in Local Files: all of them but those of the folders left out ([LocalFolders]). */
     suspend fun tracks(context: Context, refresh: Boolean = false): List<LocalTrack> {
+        if (!com.music.spotui.parental.FeatureGates.canUseLocalFiles(context)) return emptyList()
         val all = allTracks(context, refresh)
         val out = LocalFolders.excluded(context, all.map { it.folder }.toSet())
         return if (out.isEmpty()) all else all.filter { it.folder !in out }
@@ -57,10 +59,11 @@ object LocalMusic {
 
     /** Every folder holding music, with its number of tracks, by name. */
     suspend fun folders(context: Context): List<Pair<String, Int>> =
-        allTracks(context).groupingBy { it.folder }.eachCount().toList().sortedBy { it.first.lowercase() }
+        if (!com.music.spotui.parental.FeatureGates.canUseLocalFiles(context)) emptyList()
+        else allTracks(context).groupingBy { it.folder }.eachCount().toList().sortedBy { it.first.lowercase() }
 
     private suspend fun allTracks(context: Context, refresh: Boolean = false): List<LocalTrack> = withContext(Dispatchers.IO) {
-        if (!hasPermission(context)) return@withContext emptyList()
+        if (!com.music.spotui.parental.FeatureGates.canUseLocalFiles(context) || !hasPermission(context)) return@withContext emptyList()
         cache?.takeIf { !refresh }?.let { return@withContext it }
         val collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
         val projection = arrayOf(

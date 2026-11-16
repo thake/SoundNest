@@ -26,11 +26,23 @@ class GeniusPrefTest {
     private val track = LyricsApi.Track("0000000000000000000000", "Song", "Artist", "Album", 200_000L)
     private val meaning = GeniusMeaning.Meaning("https://example.com/song", "Song", "Artist", "What it is about", emptyList())
 
-    @Before fun setUp() { Graph::class.java.getDeclaredField("app").apply { isAccessible = true }.set(null, app) }
-    @After fun tearDown() { GeniusPref.set(app, true); GeniusMeaning.current.value = null }
+    @Before fun setUp() {
+        Graph::class.java.getDeclaredField("app").apply { isAccessible = true }.set(null, app)
+        com.music.spotui.parental.ParentalPolicyStore.resetForTests(app)
+    }
+    @After fun tearDown() {
+        com.music.spotui.parental.ParentalPolicyStore.resetForTests(app)
+        GeniusMeaning.current.value = null
+    }
 
-    @Test fun `on by default, Genius among the lyrics sources`() {
-        assertTrue(app.getSharedPreferences("settings_prefs", 0).getBoolean("genius", true))
+    @Test fun `off by default for kids, and among lyrics sources once parent enables allowGeniusMeanings`() {
+        // Kid-safe default: Genius meanings/lyrics disabled until parent opts in
+        assertFalse(LyricsApi.sources(track).any { it.id == "genius" })
+        GeniusMeaning.current.value = track.trackId to meaning
+        assertNull(GeniusMeaning.currentFor(track.trackId))
+
+        // Parent enables Genius meanings
+        com.music.spotui.parental.ParentalPolicyStore.update(app) { it.copy(allowGeniusMeanings = true) }
         GeniusPref.set(app, true)
         assertTrue(LyricsApi.sources(track).any { it.id == "genius" })
         GeniusMeaning.current.value = track.trackId to meaning

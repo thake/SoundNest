@@ -40,8 +40,8 @@ object GeniusMeaning {
 
     fun cached(title: String, artist: String): Meaning? = recent[key(title, artist)]
 
-    /** Genius turned off in the settings: nothing is asked of it, nothing of it is shown. */
-    private val off get() = !com.music.spotui.data.preferences.GeniusPref.on
+    /** Genius turned off in the settings or blocked by parental controls: nothing is asked of it, nothing of it is shown. */
+    private val off get() = !com.music.spotui.data.preferences.GeniusPref.on || !com.music.spotui.parental.FeatureGates.canUseGeniusMeanings()
 
     /** Genius turned off: the song playing's meaning and the look-up under way are dropped. */
     fun forget() {

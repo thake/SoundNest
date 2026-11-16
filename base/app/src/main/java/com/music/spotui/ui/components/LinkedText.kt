@@ -52,26 +52,25 @@ fun rememberLinkedText(text: String, linkColor: Color): AnnotatedString {
     }
 }
 
-/** A tapped link: a Spotify list / artist / show page or invitation in the app, anything else in the browser. */
+/** A tapped link: Spotify links go through [com.music.spotui.parental.SpotifyLinkGuard]; external URLs open in the OS browser (Google Family Link). */
 fun openDescriptionLink(context: android.content.Context, link: String) {
-    val spotify = link.contains("spotify.com", ignoreCase = true) || link.contains("spotify.link", ignoreCase = true) || link.startsWith("spotify:", ignoreCase = true)
-    if (spotify) {
-        // A collaborative-playlist invitation or a short link.
-        if (link.startsWith("http", ignoreCase = true) && InviteLinks.handle(link)) return
-        val uri = URI.find(link)?.let { "spotify:${it.groupValues[1].lowercase()}:${it.groupValues[2]}" }
-            ?: PAGE_LINK.find(link)?.let { "spotify:${it.groupValues[1].lowercase()}:${it.groupValues[2]}" }
-        if (uri != null && uri.substringAfter(':').substringBefore(':') in setOf("playlist", "album", "artist", "show")) {
-            InviteLinks.page.value = uri
-            return
+    val policy = com.music.spotui.parental.ParentalPolicyStore.current(context)
+    when (val decision = com.music.spotui.parental.SpotifyLinkGuard.evaluate(link, policy)) {
+        is com.music.spotui.parental.LinkDecision.ExternalBrowser -> {
+            runCatching {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(decision.url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
         }
-    }
-    // A song or an episode (spotify: uri) has no page here: its web address opens instead.
-    val web = when {
-        link.startsWith("spotify:", ignoreCase = true) -> URI.find(link)?.let { "https://open.spotify.com/${it.groupValues[1].lowercase()}/${it.groupValues[2]}" }
-        link.startsWith("www.", ignoreCase = true) -> "https://$link"
-        else -> link
-    } ?: return
-    runCatching {
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(web)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        is com.music.spotui.parental.LinkDecision.OpenInAppPage -> {
+            InviteLinks.page.value = decision.spotifyUri
+        }
+        is com.music.spotui.parental.LinkDecision.PlaySpotifyTrack -> {
+            InviteLinks.handle(link)
+        }
+        is com.music.spotui.parental.LinkDecision.JoinCollaborativeInvite,
+        is com.music.spotui.parental.LinkDecision.ResolveShortLink -> {
+            InviteLinks.handle(link)
+        }
+        is com.music.spotui.parental.LinkDecision.Blocked -> Unit
     }
 }

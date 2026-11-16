@@ -30,6 +30,10 @@ fun App() {
     val invite by com.music.spotui.data.api.InviteLinks.pending.collectAsState()
     LaunchedEffect(invite) {
         val i = invite?.takeIf { !it.opened } ?: return@LaunchedEffect
+        if (!com.music.spotui.parental.FeatureGates.canModifySpotifyLibrary()) {
+            com.music.spotui.data.api.InviteLinks.pending.value = null
+            return@LaunchedEffect
+        }
         app.myspoti.host.android.MyspotiRuntime.api.ready.first { it }
         i.opened = true
         navController.navigateSingleTop(com.music.spotui.ui.navigation.playlistRoute(i.playlistId))
@@ -40,7 +44,9 @@ fun App() {
     val playingUri = com.music.spotui.di.SongPlayer.nowPlaying.value.uri
     LaunchedEffect(playingUri) {
         if (!playingUri.startsWith("spotify:track:")) return@LaunchedEffect
+        if (!com.music.spotui.parental.FeatureGates.canUseGeniusMeanings()) return@LaunchedEffect
         kotlinx.coroutines.delay(2_000)
+        if (!com.music.spotui.parental.FeatureGates.canUseGeniusMeanings()) return@LaunchedEffect
         val st = com.music.spotui.di.Graph.currentSongState
         com.music.spotui.data.api.GeniusMeaning.prefetch(playingUri.substringAfterLast(':'), st.title.value, st.singer.value, geniusLang)
     }
@@ -50,10 +56,12 @@ fun App() {
     LaunchedEffect(pageLink) {
         val uri = pageLink ?: return@LaunchedEffect
         com.music.spotui.data.api.InviteLinks.page.value = null
-        val id = uri.substringAfterLast(':')
+        val decision = com.music.spotui.parental.SpotifyLinkGuard.evaluate(uri, com.music.spotui.parental.ParentalPolicyStore.current())
+        if (decision !is com.music.spotui.parental.LinkDecision.OpenInAppPage) return@LaunchedEffect
+        val id = decision.spotifyUri.substringAfterLast(':')
         com.music.spotui.ui.navigation.PlayerSheet.close()
         runCatching {
-            navController.navigateSingleTop(when (uri.split(':')[1]) {
+            navController.navigateSingleTop(when (decision.spotifyUri.split(':')[1]) {
                 "playlist" -> com.music.spotui.ui.navigation.playlistRoute(id)
                 "album" -> com.music.spotui.ui.navigation.albumRoute("", "", id)
                 "artist" -> com.music.spotui.ui.navigation.artistRoute("artist", id)

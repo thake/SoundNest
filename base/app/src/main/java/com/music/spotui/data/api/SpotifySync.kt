@@ -23,7 +23,7 @@ object SpotifySync {
     private val api get() = MyspotiRuntime.api
 
     fun addTrackToPlaylist(context: Context, playlistId: String, trackId: String, onDone: (Boolean) -> Unit = {}) {
-        if (playlistId.isBlank() || trackId.isBlank()) { onDone(false); return }
+        if (!com.music.spotui.parental.FeatureGates.canModifySpotifyLibrary(context) || playlistId.isBlank() || trackId.isBlank()) { onDone(false); return }
         scope.launch {
             val ok = runCatching { api.playlists.addTracks("spotify:playlist:$playlistId", listOf("spotify:track:$trackId")) }
                 .onFailure { Log.w(TAG, "add $trackId to $playlistId failed: ${it.message}") }.isSuccess
@@ -38,7 +38,7 @@ object SpotifySync {
      * does not cancel it. [onDone] gets whether Spotify took all of it.
      */
     fun addUrisToPlaylist(context: Context, playlistId: String, uris: List<String>, onDone: (Boolean) -> Unit = {}) {
-        if (playlistId.isBlank() || uris.isEmpty()) { onDone(false); return }
+        if (!com.music.spotui.parental.FeatureGates.canModifySpotifyLibrary(context) || playlistId.isBlank() || uris.isEmpty()) { onDone(false); return }
         scope.launch {
             val ok = runCatching { api.playlists.addTracks("spotify:playlist:$playlistId", uris) }
                 .onFailure { Log.w(TAG, "add ${uris.size} songs to $playlistId failed: ${it.message}") }.isSuccess
@@ -54,7 +54,7 @@ object SpotifySync {
      * took all of it.
      */
     fun likeUris(uris: List<String>, onDone: (Boolean) -> Unit = {}) {
-        if (uris.isEmpty()) { onDone(false); return }
+        if (!com.music.spotui.parental.FeatureGates.canModifySpotifyLibrary() || uris.isEmpty()) { onDone(false); return }
         scope.launch {
             var sent = 0
             val ok = runCatching {
@@ -73,7 +73,7 @@ object SpotifySync {
      * cache) the first row of that song goes, never all of them.
      */
     fun removeRowFromPlaylist(context: Context, playlistId: String, trackId: String, rowUid: String, onDone: (Boolean) -> Unit = {}) {
-        if (playlistId.isBlank() || (trackId.isBlank() && rowUid.isBlank())) { onDone(false); return }
+        if (!com.music.spotui.parental.FeatureGates.canModifySpotifyLibrary(context) || playlistId.isBlank() || (trackId.isBlank() && rowUid.isBlank())) { onDone(false); return }
         scope.launch {
             val ok = runCatching {
                 val uri = "spotify:playlist:$playlistId"
@@ -92,7 +92,7 @@ object SpotifySync {
      * sheet's switch means "this song is not in that playlist any more".
      */
     fun removeTrackFromPlaylist(context: Context, playlistId: String, trackId: String, onDone: (Boolean) -> Unit = {}) {
-        if (playlistId.isBlank() || trackId.isBlank()) { onDone(false); return }
+        if (!com.music.spotui.parental.FeatureGates.canModifySpotifyLibrary(context) || playlistId.isBlank() || trackId.isBlank()) { onDone(false); return }
         scope.launch {
             val ok = runCatching {
                 val uri = "spotify:playlist:$playlistId"
@@ -110,6 +110,7 @@ object SpotifySync {
 
     /** Who may see or change a playlist (public, private, collaborative), as chosen. [onDone] gets whether Spotify took it. */
     fun setPlaylistAccess(uri: String, access: app.myspoti.api.PlaylistAccess, onDone: (Boolean) -> Unit = {}) {
+        if (!com.music.spotui.parental.FeatureGates.canModifySpotifyLibrary()) { onDone(false); return }
         scope.launch {
             val ok = visibilityWrites.withLock {
                 runCatching { api.playlists.setAccess(uri, access) }
@@ -121,6 +122,7 @@ object SpotifySync {
 
     /** Stops a collaboration (owner): collaborators become listeners (private) or leave (public). */
     fun stopPlaylistCollaboration(uri: String, onDone: (Boolean) -> Unit = {}) {
+        if (!com.music.spotui.parental.FeatureGates.canModifySpotifyLibrary()) { onDone(false); return }
         scope.launch {
             val ok = visibilityWrites.withLock {
                 runCatching { api.playlists.stopCollaboration(uri) }
@@ -132,6 +134,7 @@ object SpotifySync {
 
     /** Whether the playlist is listed on the user's profile. */
     fun setPlaylistPublished(uri: String, published: Boolean, onDone: (Boolean) -> Unit = {}) {
+        if (!com.music.spotui.parental.FeatureGates.canModifySpotifyLibrary()) { onDone(false); return }
         scope.launch {
             val ok = visibilityWrites.withLock {
                 runCatching { api.playlists.setPublished(uri, published) }
@@ -150,7 +153,7 @@ object SpotifySync {
      */
     fun createPlaylistWithTrack(context: Context, name: String, trackId: String, folderUri: String? = null, onDone: (Boolean) -> Unit = {}) {
         val title = name.trim()
-        if (title.isBlank()) { onDone(false); return }
+        if (!com.music.spotui.parental.FeatureGates.canModifySpotifyLibrary(context) || title.isBlank()) { onDone(false); return }
         val app = context.applicationContext
         val placeholderId = LibraryEdits.PENDING_PREFIX + pendingIds.incrementAndGet()
         val edit = LibraryEdits.Add(folderUri, LibraryEntry(

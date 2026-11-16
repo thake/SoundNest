@@ -73,8 +73,9 @@ object LyricsApi {
      */
     @Volatile var extraSourcesOff: Boolean = false
 
-    /** Genius on in the settings ([com.music.spotui.data.preferences.GeniusPref]): off, it is never asked. */
-    private val geniusOn get() = com.music.spotui.data.preferences.GeniusPref.on
+    /** Genius on in the settings ([com.music.spotui.data.preferences.GeniusPref]) and allowed by parental policy: off, it is never asked. */
+    private val geniusOn get() = com.music.spotui.data.preferences.GeniusPref.on && com.music.spotui.parental.FeatureGates.canUseGeniusMeanings()
+    private val extraSourcesAllowed get() = extraSources && com.music.spotui.parental.FeatureGates.canUseExtraLyricSources()
 
     /** Set by the settings: lyrics timed word by word first (karaoke), line by line otherwise. */
     @Volatile var wordSync: Boolean = true
@@ -90,7 +91,7 @@ object LyricsApi {
     private val earlyByKey = java.util.concurrent.ConcurrentHashMap<String, Lyrics>()
 
     /** What [track] can show while its lyrics are still looked for, or null. */
-    fun earlyFor(track: Track): Lyrics? = earlyByKey[track.key]
+    fun earlyFor(track: Track): Lyrics? = if (!com.music.spotui.parental.FeatureGates.canShowLyrics()) null else earlyByKey[track.key]
 
     /** Lyrics of song [key] updated with romanizations: [before] became [after]. */
     data class Romanized(val key: String, val before: Lyrics, val after: Lyrics)
@@ -103,12 +104,13 @@ object LyricsApi {
         early.value = track.key to lyrics
     }
 
-    fun cached(track: Track): Lyrics? = cache[track.key] as? Lyrics
+    fun cached(track: Track): Lyrics? = if (!com.music.spotui.parental.FeatureGates.canShowLyrics()) null else cache[track.key] as? Lyrics
 
     /** Whether [track]'s lyrics were found: nothing better is to come. */
     fun settled(track: Track): Boolean = cache[track.key] is Lyrics
 
     private fun wanted(track: Track): Boolean {
+        if (!com.music.spotui.parental.FeatureGates.canShowLyrics()) return false
         if (track.title.isBlank() && track.trackId.isBlank()) return false
         return when (val c = cache[track.key]) {
             is Lyrics -> false
@@ -125,6 +127,7 @@ object LyricsApi {
      * [track]'s are found.
      */
     fun prefetch(track: Track, then: Track? = null) {
+        if (!com.music.spotui.parental.FeatureGates.canShowLyrics()) return
         if (!wanted(track)) { after.remove(track.key); then?.let { prefetch(it) }; return }
         if (then != null) after[track.key] = then
         if (inFlight.containsKey(track.key)) return
@@ -141,6 +144,7 @@ object LyricsApi {
 
     /** What is already here for [track], from memory or storage, whole: asks no one. */
     fun known(track: Track): Lyrics? {
+        if (!com.music.spotui.parental.FeatureGates.canShowLyrics()) return null
         val found = when (val c = cache[track.key]) {
             is Lyrics -> c
             is Miss -> null
@@ -150,6 +154,7 @@ object LyricsApi {
     }
 
     suspend fun fetch(track: Track): Lyrics? {
+        if (!com.music.spotui.parental.FeatureGates.canShowLyrics()) return null
         when (val c = cache[track.key]) {
             is Lyrics -> return c
             is Miss -> if (System.currentTimeMillis() - c.at < MISS_RETRY_MS) return null
@@ -184,13 +189,18 @@ object LyricsApi {
 
     /** The providers that can be tried for [track], in the order the resolver prefers them. */
     fun sources(track: Track): List<Source> = buildList {
+        if (!com.music.spotui.parental.FeatureGates.canShowLyrics()) return@buildList
         if (track.trackId.isNotBlank()) add(Source("spotify", "Spotify", words = true))
-        if (track.trackId.isNotBlank()) add(Source("amll", "AMLL TTML DB", true, allSetAside("amll")))
-        add(Source("lyricsplus", "LyricsPlus", true, allSetAside(*LYRICS_PLUS.toTypedArray())))
-        add(Source("lrcred", "lrc.red", true, allSetAside("lrcred")))
-        add(Source("kugou", "Kugou", true, allSetAside("kugou")))
+        if (com.music.spotui.parental.FeatureGates.canUseExtraLyricSources()) {
+            if (track.trackId.isNotBlank()) add(Source("amll", "AMLL TTML DB", true, allSetAside("amll")))
+            add(Source("lyricsplus", "LyricsPlus", true, allSetAside(*LYRICS_PLUS.toTypedArray())))
+            add(Source("lrcred", "lrc.red", true, allSetAside("lrcred")))
+            add(Source("kugou", "Kugou", true, allSetAside("kugou")))
+        }
         add(Source("lrclib", "LRCLIB", false, allSetAside("lrclib")))
-        add(Source("netease", "NetEase", true, allSetAside("netease")))
+        if (com.music.spotui.parental.FeatureGates.canUseExtraLyricSources()) {
+            add(Source("netease", "NetEase", true, allSetAside("netease")))
+        }
         if (geniusOn) add(Source("genius", "Genius", false, allSetAside("genius")))
     }
 
@@ -216,6 +226,9 @@ object LyricsApi {
      * replaces the song's lyrics in memory and storage; null (nothing changes) when it has none.
      */
     suspend fun fetchFrom(track: Track, sourceId: String): Lyrics? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        if (!com.music.spotui.parental.FeatureGates.canShowLyrics()) return@withContext null
+        if (sourceId in setOf("amll", "lyricsplus", "lrcred", "kugou", "netease") && !com.music.spotui.parental.FeatureGates.canUseExtraLyricSources()) return@withContext null
+        if (sourceId == "genius" && !geniusOn) return@withContext null
         val asked = track.title.trim()
         val title = cleanTitle(track.title)
         val artist = track.artist.substringBefore(",").trim()
@@ -381,6 +394,14 @@ object LyricsApi {
      * chain after them. Spotify's colours are kept whoever gives the words.
      */
     private suspend fun wordFirst(track: Track): Lyrics? = coroutineScope {
+        if (!com.music.spotui.parental.FeatureGates.canUseExtraLyricSources()) {
+            val sp = fromSpotify(track)
+            if (sp != null) {
+                showEarly(track, sp)
+                return@coroutineScope sp
+            }
+            return@coroutineScope lineFallbacks(track)
+        }
         // The catalogues are asked with the full title: "Old Town Road - Remix" cut down to
         // "Old Town Road" found the original (1:53), refused for its length (reported: lyrics
         // not complete). The comparison still uses the title without its asides.
@@ -462,8 +483,9 @@ object LyricsApi {
             val title = cleanTitle(track.title)
             val artist = track.artist.substringBefore(",").trim()
             val durationSec = (track.durationMs / 1000).toInt()
-            val netease = if (extraSources) async { asking("netease", track) { fromNetEase(title, artist, durationSec) } } else null
-            val genius = if (extraSources && geniusOn) async { asking("genius", track) { fromGenius(title, artist) } } else null
+            val allowExtra = extraSourcesAllowed
+            val netease = if (allowExtra) async { asking("netease", track) { fromNetEase(title, artist, durationSec) } } else null
+            val genius = if (allowExtra && geniusOn) async { asking("genius", track) { fromGenius(title, artist) } } else null
             val lrclib = asking("lrclib", track) {
                 val exact = async { lrclibGet(title, artist, track.album, durationSec) }
                 val fuzzy = async { lrclibSearch("$LRCLIB/search?track_name=${enc(title)}&artist_name=${enc(artist)}", title, artist, durationSec) }
@@ -475,7 +497,7 @@ object LyricsApi {
             when {
                 lrclib != null && lrclib.synced -> LyricsExtras.carry(lrclib, ne)
                 ne != null && ne.synced -> ne
-                else -> asking("kugou", track) { fromKugou(title, artist, track.durationMs) } ?: lrclib ?: ne ?: genius?.await()
+                else -> (if (allowExtra) asking("kugou", track) { fromKugou(title, artist, track.durationMs) } else null) ?: lrclib ?: ne ?: genius?.await()
             }
     }
 

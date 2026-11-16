@@ -232,7 +232,10 @@ object LibraryOutbox {
 
     @Volatile private var sync: Sync? = null
 
-    fun put(uri: String, saved: Boolean) { sync?.put(uri, saved) }
+    fun put(uri: String, saved: Boolean) {
+        if (!com.music.spotui.parental.FeatureGates.canModifySpotifyLibrary()) return
+        sync?.put(uri, saved)
+    }
     /** Sends what waits (one worker: see [Sync]). */
     fun request() { sync?.request() }
     /** At sign-out: the account's changes stay its own, the next account starts with none. */

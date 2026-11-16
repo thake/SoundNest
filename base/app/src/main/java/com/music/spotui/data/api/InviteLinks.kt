@@ -56,20 +56,53 @@ object InviteLinks {
      * the link it leads to; one that is not an invitation plays like any Spotify link).
      */
     fun handle(link: String): Boolean {
-        parse(link)?.let { pending.value = it; return true }
-        val short = SHORT.find(link)?.value ?: return false
-        scope.launch {
-            val target = resolve(short) ?: return@launch
-            val invite = parse(target)
-            if (invite != null) { pending.value = invite; return@launch }
-            // Not an invitation: the item the short link leads to is played, as a direct link is.
-            val m = Regex("""spotify\.com/(?:intl-[a-z-]+/)?(track|album|playlist|artist|show|episode)/([A-Za-z0-9]{22})""").find(target) ?: return@launch
-            runCatching {
-                MyspotiRuntime.api.ready.first { it }
-                MyspotiRuntime.api.player.play("spotify:${m.groupValues[1]}:${m.groupValues[2]}")
+        val policy = com.music.spotui.parental.ParentalPolicyStore.current()
+        return when (val decision = com.music.spotui.parental.SpotifyLinkGuard.evaluate(link, policy)) {
+            is com.music.spotui.parental.LinkDecision.ExternalBrowser -> false
+            is com.music.spotui.parental.LinkDecision.JoinCollaborativeInvite -> {
+                pending.value = decision.invite
+                true
             }
+            is com.music.spotui.parental.LinkDecision.OpenInAppPage -> {
+                page.value = decision.spotifyUri
+                true
+            }
+            is com.music.spotui.parental.LinkDecision.PlaySpotifyTrack -> {
+                playFilteredSpotifyUri(decision.spotifyUri)
+                true
+            }
+            is com.music.spotui.parental.LinkDecision.ResolveShortLink -> {
+                scope.launch {
+                    val target = resolve(decision.url) ?: return@launch
+                    val resolvedPolicy = com.music.spotui.parental.ParentalPolicyStore.current()
+                    when (val resolved = com.music.spotui.parental.SpotifyLinkGuard.evaluate(target, resolvedPolicy)) {
+                        is com.music.spotui.parental.LinkDecision.JoinCollaborativeInvite -> pending.value = resolved.invite
+                        is com.music.spotui.parental.LinkDecision.OpenInAppPage -> page.value = resolved.spotifyUri
+                        is com.music.spotui.parental.LinkDecision.PlaySpotifyTrack -> playFilteredSpotifyUri(resolved.spotifyUri)
+                        is com.music.spotui.parental.LinkDecision.ExternalBrowser,
+                        is com.music.spotui.parental.LinkDecision.ResolveShortLink,
+                        is com.music.spotui.parental.LinkDecision.Blocked -> Unit
+                    }
+                }
+                true
+            }
+            is com.music.spotui.parental.LinkDecision.Blocked -> com.music.spotui.parental.SpotifyLinkGuard.isSpotifyLink(link)
         }
-        return true
+    }
+
+    private fun playFilteredSpotifyUri(spotifyUri: String) {
+        val parts = spotifyUri.split(':')
+        if (parts.size < 3) return
+        val kind = parts[1]
+        val id = parts[2]
+        val playArg = when (kind) {
+            "episode" -> "episode:$id"
+            "track" -> "spotify:track:$id|"
+            else -> return
+        }
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            com.music.spotui.di.SongPlayer.playSong(playArg, alone = true)
+        }
     }
 
     /** Where a short link leads: its final URL, or the playlist link inside the page it answers with. */
@@ -92,6 +125,10 @@ object InviteLinks {
      * A refused token (wrong or expired link) undoes the row and says so.
      */
     fun join(context: Context, invite: Invite, page: ContextPageModel, onDone: (Boolean) -> Unit = {}) {
+        if (!com.music.spotui.parental.FeatureGates.canModifySpotifyLibrary(context)) {
+            onDone(false)
+            return
+        }
         val app = context.applicationContext
         val edit = LibraryEdits.Add(null, LibraryEntry(
             spotifyId = invite.playlistId, name = page.name,
