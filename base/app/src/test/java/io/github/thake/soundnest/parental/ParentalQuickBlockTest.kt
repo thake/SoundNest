@@ -2,12 +2,31 @@
 package io.github.thake.soundnest.parental
 
 import android.app.Application
+import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
+import io.github.thake.soundnest.data.api.Api
+import io.github.thake.soundnest.data.entity.AlbumsModel
+import io.github.thake.soundnest.data.entity.ArtistsModel
+import io.github.thake.soundnest.data.entity.LibraryEntry
+import io.github.thake.soundnest.data.entity.PodcastModel
+import io.github.thake.soundnest.data.entity.SearchResults
 import io.github.thake.soundnest.data.entity.SongsModel
+import io.github.thake.soundnest.data.preferences.RecentItem
+import io.github.thake.soundnest.ui.theme.SpotuiTheme
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -15,8 +34,11 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [35])
+@Config(sdk = [35], qualifiers = "w411dp-h891dp")
 class ParentalQuickBlockTest {
+
+    @get:Rule
+    val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     private lateinit var app: Application
 
@@ -24,6 +46,12 @@ class ParentalQuickBlockTest {
     fun setUp() {
         app = RuntimeEnvironment.getApplication()
         ParentalPolicyStore.resetForTests(app)
+        ParentSecurityManager.resetForTests(app)
+    }
+
+    @After
+    fun tearDown() {
+        ParentSecurityManager.resetForTests(app)
     }
 
     @Test
@@ -31,7 +59,7 @@ class ParentalQuickBlockTest {
         // Seed allowlist entries first to verify blocking in Strict Allowlist mode removes them cleanly.
         ParentalPolicyStore.allowPlaylist(app, "pl1", title = "Old Playlist")
         ParentalPolicyStore.allowArtist(app, "ar1", title = "Old Artist")
-        ParentalPolicyStore.allowAlbum(app, "al1", title = "Old Album")
+        ParentalPolicyStore.allowAlbum(app, "al1", title = "Loud Album")
         ParentalPolicyStore.allowTrack(app, "tr1", title = "Old Song")
         ParentalPolicyStore.allowShow(app, "sh1", title = "Old Show")
 
@@ -173,5 +201,121 @@ class ParentalQuickBlockTest {
         assertEquals("sh_brains", episodeTargets[1].normalizedId)
         assertEquals("Block Episode", ParentBlockActions.actionLabel(episodeTargets[0], blocked = false, includeTitle = false))
         assertEquals("Block Podcast Show (Brains On! Science Podcast)", ParentBlockActions.actionLabel(episodeTargets[1], blocked = false, includeTitle = true))
+    }
+
+    @Test
+    fun `filterSearchResults, isLibraryEntryAllowed and isRecentItemAllowed immediately exclude newly blocked items`() {
+        val results = SearchResults(
+            songs = listOf(
+                SongsModel(1, "Good Song", "Good Album", "Good Artist", "", "spotify:track:good_tr", "good_tr", artistIds = listOf("good_ar")),
+                SongsModel(2, "Bad Song", "Bad Album", "Bad Artist", "", "spotify:track:bad_tr", "bad_tr", artistIds = listOf("bad_ar")),
+            ),
+            artists = listOf(
+                ArtistsModel(name = "Good Artist", coverUri = "", id = "good_ar"),
+                ArtistsModel(name = "Bad Artist", coverUri = "", id = "bad_ar"),
+            ),
+            albums = listOf(
+                AlbumsModel(id = 1, name = "Good Album", artists = "Good Artist", coverUri = "", time = "2024", spotifyId = "good_al"),
+                AlbumsModel(id = 2, name = "Bad Album", artists = "Bad Artist", coverUri = "", time = "2024", spotifyId = "bad_al"),
+            ),
+            playlists = listOf(
+                LibraryEntry(spotifyId = "good_pl", name = "Good Playlist", subtitle = "Spotify", coverUri = "", isPlaylist = true, uri = "spotify:playlist:good_pl"),
+                LibraryEntry(spotifyId = "bad_pl", name = "Bad Playlist", subtitle = "Spotify", coverUri = "", isPlaylist = true, uri = "spotify:playlist:bad_pl"),
+            ),
+            shows = listOf(
+                PodcastModel(id = "good_sh", name = "Good Show", publisher = "Kids FM", coverUri = ""),
+                PodcastModel(id = "bad_sh", name = "Bad Show", publisher = "Late FM", coverUri = ""),
+            ),
+        )
+        ParentalPolicyStore.update(app) { it.copy(allowPodcasts = true) }
+        ParentalPolicyStore.blockTrack(app, "bad_tr", title = "Bad Song")
+        ParentalPolicyStore.blockArtist(app, "bad_ar", title = "Bad Artist")
+        ParentalPolicyStore.blockAlbum(app, "bad_al", title = "Bad Album")
+        ParentalPolicyStore.blockPlaylist(app, "bad_pl", title = "Bad Playlist")
+        ParentalPolicyStore.blockShow(app, "bad_sh", title = "Bad Show")
+
+        val policy = ParentalPolicyStore.current(app)
+        val filtered = ParentBlockActions.filterSearchResults(results, policy)
+        assertEquals(listOf("good_tr"), filtered.songs.map { it.spotifyTrackId })
+        assertEquals(listOf("good_ar"), filtered.artists.map { it.id })
+        assertEquals(listOf("good_al"), filtered.albums.map { it.spotifyId })
+        assertEquals(listOf("good_pl"), filtered.playlists.map { it.spotifyId })
+        assertEquals(listOf("good_sh"), filtered.shows.map { it.id })
+
+        // Library entries: pinned system entries stay allowed; blocked playlist/show are disallowed
+        val likedEntry = LibraryEntry(spotifyId = Api.HomeCache.LIKED_SONGS_ID, name = "Liked Songs", subtitle = "", coverUri = "", isPlaylist = true)
+        val blockedShowEntry = LibraryEntry(spotifyId = "${Api.SHOW_PREFIX}bad_sh", name = "Bad Show", subtitle = "Late FM", coverUri = "", isPlaylist = false, uri = "spotify:show:bad_sh")
+        assertTrue(ParentBlockActions.isLibraryEntryAllowed(likedEntry, policy))
+        assertTrue(ParentBlockActions.isLibraryEntryAllowed(results.playlists[0], policy))
+        assertFalse(ParentBlockActions.isLibraryEntryAllowed(results.playlists[1], policy))
+        assertFalse(ParentBlockActions.isLibraryEntryAllowed(blockedShowEntry, policy))
+
+        // Recent search items: blocked artist/playlist vanish immediately
+        assertTrue(ParentBlockActions.isRecentItemAllowed(RecentItem(type = "artist", key = "good_ar", name = "Good Artist"), policy))
+        assertFalse(ParentBlockActions.isRecentItemAllowed(RecentItem(type = "artist", key = "bad_ar", name = "Bad Artist"), policy))
+        assertFalse(ParentBlockActions.isRecentItemAllowed(RecentItem(type = "playlist", key = "bad_pl", name = "Bad Playlist"), policy))
+    }
+
+    @Test
+    fun `ParentInlineBlockPill is hidden when locked and toggles block and unblock in place when unlocked`() {
+        val target = ParentBlockTarget(
+            kind = ParentRuleKind.PLAYLIST,
+            id = "spotify:playlist:ghibli",
+            title = "Studio Ghibli Lullabies",
+            subtitle = "SoundNest",
+        )
+        composeRule.setContent {
+            SpotuiTheme {
+                ParentInlineBlockPill(target = target)
+            }
+        }
+        // Locked by default -> invisible to kids
+        assertEquals(0, composeRule.onAllNodesWithText("Block Playlist").fetchSemanticsNodes().size)
+
+        // Unlock Parent Mode -> pill appears immediately
+        ParentSecurityManager.setupInitialPin(app, "1234")
+        assertTrue(ParentSecurityManager.isAdminUnlocked(app))
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Block Playlist").assertIsDisplayed().performClick()
+        composeRule.waitForIdle()
+        assertTrue(ParentBlockActions.isBlocked(target, ParentalPolicyStore.current(app)))
+
+        // Flips in-place so accidental taps can be undone without leaving the page
+        composeRule.onNodeWithText("Blocked · Tap to Unblock").assertIsDisplayed().performClick()
+        composeRule.waitForIdle()
+        assertFalse(ParentBlockActions.isBlocked(target, ParentalPolicyStore.current(app)))
+        composeRule.onNodeWithText("Block Playlist").assertIsDisplayed()
+    }
+
+    @Test
+    fun `ParentQuickBlockSheet blocks target and dismisses on tap`() {
+        ParentSecurityManager.setupInitialPin(app, "1234")
+        assertTrue(ParentSecurityManager.isAdminUnlocked(app))
+
+        val target = ParentBlockTarget(
+            kind = ParentRuleKind.ARTIST,
+            id = "spotify:artist:holst",
+            title = "Gustav Holst",
+            subtitle = "Artist",
+        )
+        var dismissed = false
+        composeRule.setContent {
+            SpotuiTheme {
+                ParentQuickBlockSheet(
+                    target = target,
+                    onDismiss = { dismissed = true },
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("parent_sheet_block_artist")
+            .assertIsDisplayed()
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForIdle()
+
+        assertTrue(dismissed)
+        assertTrue(ParentBlockActions.isBlocked(target, ParentalPolicyStore.current(app)))
     }
 }

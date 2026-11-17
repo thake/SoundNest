@@ -83,7 +83,8 @@ fun ImmersiveShowScreen(navController: NavController, showId: String, showName: 
     val page = (pageState as? Response.Success)?.data
     val show = page?.show
     val audiobook = page?.audiobook == true
-    val items = page?.items.orEmpty()
+    val rawItems = page?.items.orEmpty()
+    val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
     val displayName = show?.name?.takeIf { it.isNotBlank() } ?: showName
     val cover = page?.coverUri.orEmpty()
 
@@ -98,6 +99,16 @@ fun ImmersiveShowScreen(navController: NavController, showId: String, showName: 
         io.github.thake.soundnest.audible.AudibleUris.asinFromAny(showId)?.let(io.github.thake.soundnest.audible.AudibleUris::bookUri).orEmpty()
     } else {
         "spotify:show:$showId"
+    }
+    val items = remember(rawItems, policy, showId, audiobook, isAudible) {
+        if (isAudible) rawItems else rawItems.filter {
+            io.github.thake.soundnest.parental.ParentalFilterEngine.isTrackAllowed(
+                it,
+                policy,
+                parentContextUri = contextUri,
+                isAudiobookChapter = audiobook,
+            )
+        }
     }
 
     fun playAt(index: Int) {
@@ -137,9 +148,11 @@ fun ImmersiveShowScreen(navController: NavController, showId: String, showName: 
             ) {
                 item(key = "header") {
                     ShowHeader(
+                        showId = showId,
                         show = show,
                         name = displayName,
                         cover = cover,
+                        audiobook = audiobook,
                         showFollow = !isAudible,
                         following = vm.following.value,
                         onFollow = { on ->
@@ -246,9 +259,11 @@ fun ImmersiveShowScreen(navController: NavController, showId: String, showName: 
 
 @Composable
 private fun ShowHeader(
+    showId: String,
     show: io.github.thake.soundnest.data.entity.PodcastModel?,
     name: String,
     cover: String,
+    audiobook: Boolean = false,
     showFollow: Boolean = true,
     following: Boolean,
     onFollow: (Boolean) -> Unit,
@@ -313,6 +328,21 @@ private fun ShowHeader(
                     modifier = Modifier.widthIn(min = 170.dp),
                     onClick = { onFollow(!following) },
                 )
+                if (!audiobook) {
+                    val showTarget = remember(showId, name, show?.publisher, cover) {
+                        io.github.thake.soundnest.parental.ParentBlockTarget(
+                            io.github.thake.soundnest.parental.ParentRuleKind.SHOW,
+                            showId,
+                            name,
+                            show?.publisher.orEmpty(),
+                            cover,
+                        )
+                    }
+                    io.github.thake.soundnest.parental.ParentInlineBlockPill(
+                        target = showTarget,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
             }
         }
     }

@@ -37,6 +37,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -78,6 +79,13 @@ import io.github.thake.soundnest.data.api.Response
 import io.github.thake.soundnest.data.entity.SearchResults
 import io.github.thake.soundnest.data.entity.SongsModel
 import io.github.thake.soundnest.di.SongPlayer
+import io.github.thake.soundnest.parental.ParentBlockActions
+import io.github.thake.soundnest.parental.ParentBlockTarget
+import io.github.thake.soundnest.parental.ParentQuickBlockSheet
+import io.github.thake.soundnest.parental.ParentRuleKind
+import io.github.thake.soundnest.parental.ParentalPolicy
+import io.github.thake.soundnest.parental.rememberAdminUnlocked
+import io.github.thake.soundnest.parental.rememberParentalPolicy
 import io.github.thake.soundnest.ui.navigation.Routes
 import io.github.thake.soundnest.ui.navigation.albumRoute
 import io.github.thake.soundnest.ui.navigation.artistRoute
@@ -95,9 +103,13 @@ import io.github.thake.soundnest.data.preferences.toSong
 fun SearchScreen(navController: NavController) {
     val searchViewModel : SearchViewModel = viewModel()
     val results by searchViewModel.results.collectAsState()
+    val policy = rememberParentalPolicy()
 
     // Results are live search hits (or empty); never gate the search UI on them.
-    val searchResults = (results as? Response.Success)?.data ?: SearchResults()
+    val rawResults = (results as? Response.Success)?.data ?: SearchResults()
+    val searchResults = remember(rawResults, policy) {
+        ParentBlockActions.filterSearchResults(rawResults, policy)
+    }
 
     Surface(
         modifier = Modifier
@@ -120,15 +132,18 @@ fun SumUpSearchScreen(
     failed: Boolean = false,
 ) {
     val context = LocalContext.current
+    val policy = rememberParentalPolicy()
+    val adminUnlocked = rememberAdminUnlocked()
 
     val text = searchViewModel.query
     // Recents are the *items opened from results* (songs/artists/albums), not the
     // typed queries, and only appear once the user taps into the search bar.
     var searchFocused by remember { mutableStateOf(false) }
-    var recents by remember {
-        mutableStateOf(loadClassicSearchRecents(context))
+    var recents by remember(policy) {
+        mutableStateOf(loadClassicSearchRecents(context, policy))
     }
     var menuSong by remember { mutableStateOf<SongsModel?>(null) }
+    var quickBlockTarget by remember { mutableStateOf<ParentBlockTarget?>(null) }
     // Re-tapping the Search tab while already on it focuses the field (official behaviour)
     // and shows the recents again; no query is re-run. The field lives in the sticky bar,
     // so a focus requester is handed down to it.
@@ -154,6 +169,12 @@ fun SumUpSearchScreen(
             onDismiss = { menuSong = null },
         )
     }
+    quickBlockTarget?.let { target ->
+        ParentQuickBlockSheet(
+            target = target,
+            onDismiss = { quickBlockTarget = null },
+        )
+    }
 
     // A tap on a result puts the keyboard away; the query and the list stay as they are.
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
@@ -162,7 +183,7 @@ fun SumUpSearchScreen(
     val recordRecent: (io.github.thake.soundnest.data.preferences.RecentItem) -> Unit = { item ->
         dismissKeyboard()
         io.github.thake.soundnest.data.preferences.addRecentItem(context, item)
-        recents = loadClassicSearchRecents(context)
+        recents = loadClassicSearchRecents(context, policy)
     }
     // One relevance-mixed list (songs, artists, albums interleaved) instead of
     // separate type sections — matches how most music apps present search.
@@ -252,7 +273,7 @@ fun SumUpSearchScreen(
                         },
                         onRemove = {
                             io.github.thake.soundnest.data.preferences.removeRecentItem(context, item)
-                            recents = loadClassicSearchRecents(context)
+                            recents = loadClassicSearchRecents(context, policy)
                         },
                     ) }
                     // A recent song slides into the queue like a result does.
@@ -301,11 +322,26 @@ fun SumUpSearchScreen(
             items(mixed.size) { i ->
                 when (val row = mixed[i]) {
                     is SearchRow.Song -> io.github.thake.soundnest.ui.components.SwipeToQueue(row.song) {
-                        SearchSongRow(row.song, searchViewModel, onPlayed = {
-                            recordRecent(row.song.toRecentItem())
-                        }, onLongClick = { menuSong = row.song })
+                        SearchSongRow(
+                            song = row.song,
+                            searchViewModel = searchViewModel,
+                            onPlayed = { recordRecent(row.song.toRecentItem()) },
+                            onLongClick = { menuSong = row.song },
+                            showMoreButton = adminUnlocked,
+                        )
                     }
-                    is SearchRow.Artist -> SearchArtistRow(row.artist) {
+                    is SearchRow.Artist -> SearchArtistRow(
+                        artist = row.artist,
+                        onMore = if (adminUnlocked && row.artist.id.isNotBlank()) ({
+                            quickBlockTarget = ParentBlockTarget(
+                                kind = ParentRuleKind.ARTIST,
+                                id = row.artist.id,
+                                title = row.artist.name,
+                                subtitle = "Artist",
+                                coverUri = row.artist.coverUri,
+                            )
+                        }) else null,
+                    ) {
                         recordRecent(io.github.thake.soundnest.data.preferences.RecentItem(
                             type = "artist",
                             key = row.artist.id.ifBlank { row.artist.name },
@@ -314,7 +350,18 @@ fun SumUpSearchScreen(
                         ))
                         navController.navigate(artistRoute(row.artist.name, row.artist.id))
                     }
-                    is SearchRow.Album -> SearchAlbumRow(row.album) {
+                    is SearchRow.Album -> SearchAlbumRow(
+                        album = row.album,
+                        onMore = if (adminUnlocked && row.album.spotifyId.isNotBlank()) ({
+                            quickBlockTarget = ParentBlockTarget(
+                                kind = ParentRuleKind.ALBUM,
+                                id = row.album.spotifyId,
+                                title = row.album.name,
+                                subtitle = row.album.artists,
+                                coverUri = row.album.coverUri,
+                            )
+                        }) else null,
+                    ) {
                         recordRecent(io.github.thake.soundnest.data.preferences.RecentItem(
                             type = "album",
                             key = row.album.spotifyId.ifBlank { row.album.name },
@@ -324,7 +371,18 @@ fun SumUpSearchScreen(
                         ))
                         navController.navigate(albumRoute(row.album.name, row.album.artists, row.album.spotifyId))
                     }
-                    is SearchRow.Playlist -> SearchPlaylistRow(row.playlist) {
+                    is SearchRow.Playlist -> SearchPlaylistRow(
+                        playlist = row.playlist,
+                        onMore = if (adminUnlocked && row.playlist.spotifyId.isNotBlank()) ({
+                            quickBlockTarget = ParentBlockTarget(
+                                kind = ParentRuleKind.PLAYLIST,
+                                id = row.playlist.spotifyId,
+                                title = row.playlist.name,
+                                subtitle = row.playlist.subtitle,
+                                coverUri = row.playlist.coverUri,
+                            )
+                        }) else null,
+                    ) {
                         recordRecent(io.github.thake.soundnest.data.preferences.RecentItem(
                             type = "playlist",
                             key = row.playlist.spotifyId,
@@ -344,7 +402,19 @@ fun SumUpSearchScreen(
                 item { SearchSectionHeader(stringResource(headerRes)) }
                 items(results.shows.size) { i ->
                     val show = results.shows[i]
-                    SearchShowRow(show) {
+                    val isAudible = io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(show.id)
+                    SearchShowRow(
+                        show = show,
+                        onMore = if (adminUnlocked && !isAudible && show.id.isNotBlank()) ({
+                            quickBlockTarget = ParentBlockTarget(
+                                kind = ParentRuleKind.SHOW,
+                                id = show.id,
+                                title = show.name,
+                                subtitle = show.publisher,
+                                coverUri = show.coverUri,
+                            )
+                        }) else null,
+                    ) {
                         recordRecent(io.github.thake.soundnest.data.preferences.RecentItem(
                             type = "show",
                             key = show.id,
@@ -360,9 +430,13 @@ fun SumUpSearchScreen(
                 item { SearchSectionHeader(stringResource(R.string.assisted_curation_search_filter_episodes)) }
                 items(results.episodes.size) { i ->
                     val ep = results.episodes[i]
-                    SearchSongRow(ep, searchViewModel, onPlayed = {
-                        recordRecent(ep.toRecentItem())
-                    }, onLongClick = { menuSong = ep })
+                    SearchSongRow(
+                        song = ep,
+                        searchViewModel = searchViewModel,
+                        onPlayed = { recordRecent(ep.toRecentItem()) },
+                        onLongClick = { menuSong = ep },
+                        showMoreButton = adminUnlocked,
+                    )
                 }
             }
             }
@@ -517,6 +591,7 @@ fun SearchSongRow(
     searchViewModel: SearchViewModel,
     onPlayed: () -> Unit = {},
     onLongClick: (() -> Unit)? = null,
+    showMoreButton: Boolean = false,
 ) {
     val context = LocalContext.current
     val isLiked = io.github.thake.soundnest.di.rememberTrackSaved(song.spotifyTrackId)
@@ -578,9 +653,24 @@ fun SearchSongRow(
             }
         }
 
-io.github.thake.soundnest.ui.screens.AddButton(song = { song }, liked = isLiked, size = 22.dp) {
-                    // Spotify library, per track (not the now-playing like state).
-                    io.github.thake.soundnest.di.SongPlayer.setTrackSaved(song.spotifyTrackId, true)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            io.github.thake.soundnest.ui.screens.AddButton(song = { song }, liked = isLiked, size = 22.dp) {
+                // Spotify library, per track (not the now-playing like state).
+                io.github.thake.soundnest.di.SongPlayer.setTrackSaved(song.spotifyTrackId, true)
+            }
+            if (showMoreButton && onLongClick != null) {
+                Spacer(Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = stringResource(R.string.content_description_context_menu),
+                    tint = AppMuted,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .clickable { onLongClick() }
+                        .padding(8.dp),
+                )
+            }
         }
     }
 }
@@ -596,15 +686,29 @@ fun SearchSectionHeader(title: String) {
     )
 }
 
-@OptIn(ExperimentalGlideComposeApi::class)
+@OptIn(ExperimentalGlideComposeApi::class, ExperimentalFoundationApi::class)
 @Composable
-fun SearchShowRow(show: io.github.thake.soundnest.data.entity.PodcastModel, onClick: () -> Unit) {
+fun SearchShowRow(
+    show: io.github.thake.soundnest.data.entity.PodcastModel,
+    onMore: (() -> Unit)? = null,
+    onClick: () -> Unit,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.pressable(0.96f) { onClick() }
+        modifier = (if (onMore != null) {
+            Modifier
+                .secondaryClick(onMore)
+                .combinedClickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onLongClick = onMore,
+                    onClick = onClick,
+                )
+        } else {
+            Modifier.pressable(0.96f) { onClick() }
+        })
             .fillMaxWidth()
-            .padding(16.dp, 8.dp)
-            ,
+            .padding(16.dp, 8.dp),
     ) {
         GlideImage(
             modifier = Modifier
@@ -617,7 +721,7 @@ fun SearchShowRow(show: io.github.thake.soundnest.data.entity.PodcastModel, onCl
             loading = placeholder(R.drawable.placeholder),
             contentDescription = "",
         )
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(text = show.name, color = AppText, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             val kindRes = if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(show.id)) R.string.audiobooks_title else R.string.album_type_podcast
             Text(
@@ -625,18 +729,44 @@ fun SearchShowRow(show: io.github.thake.soundnest.data.entity.PodcastModel, onCl
                 color = AppMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
         }
+        if (onMore != null) {
+            Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = stringResource(R.string.content_description_context_menu),
+                tint = AppMuted,
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .clickable { onMore() }
+                    .padding(8.dp),
+            )
+        }
     }
 }
 
-@OptIn(ExperimentalGlideComposeApi::class)
+@OptIn(ExperimentalGlideComposeApi::class, ExperimentalFoundationApi::class)
 @Composable
-fun SearchArtistRow(artist: io.github.thake.soundnest.data.entity.ArtistsModel, onClick: () -> Unit) {
+fun SearchArtistRow(
+    artist: io.github.thake.soundnest.data.entity.ArtistsModel,
+    onMore: (() -> Unit)? = null,
+    onClick: () -> Unit,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.pressable(0.96f) { onClick() }
+        modifier = (if (onMore != null) {
+            Modifier
+                .secondaryClick(onMore)
+                .combinedClickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onLongClick = onMore,
+                    onClick = onClick,
+                )
+        } else {
+            Modifier.pressable(0.96f) { onClick() }
+        })
             .fillMaxWidth()
-            .padding(16.dp, 8.dp)
-            ,
+            .padding(16.dp, 8.dp),
     ) {
         GlideImage(
             modifier = Modifier
@@ -649,22 +779,48 @@ fun SearchArtistRow(artist: io.github.thake.soundnest.data.entity.ArtistsModel, 
             loading = placeholder(R.drawable.placeholder),
             contentDescription = "",
         )
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(text = artist.name, color = AppText, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             Text(text = stringResource(R.string.artist_subtitle), color = AppMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        }
+        if (onMore != null) {
+            Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = stringResource(R.string.content_description_context_menu),
+                tint = AppMuted,
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .clickable { onMore() }
+                    .padding(8.dp),
+            )
         }
     }
 }
 
-@OptIn(ExperimentalGlideComposeApi::class)
+@OptIn(ExperimentalGlideComposeApi::class, ExperimentalFoundationApi::class)
 @Composable
-fun SearchAlbumRow(album: io.github.thake.soundnest.data.entity.AlbumsModel, onClick: () -> Unit) {
+fun SearchAlbumRow(
+    album: io.github.thake.soundnest.data.entity.AlbumsModel,
+    onMore: (() -> Unit)? = null,
+    onClick: () -> Unit,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.pressable(0.96f) { onClick() }
+        modifier = (if (onMore != null) {
+            Modifier
+                .secondaryClick(onMore)
+                .combinedClickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onLongClick = onMore,
+                    onClick = onClick,
+                )
+        } else {
+            Modifier.pressable(0.96f) { onClick() }
+        })
             .fillMaxWidth()
-            .padding(16.dp, 8.dp)
-            ,
+            .padding(16.dp, 8.dp),
     ) {
         GlideImage(
             modifier = Modifier
@@ -677,19 +833,46 @@ fun SearchAlbumRow(album: io.github.thake.soundnest.data.entity.AlbumsModel, onC
             loading = placeholder(R.drawable.placeholder),
             contentDescription = "",
         )
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(text = album.name, color = AppText, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             Text(text = stringResource(R.string.album) + " • ${album.artists}", color = AppMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
+        if (onMore != null) {
+            Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = stringResource(R.string.content_description_context_menu),
+                tint = AppMuted,
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .clickable { onMore() }
+                    .padding(8.dp),
+            )
         }
     }
 }
 
-@OptIn(ExperimentalGlideComposeApi::class)
+@OptIn(ExperimentalGlideComposeApi::class, ExperimentalFoundationApi::class)
 @Composable
-fun SearchPlaylistRow(playlist: io.github.thake.soundnest.data.entity.LibraryEntry, onClick: () -> Unit) {
+fun SearchPlaylistRow(
+    playlist: io.github.thake.soundnest.data.entity.LibraryEntry,
+    onMore: (() -> Unit)? = null,
+    onClick: () -> Unit,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.pressable(0.96f) { onClick() }.fillMaxWidth().padding(16.dp, 8.dp),
+        modifier = (if (onMore != null) {
+            Modifier
+                .secondaryClick(onMore)
+                .combinedClickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onLongClick = onMore,
+                    onClick = onClick,
+                )
+        } else {
+            Modifier.pressable(0.96f) { onClick() }
+        }).fillMaxWidth().padding(16.dp, 8.dp),
     ) {
         GlideImage(
             modifier = Modifier.padding(0.dp, 0.dp, 10.dp, 0.dp).size(48.dp).clip(RoundedCornerShape(6.dp)),
@@ -699,11 +882,23 @@ fun SearchPlaylistRow(playlist: io.github.thake.soundnest.data.entity.LibraryEnt
             loading = placeholder(R.drawable.placeholder),
             contentDescription = "",
         )
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(text = playlist.name, color = AppText, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             Text(text = stringResource(R.string.assisted_curation_search_playlist) +
                 (if (playlist.subtitle.isNotBlank()) " • ${playlist.subtitle}" else ""),
                 color = AppMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
+        if (onMore != null) {
+            Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = stringResource(R.string.content_description_context_menu),
+                tint = AppMuted,
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .clickable { onMore() }
+                    .padding(8.dp),
+            )
         }
     }
 }
@@ -926,9 +1121,13 @@ private fun clearSpotifyRecents() {
     runtime.scope.launch { runCatching { runtime.api.search.clearRecent() } }
 }
 
-private fun loadClassicSearchRecents(context: android.content.Context): List<io.github.thake.soundnest.data.preferences.RecentItem> =
-    io.github.thake.soundnest.data.preferences.getRecentItems(context).filter {
-        it.type != "show" ||
-            (if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(it.key)) io.github.thake.soundnest.data.api.Features.AUDIOBOOKS else io.github.thake.soundnest.data.api.Features.PODCASTS)
+private fun loadClassicSearchRecents(
+    context: android.content.Context,
+    policy: ParentalPolicy,
+): List<io.github.thake.soundnest.data.preferences.RecentItem> =
+    io.github.thake.soundnest.data.preferences.getRecentItems(context).filter { item ->
+        (item.type != "show" ||
+            (if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(item.key)) io.github.thake.soundnest.data.api.Features.AUDIOBOOKS else io.github.thake.soundnest.data.api.Features.PODCASTS)) &&
+            ParentBlockActions.isRecentItemAllowed(item, policy)
     }
 

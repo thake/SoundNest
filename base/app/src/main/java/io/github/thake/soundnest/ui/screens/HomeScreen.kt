@@ -18,6 +18,7 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -45,6 +46,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -57,6 +59,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -147,6 +150,13 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel, facet: St
     val revision by io.github.thake.soundnest.parental.ParentalPolicyStore.revision.collectAsState()
     val sessionTick by io.github.thake.soundnest.parental.ParentSecurityManager.sessionTick.collectAsState()
     val adminUnlocked = remember(sessionTick) { io.github.thake.soundnest.parental.ParentSecurityManager.isAdminUnlocked(context) }
+    var quickBlockTarget by remember { mutableStateOf<io.github.thake.soundnest.parental.ParentBlockTarget?>(null) }
+    quickBlockTarget?.let { target ->
+        io.github.thake.soundnest.parental.ParentQuickBlockSheet(
+            target = target,
+            onDismiss = { quickBlockTarget = null },
+        )
+    }
 
     val rawGridSection = remember(feed) { feed.sections.firstOrNull()?.takeIf { it.title.isBlank() } }
     val rawCarousels = remember(feed, rawGridSection) { if (rawGridSection != null) feed.sections.drop(1) else feed.sections }
@@ -160,7 +170,7 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel, facet: St
     val carouselKeys = remember(carousels) { uniqueKeys(carousels.map { it.uri.ifBlank { it.title } }) }
     // Liked Songs leads the shortcuts when Spotify's grid does not carry it.
     val likedName = stringResource(R.string.collection_liked_songs_title)
-    val shortcuts = remember(rawGridSection, feed, policy, facet, likedName) {
+    val shortcuts = remember(rawGridSection, feed, policy, revision, facet, likedName) {
         if (!policy.homeSections.showShortcutsGrid) null
         else {
             val filteredGrid = io.github.thake.soundnest.parental.HomeSectionFilter.filterShortcutItems(rawGridSection?.items ?: emptyList(), policy)
@@ -210,11 +220,21 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel, facet: St
         }
         shortcuts?.let { tiles ->
             item {
-                HomeShortcutGrid(navController, tiles)
+                HomeShortcutGrid(
+                    navController = navController,
+                    items = tiles,
+                    adminUnlocked = adminUnlocked,
+                    onQuickBlock = { quickBlockTarget = it },
+                )
             }
         }
         items(carousels.size, key = { carouselKeys[it] }) { i ->
-            HomeFeedSection(navController, carousels[i], adminUnlocked = adminUnlocked)
+            HomeFeedSection(
+                navController = navController,
+                section = carousels[i],
+                adminUnlocked = adminUnlocked,
+                onQuickBlock = { quickBlockTarget = it },
+            )
         }
     }
 }
@@ -356,9 +376,14 @@ private fun HomePill(label: String, selected: Boolean = false, shape: androidx.c
     }
 }
 
-@OptIn(ExperimentalGlideComposeApi::class)
+@OptIn(ExperimentalGlideComposeApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun HomeShortcutGrid(navController: NavController, items: List<HomeItem>) {
+private fun HomeShortcutGrid(
+    navController: NavController,
+    items: List<HomeItem>,
+    adminUnlocked: Boolean = false,
+    onQuickBlock: (io.github.thake.soundnest.parental.ParentBlockTarget) -> Unit = {},
+) {
     // Large windows: more tiles per row (two on phones).
     val cols = io.github.thake.soundnest.ui.components.windowSize().columns(2, 280.dp)
     Column(modifier = Modifier.padding(8.dp, 4.dp)) {
@@ -370,14 +395,24 @@ private fun HomeShortcutGrid(navController: NavController, items: List<HomeItem>
                     .padding(8.dp, 4.dp),
             ) {
                 rowItems.forEach { item ->
+                    val blockTarget = remember(item) { io.github.thake.soundnest.parental.ParentBlockActions.targetForHomeItem(item) }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.pressable(0.96f, onPressHint = { prefetchHomeItem(item) }) { onHomeItemClick(navController, item) }
+                        modifier = Modifier
                             .weight(1f)
                             .height(48.dp)
                             .clip(RoundedCornerShape(4.dp))
                             .background(Color(GridBackground.toArgb()))
-                            ,
+                            .then(
+                                if (adminUnlocked && blockTarget != null) {
+                                    Modifier.combinedClickable(
+                                        onClick = { onHomeItemClick(navController, item) },
+                                        onLongClick = { onQuickBlock(blockTarget) },
+                                    )
+                                } else {
+                                    Modifier.pressable(0.96f, onPressHint = { prefetchHomeItem(item) }) { onHomeItemClick(navController, item) }
+                                },
+                            ),
                     ) {
                         GlideImage(
                             modifier = Modifier.size(48.dp),
@@ -396,8 +431,20 @@ private fun HomeShortcutGrid(navController: NavController, items: List<HomeItem>
                             maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                             // Two balanced lines ("Daily / Mix 2") rather than a lone "2" under the rest.
                             style = androidx.compose.ui.text.TextStyle(lineBreak = androidx.compose.ui.text.style.LineBreak.Heading),
-                            modifier = Modifier.padding(8.dp, 4.dp),
+                            modifier = Modifier.weight(1f).padding(8.dp, 4.dp),
                         )
+                        if (adminUnlocked && blockTarget != null) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = stringResource(R.string.content_description_context_menu),
+                                tint = AppMuted,
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .clickable { onQuickBlock(blockTarget) }
+                                    .padding(7.dp),
+                            )
+                        }
                     }
                 }
                 repeat(cols - rowItems.size) { Spacer(modifier = Modifier.weight(1f)) }
@@ -417,7 +464,12 @@ private fun uniqueKeys(raw: List<String>): List<String> {
 }
 
 @Composable
-private fun HomeFeedSection(navController: NavController, section: HomeSection, adminUnlocked: Boolean = false) {
+private fun HomeFeedSection(
+    navController: NavController,
+    section: HomeSection,
+    adminUnlocked: Boolean = false,
+    onQuickBlock: (io.github.thake.soundnest.parental.ParentBlockTarget) -> Unit = {},
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -450,14 +502,19 @@ private fun HomeFeedSection(navController: NavController, section: HomeSection, 
     val keys = remember(section) { uniqueKeys(section.items.map { it.name + "|" + it.imageUrl }) }
     LazyRow(contentPadding = androidx.compose.foundation.layout.PaddingValues(10.dp, 0.dp)) {
         items(section.items.size, key = { keys[it] }) { i ->
-            HomeFeedCard(section.items[i]) { onHomeItemClick(navController, section.items[i]) }
+            val item = section.items[i]
+            val target = remember(item) { io.github.thake.soundnest.parental.ParentBlockActions.targetForHomeItem(item) }
+            HomeFeedCard(
+                item = item,
+                onLongClick = if (adminUnlocked && target != null) ({ onQuickBlock(target) }) else null,
+            ) { onHomeItemClick(navController, item) }
         }
     }
 }
 
-@OptIn(ExperimentalGlideComposeApi::class)
+@OptIn(ExperimentalGlideComposeApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun HomeFeedCard(item: HomeItem, onClick: () -> Unit) {
+private fun HomeFeedCard(item: HomeItem, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
     val isArtist = item is HomeItem.Artist
     val subtitle = when (item) {
         is HomeItem.Album -> item.subtitle
@@ -467,10 +524,16 @@ private fun HomeFeedCard(item: HomeItem, onClick: () -> Unit) {
     }
     Column(
         horizontalAlignment = if (isArtist) Alignment.CenterHorizontally else Alignment.Start,
-        modifier = Modifier.pressable(0.96f, onPressHint = { prefetchHomeItem(item) }) { onClick() }
+        modifier = Modifier
+            .then(
+                if (onLongClick != null) {
+                    Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)
+                } else {
+                    Modifier.pressable(0.96f, onPressHint = { prefetchHomeItem(item) }) { onClick() }
+                },
+            )
             .width(150.dp)
-            .padding(6.dp)
-            ,
+            .padding(6.dp),
     ) {
         Box {
             GlideImage(
@@ -485,6 +548,25 @@ private fun HomeFeedCard(item: HomeItem, onClick: () -> Unit) {
             )
             if (item is HomeItem.Show && !item.isEpisode) {
                 io.github.thake.soundnest.ui.components.NewEpisodeDot(item.id, AppAccent, Modifier.align(Alignment.TopEnd).padding(8.dp))
+            }
+            if (onLongClick != null) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.62f))
+                        .clickable { onLongClick() },
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = stringResource(R.string.content_description_context_menu),
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
             }
         }
         Spacer(modifier = Modifier.height(6.dp))

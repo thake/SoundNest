@@ -151,9 +151,8 @@ fun ImmersiveLibraryScreen(navController: NavController) {
     val vm: LibraryViewModel = viewModel()
     val entries by vm.entries.collectAsState()
     val account by vm.account.collectAsState()
-    val followedArtists by vm.followedArtists.collectAsState()
+    val rawFollowedArtists by vm.followedArtists.collectAsState()
     val showsLoad by vm.followedShows.collectAsState()
-    val followedShows = (showsLoad as? Response.Success)?.data.orEmpty()
     val context = LocalContext.current
     LaunchedEffect(Unit) { ProfileCache.ensure(context) }
 
@@ -176,6 +175,7 @@ fun ImmersiveLibraryScreen(navController: NavController) {
     var creating by remember { mutableStateOf(false) }
     var sorting by remember { mutableStateOf(false) }
     var itemMenu by remember { mutableStateOf<LibraryEntry?>(null) }
+    var quickBlockTarget by remember { mutableStateOf<io.github.thake.soundnest.parental.ParentBlockTarget?>(null) }
     // Rows or a grid of covers, persisted across runs.
     var gridView by remember { mutableStateOf(isLibraryGridView(context)) }
     var searchActive by rememberSaveable { mutableStateOf(false) }
@@ -183,6 +183,17 @@ fun ImmersiveLibraryScreen(navController: NavController) {
     var kind by rememberSaveable { mutableStateOf(LibraryChip.ALL) }
     io.github.thake.soundnest.parental.ParentalPolicyStore.current(context)
     val policy by io.github.thake.soundnest.parental.ParentalPolicyStore.policyFlow.collectAsState()
+    val adminUnlocked = io.github.thake.soundnest.parental.rememberAdminUnlocked()
+    val followedArtists = remember(rawFollowedArtists, policy) {
+        rawFollowedArtists.filter {
+            io.github.thake.soundnest.parental.ParentalFilterEngine.isArtistAllowed(it, policy)
+        }
+    }
+    val followedShows = remember(showsLoad, policy) {
+        (showsLoad as? Response.Success)?.data.orEmpty().filter {
+            io.github.thake.soundnest.parental.ParentBlockActions.isLibraryEntryAllowed(it, policy)
+        }
+    }
     LaunchedEffect(policy.allowPodcasts, policy.allowAudiobooks) {
         if (!policy.allowPodcasts && kind == LibraryChip.PODCASTS) kind = LibraryChip.ALL
         if (!policy.allowAudiobooks && kind == LibraryChip.AUDIOBOOKS) kind = LibraryChip.ALL
@@ -200,9 +211,15 @@ fun ImmersiveLibraryScreen(navController: NavController) {
     if (creating) LibraryCreateSheet(navController, onDismiss = { creating = false }, onLibraryChanged = { vm.load() })
     if (sorting) ImmersiveLibrarySortSheet(onDismiss = { sorting = false })
     itemMenu?.let { LibraryItemSheet(it, onDismiss = { itemMenu = null }, onChanged = { vm.load() }) }
+    quickBlockTarget?.let { target ->
+        io.github.thake.soundnest.parental.ParentQuickBlockSheet(
+            target = target,
+            onDismiss = { quickBlockTarget = null },
+        )
+    }
 
     val loading = entries is Response.Loading
-    val (allEntries, pinned) = libraryEntries(entries)
+    val (allEntries, pinned) = libraryEntries(entries, policy)
     // The kind and search filters only run again when their inputs change, not on every recomposition.
     // Read through the name, which redraws the screen once the account is known.
     val myId = ProfileCache.name?.let { ProfileCache.id }
@@ -267,6 +284,9 @@ fun ImmersiveLibraryScreen(navController: NavController) {
                 navController = navController,
                 reorderLevel = reorderLevel,
                 pinned = pinned,
+                adminUnlocked = adminUnlocked,
+                onMenu = { itemMenu = it },
+                onQuickBlock = { quickBlockTarget = it },
                 emptyText = chipEmpty,
                 errorText = chipError,
             )
@@ -282,7 +302,9 @@ fun ImmersiveLibraryScreen(navController: NavController) {
                 navController = navController,
                 reorderLevel = reorderLevel,
                 pinned = pinned,
+                adminUnlocked = adminUnlocked,
                 onMenu = { itemMenu = it },
+                onQuickBlock = { quickBlockTarget = it },
                 emptyText = chipEmpty,
                 errorText = chipError,
             )
@@ -356,14 +378,21 @@ internal fun gridCollapse(state: LazyGridState): () -> Float {
  * value is how many entries at the top never move.
  */
 @Composable
-private fun libraryEntries(entries: Response<List<LibraryEntry>>): Pair<List<LibraryEntry>, Int> {
+private fun libraryEntries(
+    entries: Response<List<LibraryEntry>>,
+    policy: io.github.thake.soundnest.parental.ParentalPolicy,
+): Pair<List<LibraryEntry>, Int> {
     val localName = stringResource(R.string.local_files_title)
     val localSubtitle = stringResource(R.string.assisted_curation_search_playlist) + " • " + stringResource(R.string.local_playlist_subtitle)
     val likedName = stringResource(R.string.collection_liked_songs_title)
     val radioName = stringResource(R.string.live_radio_title)
     val packageName = LocalContext.current.packageName
     val radioOn = io.github.thake.soundnest.radio.RadioFeaturePref.on
-    val base = (entries as? Response.Success)?.data ?: emptyList()
+    val base = remember(entries, policy) {
+        ((entries as? Response.Success)?.data ?: emptyList()).filter {
+            io.github.thake.soundnest.parental.ParentBlockActions.isLibraryEntryAllowed(it, policy)
+        }
+    }
     val localShown = io.github.thake.soundnest.data.preferences.LocalFilesPref.shown
     val rootPinned = base.indexOfFirst { it.spotifyId == Api.HomeCache.LIKED_SONGS_ID } + (if (localShown) 2 else 1) +
         (if (radioOn) 1 else 0)
@@ -519,7 +548,9 @@ internal fun LibraryList(
     navController: NavController,
     reorderLevel: String?,
     pinned: Int,
+    adminUnlocked: Boolean = false,
     onMenu: (LibraryEntry) -> Unit,
+    onQuickBlock: (io.github.thake.soundnest.parental.ParentBlockTarget) -> Unit = {},
     emptyText: String? = null,
     errorText: String? = null,
 ) {
@@ -652,15 +683,30 @@ internal fun LibraryList(
             if (artists.isNotEmpty()) {
                 item(key = "library:artists-header") { SectionHeader(stringResource(R.string.song_dna_search_chip_followed_artists)) }
                 itemsIndexed(artists, key = { _, a -> "artist:${a.id.ifBlank { a.name }}" }) { _, artist ->
+                    val artistBlock: (() -> Unit)? = if (adminUnlocked && artist.id.isNotBlank()) ({
+                        onQuickBlock(
+                            io.github.thake.soundnest.parental.ParentBlockTarget(
+                                kind = io.github.thake.soundnest.parental.ParentRuleKind.ARTIST,
+                                id = artist.id,
+                                title = artist.name,
+                                subtitle = "Artist",
+                                coverUri = artist.coverUri,
+                            ),
+                        )
+                    }) else null
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .immersiveClickable(onClick = { navController.navigate(artistRoute(artist.name, artist.id)) }, pressedScale = 0.98f)
+                            .immersiveClickable(
+                                onClick = { navController.navigate(artistRoute(artist.name, artist.id)) },
+                                onLongClick = artistBlock,
+                                pressedScale = 0.98f,
+                            )
                             .padding(horizontal = Immersive.Gutter, vertical = 4.dp),
                     ) {
                         ImmersiveCover(artist.coverUri, Modifier.size(52.dp), CircleShape)
-                        Column(Modifier.padding(start = 14.dp)) {
+                        Column(Modifier.padding(start = 14.dp).weight(1f)) {
                             Text(
                                 text = artist.name,
                                 style = Immersive.Body.copy(fontWeight = FontWeight.Medium),
@@ -668,6 +714,9 @@ internal fun LibraryList(
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(text = stringResource(R.string.artist_subtitle), style = Immersive.Subhead)
+                        }
+                        if (artistBlock != null) {
+                            ImmersiveMoreButton(onClick = artistBlock)
                         }
                     }
                 }
@@ -738,6 +787,9 @@ private fun LibraryGrid(
     navController: NavController,
     reorderLevel: String?,
     pinned: Int,
+    adminUnlocked: Boolean = false,
+    onMenu: (LibraryEntry) -> Unit = {},
+    onQuickBlock: (io.github.thake.soundnest.parental.ParentBlockTarget) -> Unit = {},
     emptyText: String? = null,
     errorText: String? = null,
 ) {
@@ -829,6 +881,10 @@ private fun LibraryGrid(
             val dragged = dragKey == key
             val movable = reorderLevel != null && index >= pinned
             val shape = Immersive.CoverMedium
+            val canBlockEntry = adminUnlocked && entry.uri.isNotBlank() &&
+                !io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(entry.spotifyId) &&
+                !io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(entry.uri) &&
+                io.github.thake.soundnest.parental.ParentBlockActions.targetForLibraryEntry(entry) != null
             Column(
                 modifier = Modifier
                     // Same modifier chain while dragging (see the list view).
@@ -846,7 +902,10 @@ private fun LibraryGrid(
                         if (dragged) { scaleX = 1.06f; scaleY = 1.06f }
                     }
                     .pressHint { prefetchLibraryEntry(entry) }
-                    .immersiveClickable(onClick = { openLibraryEntry(entry, navController) })
+                    .immersiveClickable(
+                        onClick = { openLibraryEntry(entry, navController) },
+                        onLongClick = if (!movable && canBlockEntry) ({ onMenu(entry) }) else null,
+                    )
                     .then(
                         if (!movable) Modifier else Modifier.pointerInput(key) {
                             try {
@@ -866,10 +925,18 @@ private fun LibraryGrid(
                         },
                     ),
             ) {
-                LibraryEntryCover(
-                    entry,
-                    Modifier.fillMaxWidth().aspectRatio(1f).clip(shape).background(Immersive.Raised).immersiveThumbnailBorder(shape),
-                )
+                Box {
+                    LibraryEntryCover(
+                        entry,
+                        Modifier.fillMaxWidth().aspectRatio(1f).clip(shape).background(Immersive.Raised).immersiveThumbnailBorder(shape),
+                    )
+                    if (canBlockEntry) {
+                        ImmersiveMoreButton(
+                            onClick = { onMenu(entry) },
+                            modifier = Modifier.align(Alignment.TopEnd).padding(2.dp),
+                        )
+                    }
+                }
                 Spacer(Modifier.height(6.dp))
                 Text(
                     text = entry.name,
@@ -887,11 +954,33 @@ private fun LibraryGrid(
                 Box(Modifier.immersiveBleed(Immersive.Gutter)) { SectionHeader(stringResource(R.string.song_dna_search_chip_followed_artists)) }
             }
             itemsIndexed(artists, key = { _, a -> "artist:${a.id.ifBlank { a.name }}" }) { _, artist ->
+                val artistBlock: (() -> Unit)? = if (adminUnlocked && artist.id.isNotBlank()) ({
+                    onQuickBlock(
+                        io.github.thake.soundnest.parental.ParentBlockTarget(
+                            kind = io.github.thake.soundnest.parental.ParentRuleKind.ARTIST,
+                            id = artist.id,
+                            title = artist.name,
+                            subtitle = "Artist",
+                            coverUri = artist.coverUri,
+                        ),
+                    )
+                }) else null
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.immersiveClickable(onClick = { navController.navigate(artistRoute(artist.name, artist.id)) }),
+                    modifier = Modifier.immersiveClickable(
+                        onClick = { navController.navigate(artistRoute(artist.name, artist.id)) },
+                        onLongClick = artistBlock,
+                    ),
                 ) {
-                    ImmersiveCover(artist.coverUri, Modifier.fillMaxWidth().aspectRatio(1f), CircleShape)
+                    Box {
+                        ImmersiveCover(artist.coverUri, Modifier.fillMaxWidth().aspectRatio(1f), CircleShape)
+                        if (artistBlock != null) {
+                            ImmersiveMoreButton(
+                                onClick = artistBlock,
+                                modifier = Modifier.align(Alignment.TopEnd),
+                            )
+                        }
+                    }
                     Spacer(Modifier.height(6.dp))
                     Text(
                         text = artist.name,

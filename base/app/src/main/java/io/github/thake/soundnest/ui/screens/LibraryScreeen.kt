@@ -12,9 +12,12 @@ import io.github.thake.soundnest.ui.components.SearchClearButton
 import io.github.thake.soundnest.ui.components.pressable
 import androidx.compose.ui.res.stringResource
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import io.github.thake.soundnest.ui.components.secondaryClick
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -293,9 +296,18 @@ fun LibraryScreen(navController: NavController) {
             }
         }
 
-        val followedArtists by libraryViewModel.followedArtists.collectAsState()
+        val rawFollowedArtists by libraryViewModel.followedArtists.collectAsState()
+        val followedArtists = remember(rawFollowedArtists, policy) {
+            rawFollowedArtists.filter {
+                io.github.thake.soundnest.parental.ParentalFilterEngine.isArtistAllowed(it, policy)
+            }
+        }
         val showsLoad by libraryViewModel.followedShows.collectAsState()
-        val followedShows = (showsLoad as? Response.Success)?.data.orEmpty()
+        val followedShows = remember(showsLoad, policy) {
+            (showsLoad as? Response.Success)?.data.orEmpty().filter {
+                io.github.thake.soundnest.parental.ParentBlockActions.isLibraryEntryAllowed(it, policy)
+            }
+        }
         // The shows are only read once the Podcasts chip is chosen.
         androidx.compose.runtime.LaunchedEffect(chip) {
             if (chip == io.github.thake.soundnest.data.local.LibraryChip.PODCASTS) libraryViewModel.loadFollowedShows()
@@ -315,9 +327,14 @@ fun LibraryScreen(navController: NavController) {
                 // Liked Songs and Local Files stay on top; the rest follows the chosen sort.
                 val radioOn = io.github.thake.soundnest.radio.RadioFeaturePref.on
                 val radioName = stringResource(R.string.live_radio_title)
-                val rootPinned = ((entries as? Response.Success)?.data ?: emptyList())
+                val allowedBaseEntries = remember(entries, policy) {
+                    ((entries as? Response.Success)?.data ?: emptyList()).filter {
+                        io.github.thake.soundnest.parental.ParentBlockActions.isLibraryEntryAllowed(it, policy)
+                    }
+                }
+                val rootPinned = allowedBaseEntries
                     .indexOfFirst { it.spotifyId == Api.HomeCache.LIKED_SONGS_ID } + (if (io.github.thake.soundnest.data.preferences.LocalFilesPref.shown) 2 else 1) + (if (radioOn) 1 else 0)
-                val allEntries = ((entries as? Response.Success)?.data ?: emptyList()).map {
+                val allEntries = allowedBaseEntries.map {
                     if (it.spotifyId == Api.HomeCache.LIKED_SONGS_ID) it.copy(name = likedName, subtitle = "") else it
                 }.let { list ->
                     // "Local Files" pinned right under Liked Songs, as in the official app.
@@ -373,7 +390,8 @@ fun LibraryScreen(navController: NavController) {
                 val chipRetry: (() -> Unit)? = if (podcasts && showsLoad is Response.Error) { { libraryViewModel.loadFollowedShows() } } else null
                 if (podcasts && showsLoad is Response.Loading) LibrarySkeleton(PaddingValues(0.dp))
                 else if (gridView) LibraryGridScreen(PaddingValues(0.dp), filteredEntries, filteredArtists, navController,
-                    reorderLevel = if (movable) LibraryOrder.ROOT else null, pinned = rootPinned, note = chipNote, onRetry = chipRetry)
+                    reorderLevel = if (movable) LibraryOrder.ROOT else null, pinned = rootPinned,
+                    onChanged = { libraryViewModel.load() }, note = chipNote, onRetry = chipRetry)
                 else SumUpLibraryScreen(PaddingValues(0.dp), filteredEntries, filteredArtists, navController,
                     reorderLevel = if (movable) LibraryOrder.ROOT else null, pinned = rootPinned,
                     onChanged = { libraryViewModel.load() }, note = chipNote, onRetry = chipRetry)
@@ -438,7 +456,7 @@ private fun AccountAvatar(url: String, size: androidx.compose.ui.unit.Dp) {
     )
 }
 
-@OptIn(ExperimentalGlideComposeApi::class)
+@OptIn(ExperimentalGlideComposeApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun SumUpLibraryScreen(
     padding: PaddingValues,
@@ -456,8 +474,16 @@ fun SumUpLibraryScreen(
     /** With [note]: it tells a failure, and offers to try again. */
     onRetry: (() -> Unit)? = null,
 ) {
+    val adminUnlocked = io.github.thake.soundnest.parental.rememberAdminUnlocked()
     var itemMenu by remember { mutableStateOf<LibraryEntry?>(null) }
+    var quickBlockTarget by remember { mutableStateOf<io.github.thake.soundnest.parental.ParentBlockTarget?>(null) }
     itemMenu?.let { LibraryItemSheet(it, onDismiss = { itemMenu = null }, onChanged = onChanged) }
+    quickBlockTarget?.let { target ->
+        io.github.thake.soundnest.parental.ParentQuickBlockSheet(
+            target = target,
+            onDismiss = { quickBlockTarget = null },
+        )
+    }
     if (entries.isEmpty() && followedArtists.isEmpty() && note == null) {
         Box(modifier = Modifier.padding(20.dp, 40.dp)) { Snackbar(showMessage = stringResource(R.string.library_empty)) }
         return
@@ -616,12 +642,31 @@ fun SumUpLibraryScreen(
                 )
             }
             items(followedArtists) { artist ->
+                val artistBlock: (() -> Unit)? = if (adminUnlocked && artist.id.isNotBlank()) ({
+                    quickBlockTarget = io.github.thake.soundnest.parental.ParentBlockTarget(
+                        kind = io.github.thake.soundnest.parental.ParentRuleKind.ARTIST,
+                        id = artist.id,
+                        title = artist.name,
+                        subtitle = "Artist",
+                        coverUri = artist.coverUri,
+                    )
+                }) else null
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.pressable(0.96f) { navController.navigate(artistRoute(artist.name, artist.id)) }
+                    modifier = (if (artistBlock != null) {
+                        Modifier
+                            .secondaryClick(artistBlock)
+                            .combinedClickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onLongClick = artistBlock,
+                                onClick = { navController.navigate(artistRoute(artist.name, artist.id)) },
+                            )
+                    } else {
+                        Modifier.pressable(0.96f) { navController.navigate(artistRoute(artist.name, artist.id)) }
+                    })
                         .fillMaxWidth()
-                        .padding(20.dp, 6.dp)
-                        
+                        .padding(start = 20.dp, end = if (artistBlock != null) 14.dp else 20.dp, top = 6.dp, bottom = 6.dp),
                 ) {
                     GlideImage(
                         modifier = Modifier
@@ -631,9 +676,21 @@ fun SumUpLibraryScreen(
                         contentScale = ContentScale.Crop,
                         contentDescription = ""
                     )
-                    Column(modifier = Modifier.padding(start = 12.dp)) {
+                    Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
                         Text(text = artist.name, color = AppText, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(text = stringResource(R.string.artist_subtitle), color = AppMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    }
+                    if (artistBlock != null) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = stringResource(R.string.content_description_context_menu),
+                            tint = AppMuted,
+                            modifier = Modifier
+                                .size(io.github.thake.soundnest.ui.components.MinTouch)
+                                .clip(CircleShape)
+                                .clickable { artistBlock() }
+                                .padding(12.dp),
+                        )
                     }
                 }
             }
@@ -694,7 +751,7 @@ private fun openLibraryEntry(entry: LibraryEntry, navController: NavController) 
  * title/subtitle underneath, like Spotify's "Grid" library view. Followed
  * artists render as circles under their own full-width header.
  */
-@OptIn(ExperimentalGlideComposeApi::class)
+@OptIn(ExperimentalGlideComposeApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun LibraryGridScreen(
     padding: PaddingValues,
@@ -705,10 +762,21 @@ fun LibraryGridScreen(
     reorderLevel: String? = null,
     /** Entries at the top that never move (Liked Songs, Local Files). */
     pinned: Int = 0,
+    onChanged: () -> Unit = {},
     /** As in [SumUpLibraryScreen]. */
     note: String? = null,
     onRetry: (() -> Unit)? = null,
 ) {
+    val adminUnlocked = io.github.thake.soundnest.parental.rememberAdminUnlocked()
+    var itemMenu by remember { mutableStateOf<LibraryEntry?>(null) }
+    var quickBlockTarget by remember { mutableStateOf<io.github.thake.soundnest.parental.ParentBlockTarget?>(null) }
+    itemMenu?.let { LibraryItemSheet(it, onDismiss = { itemMenu = null }, onChanged = onChanged) }
+    quickBlockTarget?.let { target ->
+        io.github.thake.soundnest.parental.ParentQuickBlockSheet(
+            target = target,
+            onDismiss = { quickBlockTarget = null },
+        )
+    }
     if (entries.isEmpty() && followedArtists.isEmpty() && note == null) {
         Box(modifier = Modifier.padding(20.dp, 40.dp)) { Snackbar(showMessage = stringResource(R.string.library_empty)) }
         return
@@ -801,6 +869,11 @@ fun LibraryGridScreen(
             val key = LibraryOrder.key(entry)
             val dragged = dragKey == key
             val movable = reorderLevel != null && index >= pinned
+            val canBlockEntry = adminUnlocked && entry.uri.isNotBlank() &&
+                !io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(entry.spotifyId) &&
+                !io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(entry.uri) &&
+                !LibraryEdits.isPending(entry.spotifyId) &&
+                io.github.thake.soundnest.parental.ParentBlockActions.targetForLibraryEntry(entry) != null
             Column(
                 modifier = Modifier
                     // Same modifier chain while dragging (see the list view).
@@ -814,7 +887,22 @@ fun LibraryGridScreen(
                         translationY = if (dragged) dragOffset.y else 0f
                         if (dragged) { scaleX = 1.06f; scaleY = 1.06f }
                     }
-                    .pressable(0.96f, onPressHint = { prefetchLibraryEntry(entry) }) { openLibraryEntry(entry, navController) }
+                    .then(
+                        if (!movable && canBlockEntry) {
+                            Modifier
+                                .secondaryClick({ itemMenu = entry })
+                                .combinedClickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onLongClick = { itemMenu = entry },
+                                    onClick = { openLibraryEntry(entry, navController) },
+                                )
+                        } else {
+                            Modifier.pressable(0.96f, onPressHint = { prefetchLibraryEntry(entry) }) {
+                                openLibraryEntry(entry, navController)
+                            }
+                        }
+                    )
                     .then(if (!movable) Modifier else Modifier.pointerInput(key) {
                         try { detectDragGesturesAfterLongPress(
                             onDragStart = {
@@ -828,11 +916,32 @@ fun LibraryGridScreen(
                         ) } finally { if (dragKey == key) finish() }
                     })
             ) {
-                LibraryEntryCover(entry, Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f)
-                    .clip(RoundedCornerShape(if (entry.isPlaylist) 6.dp else 4.dp)),
-                )
+                Box {
+                    LibraryEntryCover(entry, Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(if (entry.isPlaylist) 6.dp else 4.dp)),
+                    )
+                    if (canBlockEntry) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(6.dp)
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.6f))
+                                .clickable { itemMenu = entry },
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = stringResource(R.string.content_description_context_menu),
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(text = entry.name, color = AppText, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(text = entry.subtitle, color = AppMuted, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -849,19 +958,60 @@ fun LibraryGridScreen(
                 )
             }
             items(followedArtists) { artist ->
+                val artistBlock: (() -> Unit)? = if (adminUnlocked && artist.id.isNotBlank()) ({
+                    quickBlockTarget = io.github.thake.soundnest.parental.ParentBlockTarget(
+                        kind = io.github.thake.soundnest.parental.ParentRuleKind.ARTIST,
+                        id = artist.id,
+                        title = artist.name,
+                        subtitle = "Artist",
+                        coverUri = artist.coverUri,
+                    )
+                }) else null
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.pressable(0.96f) { navController.navigate(artistRoute(artist.name, artist.id)) }
+                    modifier = if (artistBlock != null) {
+                        Modifier
+                            .secondaryClick(artistBlock)
+                            .combinedClickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onLongClick = artistBlock,
+                                onClick = { navController.navigate(artistRoute(artist.name, artist.id)) },
+                            )
+                    } else {
+                        Modifier.pressable(0.96f) { navController.navigate(artistRoute(artist.name, artist.id)) }
+                    },
                 ) {
-                    GlideImage(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(1f)
-                            .clip(CircleShape),
-                        model = artist.coverUri,
-                        contentScale = ContentScale.Crop,
-                        contentDescription = ""
-                    )
+                    Box {
+                        GlideImage(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(1f)
+                                .clip(CircleShape),
+                            model = artist.coverUri,
+                            contentScale = ContentScale.Crop,
+                            contentDescription = ""
+                        )
+                        if (artistBlock != null) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(4.dp)
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.6f))
+                                    .clickable { artistBlock() },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = stringResource(R.string.content_description_context_menu),
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            }
+                        }
+                    }
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(text = artist.name, color = AppText, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
                     Text(text = stringResource(R.string.artist_subtitle), color = AppMuted, fontSize = 11.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center)

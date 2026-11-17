@@ -214,7 +214,28 @@ private fun ArtistOverviewContent(
     artHeight: Dp,
 ) {
     val context = LocalContext.current
-    val tracks = overview.topTracks
+    val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+    val tracks = remember(overview.topTracks, policy) {
+        overview.topTracks.filter { io.github.thake.soundnest.parental.ParentalFilterEngine.isTrackAllowed(it.song, policy) }
+    }
+    val visiblePopularReleases = remember(overview.popularReleases, overview.id, policy) {
+        val artistIds = listOf(overview.id).filter { it.isNotBlank() }
+        overview.popularReleases.filter {
+            io.github.thake.soundnest.parental.ParentalFilterEngine.isAlbumAllowed(
+                albumId = it.spotifyId,
+                name = it.name,
+                artists = it.artists,
+                artistIds = artistIds,
+                policy = policy,
+            )
+        }
+    }
+    val visibleRelatedArtists = remember(overview.relatedArtists, policy) {
+        overview.relatedArtists.filter { io.github.thake.soundnest.parental.ParentalFilterEngine.isArtistAllowed(it, policy) }
+    }
+    val visibleAppearsOn = remember(overview.appearsOn, policy) {
+        overview.appearsOn.filter { io.github.thake.soundnest.parental.ParentalFilterEngine.isAlbumAllowed(it, policy) }
+    }
     val displayName = overview.name.ifBlank { artistName }
 
     var menuSong by remember { mutableStateOf<SongsModel?>(null) }
@@ -325,45 +346,65 @@ private fun ArtistOverviewContent(
 
             // Shuffle, Play, Follow: a large Play flanked by two smaller circles.
             item(key = "actions") {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = Immersive.Gutter + 8.dp).padding(top = 14.dp, bottom = 22.dp),
-                    horizontalArrangement = Arrangement.spacedBy(ActionGap, Alignment.CenterHorizontally),
-                    verticalAlignment = Alignment.CenterVertically,
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 18.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    ImmersiveCircleButton(
-                        icon = Icons.Rounded.Shuffle,
-                        contentDescription = stringResource(R.string.immersive_shell_shuffle),
-                        onClick = {
-                            if (tracks.isNotEmpty()) Graph.currentSongState.startShuffled(tracks.map { it.song })
-                        },
-                        tint = if (isThisArtist && Graph.currentSongState.shuffle.value) Immersive.Accent else Immersive.Text,
-                        size = SideButton,
-                    )
-                    ArtistPlayCircle(
-                        playing = isThisArtist && playingNow,
-                        onClick = {
-                            when {
-                                isThisArtist && playingNow -> SongPlayer.pause()
-                                isThisArtist -> SongPlayer.play()
-                                else -> playTrackAt(0)
-                            }
-                        },
-                        size = PlayButton,
-                        iconScale = PLAY_ICON_SCALE,
-                        containerColor = Color.White,
-                    )
-                    if (onSpotify) ImmersiveCircleButton(
-                        icon = if (isFollowing) Icons.Rounded.Check else Icons.Rounded.PersonAdd,
-                        contentDescription = stringResource(if (isFollowing) R.string.immersive_detail_unfollow else R.string.immersive_detail_follow),
-                        onClick = {
-                            val on = !(SongPlayer.library["spotify:artist:${overview.id}"] ?: following)
-                            following = on
-                            io.github.thake.soundnest.di.Haptics.toggle(on)
-                            SongPlayer.setSaved("spotify:artist:${overview.id}", on)
-                        },
-                        tint = if (isFollowing) Immersive.Accent else Immersive.Text,
-                        size = SideButton,
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = Immersive.Gutter + 8.dp).padding(top = 14.dp, bottom = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(ActionGap, Alignment.CenterHorizontally),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        ImmersiveCircleButton(
+                            icon = Icons.Rounded.Shuffle,
+                            contentDescription = stringResource(R.string.immersive_shell_shuffle),
+                            onClick = {
+                                if (tracks.isNotEmpty()) Graph.currentSongState.startShuffled(tracks.map { it.song })
+                            },
+                            tint = if (isThisArtist && Graph.currentSongState.shuffle.value) Immersive.Accent else Immersive.Text,
+                            size = SideButton,
+                        )
+                        ArtistPlayCircle(
+                            playing = isThisArtist && playingNow,
+                            onClick = {
+                                when {
+                                    isThisArtist && playingNow -> SongPlayer.pause()
+                                    isThisArtist -> SongPlayer.play()
+                                    else -> playTrackAt(0)
+                                }
+                            },
+                            size = PlayButton,
+                            iconScale = PLAY_ICON_SCALE,
+                            containerColor = Color.White,
+                        )
+                        if (onSpotify) ImmersiveCircleButton(
+                            icon = if (isFollowing) Icons.Rounded.Check else Icons.Rounded.PersonAdd,
+                            contentDescription = stringResource(if (isFollowing) R.string.immersive_detail_unfollow else R.string.immersive_detail_follow),
+                            onClick = {
+                                val on = !(SongPlayer.library["spotify:artist:${overview.id}"] ?: following)
+                                following = on
+                                io.github.thake.soundnest.di.Haptics.toggle(on)
+                                SongPlayer.setSaved("spotify:artist:${overview.id}", on)
+                            },
+                            tint = if (isFollowing) Immersive.Accent else Immersive.Text,
+                            size = SideButton,
+                        )
+                    }
+                    if (onSpotify) {
+                        val artistTarget = remember(overview.id, displayName, overview.avatarImage, overview.headerImage) {
+                            io.github.thake.soundnest.parental.ParentBlockTarget(
+                                io.github.thake.soundnest.parental.ParentRuleKind.ARTIST,
+                                overview.id,
+                                displayName,
+                                "Artist",
+                                overview.avatarImage.ifBlank { overview.headerImage },
+                            )
+                        }
+                        io.github.thake.soundnest.parental.ParentInlineBlockPill(
+                            target = artistTarget,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
                 }
             }
 
@@ -377,7 +418,7 @@ private fun ArtistOverviewContent(
             }
 
             // The latest release, pulled out as a card of its own.
-            overview.popularReleases.maxByOrNull { it.time }?.let { latest ->
+            visiblePopularReleases.maxByOrNull { it.time }?.let { latest ->
                 item(key = "latest-release") {
                     ArtistTopReleaseCard(
                         album = latest,
@@ -419,7 +460,7 @@ private fun ArtistOverviewContent(
             }
 
             // Discography: albums, then singles and EPs; a release with no kind goes under "Popular releases".
-            val releases = overview.popularReleases
+            val releases = visiblePopularReleases
             val albums = releases.filter { it.type.lowercase() == "album" || it.type.lowercase() == "compilation" }
             val singles = releases.filter { it.type.lowercase() == "single" || it.type.lowercase() == "ep" }
             val untyped = releases.filter { it.type.lowercase() !in setOf("album", "compilation", "single", "ep") }
@@ -433,12 +474,12 @@ private fun ArtistOverviewContent(
             releaseShelf(R.string.artist_releases_singles, singles, "singles", ::openAlbum, openReleases)
             releaseShelf(R.string.popular_releases_section_title, untyped, "untyped", ::openAlbum, openReleases)
 
-            if (overview.appearsOn.isNotEmpty()) item(key = "appears-on") {
+            if (visibleAppearsOn.isNotEmpty()) item(key = "appears-on") {
                 ImmersiveShelf(
                     title = stringResource(R.string.appears_on_section_title),
-                    onSeeAll = if (overview.appearsOn.size > ARTIST_ROW_MAX_ITEMS) openReleases else null,
+                    onSeeAll = if (visibleAppearsOn.size > ARTIST_ROW_MAX_ITEMS) openReleases else null,
                 ) {
-                    items(overview.appearsOn.take(ARTIST_ROW_MAX_ITEMS)) { album ->
+                    items(visibleAppearsOn.take(ARTIST_ROW_MAX_ITEMS)) { album ->
                         ImmersiveShelfCard(
                             title = album.name,
                             subtitle = album.artists,
@@ -449,9 +490,9 @@ private fun ArtistOverviewContent(
                 }
             }
 
-            if (overview.relatedArtists.isNotEmpty()) item(key = "related") {
+            if (visibleRelatedArtists.isNotEmpty()) item(key = "related") {
                 ImmersiveShelf(title = stringResource(R.string.fans_also_like_section_title)) {
-                    items(overview.relatedArtists) { artist ->
+                    items(visibleRelatedArtists) { artist ->
                         ImmersiveShelfCard(
                             title = artist.name,
                             subtitle = stringResource(R.string.artist_subtitle),

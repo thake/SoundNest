@@ -138,7 +138,28 @@ private fun ArtistOverviewContent(
     artistName: String,
 ) {
     val context = LocalContext.current
-    val tracks = overview.topTracks
+    val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+    val tracks = remember(overview.topTracks, policy) {
+        overview.topTracks.filter { io.github.thake.soundnest.parental.ParentalFilterEngine.isTrackAllowed(it.song, policy) }
+    }
+    val visiblePopularReleases = remember(overview.popularReleases, overview.id, policy) {
+        val artistIds = listOf(overview.id).filter { it.isNotBlank() }
+        overview.popularReleases.filter {
+            io.github.thake.soundnest.parental.ParentalFilterEngine.isAlbumAllowed(
+                albumId = it.spotifyId,
+                name = it.name,
+                artists = it.artists,
+                artistIds = artistIds,
+                policy = policy,
+            )
+        }
+    }
+    val visibleRelatedArtists = remember(overview.relatedArtists, policy) {
+        overview.relatedArtists.filter { io.github.thake.soundnest.parental.ParentalFilterEngine.isArtistAllowed(it, policy) }
+    }
+    val visibleAppearsOn = remember(overview.appearsOn, policy) {
+        overview.appearsOn.filter { io.github.thake.soundnest.parental.ParentalFilterEngine.isAlbumAllowed(it, policy) }
+    }
     val displayName = overview.name.ifBlank { artistName }
 
     var menuSong by remember { mutableStateOf<io.github.thake.soundnest.data.entity.SongsModel?>(null) }
@@ -295,6 +316,22 @@ private fun ArtistOverviewContent(
         // ── "Your #3 artist of the past 4 weeks", from the account's Spotify top artists ──
         if (onSpotify) item { ArtistTopBadge(overview.id) }
 
+        if (onSpotify) item(key = "parent-block-artist") {
+            val artistTarget = remember(overview.id, displayName, overview.avatarImage, overview.headerImage) {
+                io.github.thake.soundnest.parental.ParentBlockTarget(
+                    io.github.thake.soundnest.parental.ParentRuleKind.ARTIST,
+                    overview.id,
+                    displayName,
+                    "Artist",
+                    overview.avatarImage.ifBlank { overview.headerImage },
+                )
+            }
+            io.github.thake.soundnest.parental.ParentInlineBlockPill(
+                target = artistTarget,
+                modifier = Modifier.padding(start = 16.dp, top = 10.dp),
+            )
+        }
+
         // ── Action row: Follow + shuffle + play ──
         item {
             Row(
@@ -305,7 +342,7 @@ private fun ArtistOverviewContent(
                     .padding(16.dp, 16.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    overview.popularReleases.firstOrNull()?.let { latest ->
+                    visiblePopularReleases.firstOrNull()?.let { latest ->
                         GlideImage(
                             model = latest.coverUri,
                             contentDescription = latest.name,
@@ -456,16 +493,16 @@ private fun ArtistOverviewContent(
         }
 
         // ── Popular releases (discography) — vertical list, first few + "Show all" ──
-        if (overview.popularReleases.isNotEmpty()) {
+        if (visiblePopularReleases.isNotEmpty()) {
             item { SectionHeader(stringResource(R.string.popular_releases_section_title)) }
-            val popularReleases = overview.popularReleases.take(4)
+            val popularReleases = visiblePopularReleases.take(4)
             val popularReleaseKeys = rowKeys("release", popularReleases) { it.spotifyId.ifBlank { it.name } }
             itemsIndexed(popularReleases, key = { i, _ -> popularReleaseKeys[i] }) { _, album ->
                 ReleaseRow(album) {
                     navController.navigate(albumRoute(album.name, album.artists.ifBlank { displayName }, album.spotifyId))
                 }
             }
-            if (overview.popularReleases.size > 4) {
+            if (visiblePopularReleases.size > 4) {
                 item {
                     ShowAllButton {
                         navController.navigate("${Routes.ArtistReleases.route}/${android.net.Uri.encode(artistName)}?id=${android.net.Uri.encode(overview.id)}")
@@ -517,16 +554,16 @@ private fun ArtistOverviewContent(
         }
 
         // ── Fans also like ──
-        if (overview.relatedArtists.isNotEmpty()) {
+        if (visibleRelatedArtists.isNotEmpty()) {
             item { SectionHeader(stringResource(R.string.fans_also_like_section_title)) }
             item {
                 LazyRow(
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp, 0.dp),
                 ) {
-                    val relatedKeys = rowKeys("related", overview.relatedArtists) { it.id.ifBlank { it.name } }
-                    items(overview.relatedArtists.size, key = { relatedKeys[it] }) { i ->
-                        RelatedArtistCard(overview.relatedArtists[i]) {
-                            navController.navigate(artistRoute(overview.relatedArtists[i].name, overview.relatedArtists[i].id))
+                    val relatedKeys = rowKeys("related", visibleRelatedArtists) { it.id.ifBlank { it.name } }
+                    items(visibleRelatedArtists.size, key = { relatedKeys[it] }) { i ->
+                        RelatedArtistCard(visibleRelatedArtists[i]) {
+                            navController.navigate(artistRoute(visibleRelatedArtists[i].name, visibleRelatedArtists[i].id))
                         }
                     }
                 }
@@ -534,16 +571,16 @@ private fun ArtistOverviewContent(
         }
 
         // ── Appears on ──
-        if (overview.appearsOn.isNotEmpty()) {
+        if (visibleAppearsOn.isNotEmpty()) {
             item { SectionHeader(stringResource(R.string.appears_on_section_title)) }
             item {
                 LazyRow(
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp, 0.dp),
                 ) {
-                    val appearsOnKeys = rowKeys("appears", overview.appearsOn) { it.spotifyId.ifBlank { it.name } }
-                    items(overview.appearsOn.size, key = { appearsOnKeys[it] }) { i ->
-                        ReleaseCard(overview.appearsOn[i]) {
-                            navController.navigate(albumRoute(overview.appearsOn[i].name, overview.appearsOn[i].artists, overview.appearsOn[i].spotifyId))
+                    val appearsOnKeys = rowKeys("appears", visibleAppearsOn) { it.spotifyId.ifBlank { it.name } }
+                    items(visibleAppearsOn.size, key = { appearsOnKeys[it] }) { i ->
+                        ReleaseCard(visibleAppearsOn[i]) {
+                            navController.navigate(albumRoute(visibleAppearsOn[i].name, visibleAppearsOn[i].artists, visibleAppearsOn[i].spotifyId))
                         }
                     }
                 }

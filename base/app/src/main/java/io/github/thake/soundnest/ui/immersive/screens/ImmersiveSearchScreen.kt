@@ -116,7 +116,12 @@ import io.github.thake.soundnest.data.preferences.toSong
 fun ImmersiveSearchScreen(navController: NavController) {
     val vm: SearchViewModel = viewModel()
     val results by vm.results.collectAsState()
-    val data = (results as? Response.Success)?.data ?: SearchResults()
+    val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+    val adminUnlocked = io.github.thake.soundnest.parental.rememberAdminUnlocked()
+    val rawData = (results as? Response.Success)?.data ?: SearchResults()
+    val data = remember(rawData, policy) {
+        io.github.thake.soundnest.parental.ParentBlockActions.filterSearchResults(rawData, policy)
+    }
     val loading = results is Response.Loading
     val failed = results is Response.Error
     val context = LocalContext.current
@@ -126,10 +131,17 @@ fun ImmersiveSearchScreen(navController: NavController) {
     // Recents are the items opened from results, not the typed queries, and show only once the
     // field is focused.
     var searchFocused by remember { mutableStateOf(false) }
-    var recents by remember { mutableStateOf(loadRecents(context)) }
+    var recents by remember(policy) { mutableStateOf(loadRecents(context, policy)) }
     var menuSong by remember { mutableStateOf<SongsModel?>(null) }
+    var quickBlockTarget by remember { mutableStateOf<io.github.thake.soundnest.parental.ParentBlockTarget?>(null) }
     menuSong?.let { sel ->
         ImmersiveSongOptionsSheet(song = sel, navController = navController, context = context, onDismiss = { menuSong = null })
+    }
+    quickBlockTarget?.let { target ->
+        io.github.thake.soundnest.parental.ParentQuickBlockSheet(
+            target = target,
+            onDismiss = { quickBlockTarget = null },
+        )
     }
     // A tap on a result puts the keyboard away; the query and the list stay as they are.
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
@@ -138,7 +150,7 @@ fun ImmersiveSearchScreen(navController: NavController) {
     val recordRecent: (RecentItem) -> Unit = { item ->
         dismissKeyboard()
         addRecentItem(context, item)
-        recents = loadRecents(context)
+        recents = loadRecents(context, policy)
     }
 
     // Re-tapping the Search tab focuses the field and scrolls to the top; no query is re-run.
@@ -223,7 +235,7 @@ fun ImmersiveSearchScreen(navController: NavController) {
                         onOpen = { item -> openRecent(item, navController, vm, context) },
                         onRemove = {
                             removeRecentItem(context, it)
-                            recents = loadRecents(context)
+                            recents = loadRecents(context, policy)
                         },
                         onClear = {
                             clearRecentItems(context)
@@ -259,6 +271,8 @@ fun ImmersiveSearchScreen(navController: NavController) {
                     onRetry = { vm.retry() },
                     currentSongId = vm.currentSongId.value,
                     playing = Graph.currentSongState.playingState.value,
+                    adminUnlocked = adminUnlocked,
+                    onQuickBlock = { quickBlockTarget = it },
                     onSong = { song -> recordRecent(song.toRecentItem()); playSong(song) },
                     onSongMore = { menuSong = it },
                     onArtist = { artist ->
@@ -284,10 +298,11 @@ fun ImmersiveSearchScreen(navController: NavController) {
     }
 }
 
-private fun loadRecents(context: Context): List<RecentItem> =
-    getRecentItems(context).filter {
-        it.type != "show" ||
-            (if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(it.key)) Features.AUDIOBOOKS else Features.PODCASTS)
+private fun loadRecents(context: Context, policy: io.github.thake.soundnest.parental.ParentalPolicy): List<RecentItem> =
+    getRecentItems(context).filter { item ->
+        (item.type != "show" ||
+            (if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(item.key)) Features.AUDIOBOOKS else Features.PODCASTS)) &&
+            io.github.thake.soundnest.parental.ParentBlockActions.isRecentItemAllowed(item, policy)
     }
 
 /** Replays a recent song or opens its album, artist, show or playlist, as the Classic screen does. */
@@ -429,6 +444,8 @@ private fun LazyListScope.searchResults(
     onRetry: () -> Unit,
     currentSongId: Int,
     playing: Boolean,
+    adminUnlocked: Boolean,
+    onQuickBlock: (io.github.thake.soundnest.parental.ParentBlockTarget) -> Unit,
     onSong: (SongsModel) -> Unit,
     onSongMore: (SongsModel) -> Unit,
     onArtist: (ArtistsModel) -> Unit,
@@ -490,6 +507,17 @@ private fun LazyListScope.searchResults(
                 imageUrl = artist.coverUri,
                 round = true,
                 onClick = { onArtist(artist) },
+                onMore = if (adminUnlocked && artist.id.isNotBlank()) ({
+                    onQuickBlock(
+                        io.github.thake.soundnest.parental.ParentBlockTarget(
+                            kind = io.github.thake.soundnest.parental.ParentRuleKind.ARTIST,
+                            id = artist.id,
+                            title = artist.name,
+                            subtitle = "Artist",
+                            coverUri = artist.coverUri,
+                        ),
+                    )
+                }) else null,
             )
             if (n < range.count() - 1) RowDivider()
         }
@@ -503,6 +531,17 @@ private fun LazyListScope.searchResults(
                 imageUrl = album.coverUri,
                 round = false,
                 onClick = { onAlbum(album) },
+                onMore = if (adminUnlocked && album.spotifyId.isNotBlank()) ({
+                    onQuickBlock(
+                        io.github.thake.soundnest.parental.ParentBlockTarget(
+                            kind = io.github.thake.soundnest.parental.ParentRuleKind.ALBUM,
+                            id = album.spotifyId,
+                            title = album.name,
+                            subtitle = album.artists,
+                            coverUri = album.coverUri,
+                        ),
+                    )
+                }) else null,
             )
             if (n < range.count() - 1) RowDivider()
         }
@@ -517,6 +556,17 @@ private fun LazyListScope.searchResults(
                 imageUrl = playlist.coverUri,
                 round = false,
                 onClick = { onPlaylist(playlist) },
+                onMore = if (adminUnlocked && playlist.spotifyId.isNotBlank()) ({
+                    onQuickBlock(
+                        io.github.thake.soundnest.parental.ParentBlockTarget(
+                            kind = io.github.thake.soundnest.parental.ParentRuleKind.PLAYLIST,
+                            id = playlist.spotifyId,
+                            title = playlist.name,
+                            subtitle = playlist.subtitle,
+                            coverUri = playlist.coverUri,
+                        ),
+                    )
+                }) else null,
             )
             if (n < range.count() - 1) RowDivider()
         }
@@ -527,13 +577,25 @@ private fun LazyListScope.searchResults(
     section("shows", sectioned, title(showsHeaderRes), shows.size) { range ->
         items(range.count(), key = { "show:${shows[range.first + it].id}:${range.first + it}" }) { n ->
             val show = shows[range.first + n]
-            val kindRes = if (io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(show.id)) R.string.audiobooks_title else R.string.album_type_podcast
+            val isAudible = io.github.thake.soundnest.audible.AudibleUris.isAudibleUri(show.id)
+            val kindRes = if (isAudible) R.string.audiobooks_title else R.string.album_type_podcast
             ImmersiveListRow(
                 title = show.name,
                 subtitle = stringResource(kindRes) + (if (show.publisher.isNotBlank()) " • ${show.publisher}" else ""),
                 imageUrl = show.coverUri,
                 round = false,
                 onClick = { onShow(show) },
+                onMore = if (adminUnlocked && !isAudible && show.id.isNotBlank()) ({
+                    onQuickBlock(
+                        io.github.thake.soundnest.parental.ParentBlockTarget(
+                            kind = io.github.thake.soundnest.parental.ParentRuleKind.SHOW,
+                            id = show.id,
+                            title = show.name,
+                            subtitle = show.publisher,
+                            coverUri = show.coverUri,
+                        ),
+                    )
+                }) else null,
             )
             if (n < range.count() - 1) RowDivider()
         }

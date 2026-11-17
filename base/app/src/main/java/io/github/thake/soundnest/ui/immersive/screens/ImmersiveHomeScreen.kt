@@ -7,6 +7,7 @@ package io.github.thake.soundnest.ui.immersive.screens
 
 import io.github.thake.soundnest.ui.immersive.shell.immersiveHazeSource
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import io.github.thake.soundnest.ui.components.arrivingRow
@@ -20,6 +21,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.foundation.lazy.LazyColumn
@@ -37,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
@@ -130,6 +135,13 @@ fun ImmersiveHomeScreen(navController: NavController) {
     val revision by io.github.thake.soundnest.parental.ParentalPolicyStore.revision.collectAsState()
     val sessionTick by io.github.thake.soundnest.parental.ParentSecurityManager.sessionTick.collectAsState()
     val adminUnlocked = remember(sessionTick) { io.github.thake.soundnest.parental.ParentSecurityManager.isAdminUnlocked(context) }
+    var quickBlockTarget by remember { mutableStateOf<io.github.thake.soundnest.parental.ParentBlockTarget?>(null) }
+    quickBlockTarget?.let { target ->
+        io.github.thake.soundnest.parental.ParentQuickBlockSheet(
+            target = target,
+            onDismiss = { quickBlockTarget = null },
+        )
+    }
 
     val rawGridSection = remember(feed) { feed?.sections.orEmpty().firstOrNull()?.takeIf { it.title.isBlank() } }
     val rawCarousels = remember(feed, rawGridSection) {
@@ -145,7 +157,7 @@ fun ImmersiveHomeScreen(navController: NavController) {
     }
     // Liked Songs leads the shortcuts when Spotify's grid does not carry it.
     val likedName = stringResource(R.string.collection_liked_songs_title)
-    val shortcuts = remember(rawGridSection, feed, policy, facet, likedName) {
+    val shortcuts = remember(rawGridSection, feed, policy, revision, facet, likedName) {
         if (!policy.homeSections.showShortcutsGrid || feed == null) null
         else {
             val filteredGrid = io.github.thake.soundnest.parental.HomeSectionFilter.filterShortcutItems(rawGridSection?.items ?: emptyList(), policy)
@@ -189,7 +201,13 @@ fun ImmersiveHomeScreen(navController: NavController) {
                         item(key = "home:shortcuts") {
                             // The feed fades in over its placeholder (see immersiveFeedSkeleton).
                             Box(arrivingRow()) {
-                                ShortcutGrid(navController, tiles, playingContext)
+                                ShortcutGrid(
+                                    navController = navController,
+                                    items = tiles,
+                                    playingContext = playingContext,
+                                    adminUnlocked = adminUnlocked,
+                                    onQuickBlock = { quickBlockTarget = it },
+                                )
                             }
                         }
                     }
@@ -198,8 +216,20 @@ fun ImmersiveHomeScreen(navController: NavController) {
                             // The lead carousel gets the big cards, unless it is a row of artists.
                             val hero = index == 0 && section.items.none { it is HomeItem.Artist }
                             Box(arrivingRow()) {
-                                if (hero) HeroSection(navController, section, playingContext, adminUnlocked = adminUnlocked)
-                                else ShelfSection(navController, section, playingContext, adminUnlocked = adminUnlocked)
+                                if (hero) HeroSection(
+                                    navController = navController,
+                                    section = section,
+                                    playingContext = playingContext,
+                                    adminUnlocked = adminUnlocked,
+                                    onQuickBlock = { quickBlockTarget = it },
+                                )
+                                else ShelfSection(
+                                    navController = navController,
+                                    section = section,
+                                    playingContext = playingContext,
+                                    adminUnlocked = adminUnlocked,
+                                    onQuickBlock = { quickBlockTarget = it },
+                                )
                             }
                         }
                     }
@@ -318,7 +348,13 @@ private fun HideShelfButton(section: HomeSection) {
 
 /** The lead carousel: big artwork cards with the caption over a scrim, the next one peeking in. */
 @Composable
-private fun HeroSection(navController: NavController, section: HomeSection, playingContext: State<String>, adminUnlocked: Boolean = false) {
+private fun HeroSection(
+    navController: NavController,
+    section: HomeSection,
+    playingContext: State<String>,
+    adminUnlocked: Boolean = false,
+    onQuickBlock: (io.github.thake.soundnest.parental.ParentBlockTarget) -> Unit = {},
+) {
     val canHide = adminUnlocked && section.uri != io.github.thake.soundnest.parental.HomeSectionFilter.PARENT_PICKS_URI
     Column(Modifier.padding(bottom = 26.dp)) {
         SectionHeader(
@@ -332,16 +368,39 @@ private fun HeroSection(navController: NavController, section: HomeSection, play
             ImmersiveShelfRow {
                 items(section.items.size, key = { keys[it] }) { i ->
                     val item = section.items[i]
+                    val target = remember(item) { io.github.thake.soundnest.parental.ParentBlockActions.targetForHomeItem(item) }
                     // One lambda per card, so the press hint's pointer input is not restarted by a recomposition.
                     val hint = remember(item) { { prefetchHomeItem(item) } }
-                    ImmersiveLargeAlbumCard(
-                        title = item.name,
-                        subtitle = item.cardSubtitle(),
-                        imageUrl = item.imageUrl,
-                        onClick = { onHomeItemClick(navController, item) },
-                        modifier = Modifier.width(cardWidth).pressHint(hint),
-                        playing = item.isPlayingIn(playingContext.value),
-                    )
+                    Box {
+                        ImmersiveLargeAlbumCard(
+                            title = item.name,
+                            subtitle = item.cardSubtitle(),
+                            imageUrl = item.imageUrl,
+                            onClick = { onHomeItemClick(navController, item) },
+                            onLongClick = if (adminUnlocked && target != null) ({ onQuickBlock(target) }) else null,
+                            modifier = Modifier.width(cardWidth).pressHint(hint),
+                            playing = item.isPlayingIn(playingContext.value),
+                        )
+                        if (adminUnlocked && target != null) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(10.dp)
+                                    .size(30.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.62f))
+                                    .clickable { onQuickBlock(target) },
+                            ) {
+                                androidx.compose.material3.Icon(
+                                    imageVector = Icons.Rounded.MoreHoriz,
+                                    contentDescription = stringResource(R.string.content_description_context_menu),
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -350,7 +409,13 @@ private fun HeroSection(navController: NavController, section: HomeSection, play
 
 /** A titled row of square cards (round for artists). */
 @Composable
-private fun ShelfSection(navController: NavController, section: HomeSection, playingContext: State<String>, adminUnlocked: Boolean = false) {
+private fun ShelfSection(
+    navController: NavController,
+    section: HomeSection,
+    playingContext: State<String>,
+    adminUnlocked: Boolean = false,
+    onQuickBlock: (io.github.thake.soundnest.parental.ParentBlockTarget) -> Unit = {},
+) {
     val canHide = adminUnlocked && section.uri != io.github.thake.soundnest.parental.HomeSectionFilter.PARENT_PICKS_URI
     val keys = remember(section.items) { homeItemKeys(section.items) }
     ImmersiveShelf(
@@ -359,18 +424,43 @@ private fun ShelfSection(navController: NavController, section: HomeSection, pla
     ) {
         items(section.items.size, key = { keys[it] }) { i ->
             val item = section.items[i]
+            val target = remember(item) { io.github.thake.soundnest.parental.ParentBlockActions.targetForHomeItem(item) }
             val hint = remember(item) { { prefetchHomeItem(item) } }
+            val showDot = item is HomeItem.Show && !item.isEpisode
+            val blockClick: (() -> Unit)? = if (adminUnlocked && target != null) ({ onQuickBlock(target) }) else null
             ImmersiveShelfCard(
                 title = item.name,
                 subtitle = item.cardSubtitle(),
                 imageUrl = item.imageUrl,
                 onClick = { onHomeItemClick(navController, item) },
+                onLongClick = blockClick,
                 modifier = Modifier.width(io.github.thake.soundnest.ui.immersive.components.ImmersiveShelfCardWidth)
                     .pressHint(hint),
                 round = item is HomeItem.Artist,
                 playing = item.isPlayingIn(playingContext.value),
-                badge = if (item is HomeItem.Show && !item.isEpisode) ({
-                    io.github.thake.soundnest.ui.components.NewEpisodeDot(item.id, Immersive.Accent, Modifier.align(Alignment.TopEnd).padding(8.dp))
+                badge = if (showDot || blockClick != null) ({
+                    if (showDot) {
+                        io.github.thake.soundnest.ui.components.NewEpisodeDot(item.id, Immersive.Accent, Modifier.align(Alignment.TopStart).padding(8.dp))
+                    }
+                    if (blockClick != null) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(6.dp)
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.62f))
+                                .clickable(onClick = blockClick),
+                        ) {
+                            androidx.compose.material3.Icon(
+                                imageVector = Icons.Rounded.MoreHoriz,
+                                contentDescription = stringResource(R.string.content_description_context_menu),
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    }
                 }) else null,
             )
         }
@@ -379,7 +469,13 @@ private fun ShelfSection(navController: NavController, section: HomeSection, pla
 
 /** The two-column shortcuts the web home starts with: a small cover and a name on a raised tile. */
 @Composable
-private fun ShortcutGrid(navController: NavController, items: List<HomeItem>, playingContext: State<String>) {
+private fun ShortcutGrid(
+    navController: NavController,
+    items: List<HomeItem>,
+    playingContext: State<String>,
+    adminUnlocked: Boolean = false,
+    onQuickBlock: (io.github.thake.soundnest.parental.ParentBlockTarget) -> Unit = {},
+) {
     Column(
         modifier = Modifier.padding(horizontal = Immersive.Gutter).padding(bottom = 22.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -390,13 +486,17 @@ private fun ShortcutGrid(navController: NavController, items: List<HomeItem>, pl
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 rowItems.forEach { item ->
                     val playing = item.isPlayingIn(playingContext.value)
+                    val target = remember(item) { io.github.thake.soundnest.parental.ParentBlockActions.targetForHomeItem(item) }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .weight(1f)
                             .height(56.dp)
                             .pressHint { prefetchHomeItem(item) }
-                            .immersiveClickable(onClick = { onHomeItemClick(navController, item) })
+                            .immersiveClickable(
+                                onClick = { onHomeItemClick(navController, item) },
+                                onLongClick = if (adminUnlocked && target != null) ({ onQuickBlock(target) }) else null,
+                            )
                             .clip(Immersive.CoverMedium)
                             .background(Immersive.Raised),
                     ) {
@@ -419,6 +519,22 @@ private fun ShortcutGrid(navController: NavController, items: List<HomeItem>, pl
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(horizontal = 10.dp).weight(1f),
                         )
+                        if (adminUnlocked && target != null) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .clickable { onQuickBlock(target) },
+                            ) {
+                                androidx.compose.material3.Icon(
+                                    imageVector = Icons.Rounded.MoreHoriz,
+                                    contentDescription = stringResource(R.string.content_description_context_menu),
+                                    tint = Immersive.TextSecondary,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
                     }
                 }
                 repeat(cols - rowItems.size) { Box(Modifier.weight(1f)) }

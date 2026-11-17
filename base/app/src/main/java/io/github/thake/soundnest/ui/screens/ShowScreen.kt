@@ -90,7 +90,8 @@ fun ShowScreen(navController: NavController, showId: String, showName: String = 
     val page = (pageState as? Response.Success)?.data
     val show = page?.show
     val audiobook = page?.audiobook == true
-    val items = page?.items.orEmpty()
+    val rawItems = page?.items.orEmpty()
+    val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
 
     var tab by remember { mutableStateOf(0) }
     var oldestFirst by remember { mutableStateOf(false) }
@@ -102,6 +103,16 @@ fun ShowScreen(navController: NavController, showId: String, showName: String = 
         io.github.thake.soundnest.audible.AudibleUris.asinFromAny(showId)?.let(io.github.thake.soundnest.audible.AudibleUris::bookUri).orEmpty()
     } else {
         "spotify:show:$showId"
+    }
+    val items = remember(rawItems, policy, showId, audiobook, isAudible) {
+        if (isAudible) rawItems else rawItems.filter {
+            io.github.thake.soundnest.parental.ParentalFilterEngine.isTrackAllowed(
+                it,
+                policy,
+                parentContextUri = contextUri,
+                isAudiobookChapter = audiobook,
+            )
+        }
     }
 
     fun playAt(index: Int) {
@@ -140,6 +151,7 @@ fun ShowScreen(navController: NavController, showId: String, showName: String = 
             item {
                 Header(
                     navController = navController,
+                    showId = showId,
                     show = show,
                     fallbackName = showName,
                     cover = page?.coverUri.orEmpty(),
@@ -255,6 +267,7 @@ fun ShowScreen(navController: NavController, showId: String, showName: String = 
 @Composable
 private fun Header(
     navController: NavController,
+    showId: String,
     show: PodcastModel?,
     fallbackName: String,
     cover: String,
@@ -332,11 +345,25 @@ private fun Header(
             }
         }
         if (showFollow) {
+            val resolvedName = show?.name?.takeIf { it.isNotBlank() } ?: fallbackName
+            val showTarget = remember(showId, resolvedName, show?.publisher, cover) {
+                io.github.thake.soundnest.parental.ParentBlockTarget(
+                    io.github.thake.soundnest.parental.ParentRuleKind.SHOW,
+                    showId,
+                    resolvedName,
+                    show?.publisher.orEmpty(),
+                    cover,
+                )
+            }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
             ) {
                 FollowPill(following) { onFollow(!following) }
+                if (!audiobook) {
+                    io.github.thake.soundnest.parental.ParentInlineBlockPill(target = showTarget)
+                }
             }
         } else {
             Spacer(Modifier.height(14.dp))

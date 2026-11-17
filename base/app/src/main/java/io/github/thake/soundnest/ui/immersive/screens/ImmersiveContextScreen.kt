@@ -362,9 +362,10 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
     // recomputed when the page, the search, the sort or a like changes, while a recomposition
     // with nothing new in them re-sorts nothing (a 900-track list is real work).
     val findable = p.type == "liked" || p.type == "playlist"
-    val all by remember(p) {
+    val all by remember(p, policy) {
         derivedStateOf {
-            if (isLiked) p.tracks.filter { SongPlayer.library["spotify:track:${it.spotifyTrackId}"] != false } else p.tracks
+            val base = if (isLiked) p.tracks.filter { SongPlayer.library["spotify:track:${it.spotifyTrackId}"] != false } else p.tracks
+            base.filter { io.github.thake.soundnest.parental.ParentalFilterEngine.isTrackAllowed(it, policy, parentContextUri = p.uri) }
         }
     }
     // An own playlist in its own order: its songs can be moved by hand, a handle on each while
@@ -378,7 +379,7 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
     // (a search letter, the "×" of the search), and keys remembered apart from them were one list
     // behind (a list that grows on the "×" ran out of keys: a crash). Rows that move are keyed by
     // their own id, which goes with them wherever they are put.
-    val shown by remember(p, find, sort, reordering) {
+    val shown by remember(p, policy, find, sort, reordering) {
         derivedStateOf {
             val found = if (findable) all.filter { matchesFind(find, it.title, it.singer, it.album) } else all
             withRowKeys(if (findable) sort.apply(found) else found) { if (reordering) PlaylistReorder.key(it) else it.id.toString() }
@@ -824,6 +825,31 @@ private fun ContextHeader(
                     )
                 }
             }
+        }
+        val parentTarget = remember(p.type, p.uri, p.name, p.ownerName, p.coverUri) {
+            when (p.type) {
+                "playlist" -> io.github.thake.soundnest.parental.ParentBlockTarget(
+                    io.github.thake.soundnest.parental.ParentRuleKind.PLAYLIST,
+                    p.uri,
+                    p.name,
+                    p.ownerName,
+                    p.coverUri,
+                )
+                "album" -> io.github.thake.soundnest.parental.ParentBlockTarget(
+                    io.github.thake.soundnest.parental.ParentRuleKind.ALBUM,
+                    p.uri,
+                    p.name,
+                    p.ownerName,
+                    p.coverUri,
+                )
+                else -> null
+            }
+        }
+        if (parentTarget != null) {
+            io.github.thake.soundnest.parental.ParentInlineBlockPill(
+                target = parentTarget,
+                modifier = Modifier.padding(top = 14.dp),
+            )
         }
     }
 }

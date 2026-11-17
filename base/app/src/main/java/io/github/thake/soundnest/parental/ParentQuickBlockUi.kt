@@ -50,7 +50,10 @@ import io.github.thake.soundnest.R
 import io.github.thake.soundnest.data.api.Api
 import io.github.thake.soundnest.data.entity.HomeItem
 import io.github.thake.soundnest.data.entity.LibraryEntry
+import io.github.thake.soundnest.data.entity.SearchResults
 import io.github.thake.soundnest.data.entity.SongsModel
+import io.github.thake.soundnest.data.preferences.RecentItem
+import io.github.thake.soundnest.data.preferences.toSong
 import io.github.thake.soundnest.di.SongPlayer
 import io.github.thake.soundnest.ui.components.LookSheet
 import io.github.thake.soundnest.ui.immersive.sheets.ImmersiveSheet
@@ -312,6 +315,53 @@ object ParentBlockActions {
             else -> null
         }
     }
+
+    /** Re-filters cached [SearchResults] against the latest [policy] so newly blocked items vanish immediately. */
+    fun filterSearchResults(results: SearchResults, policy: ParentalPolicy): SearchResults = results.copy(
+        songs = results.songs.filter { ParentalFilterEngine.isTrackAllowed(it, policy) },
+        artists = results.artists.filter { ParentalFilterEngine.isArtistAllowed(it, policy) },
+        albums = results.albums.filter { ParentalFilterEngine.isAlbumAllowed(it, policy) },
+        playlists = results.playlists.filter {
+            ParentalFilterEngine.isPlaylistAllowed(it.spotifyId, it.name, it.subtitle, policy = policy)
+        },
+        shows = results.shows.filter { ParentalFilterEngine.isShowAllowed(it, policy) },
+        episodes = results.episodes.filter { ParentalFilterEngine.isTrackAllowed(it, policy) },
+    )
+
+    /** Returns whether [entry] remains visible in Your Library under [policy]. */
+    fun isLibraryEntryAllowed(entry: LibraryEntry, policy: ParentalPolicy): Boolean {
+        val sid = entry.spotifyId
+        if (sid == Api.HomeCache.LOCAL_FILES_ID) return policy.allowLocalFiles
+        if (sid == io.github.thake.soundnest.radio.RadioFeaturePref.LIBRARY_ENTRY_ID ||
+            sid.startsWith("local-playlist:")
+        ) return true
+        if (entry.uri.startsWith("spotify:artist:")) {
+            return ParentalFilterEngine.isArtistAllowed(sid, entry.name, policy = policy)
+        }
+        return ParentalFilterEngine.filterLibraryEntry(entry, policy) != null
+    }
+
+    /** Returns whether a saved [RecentItem] remains allowed under [policy]. */
+    fun isRecentItemAllowed(
+        item: RecentItem,
+        policy: ParentalPolicy,
+    ): Boolean {
+        return when (item.type) {
+            "song" -> {
+                val song = item.toSong() ?: return false
+                ParentalFilterEngine.isTrackAllowed(song, policy)
+            }
+            "artist" ->
+                ParentalFilterEngine.isArtistAllowed(item.key, item.name, policy = policy)
+            "album" ->
+                ParentalFilterEngine.isAlbumAllowed(item.key, item.name, item.singer, policy = policy)
+            "playlist" ->
+                ParentalFilterEngine.isPlaylistAllowed(item.key, item.name, item.singer, policy = policy)
+            "show" ->
+                ParentalFilterEngine.isShowAllowed(item.key, item.name, item.singer, policy = policy)
+            else -> true
+        }
+    }
 }
 
 /**
@@ -418,6 +468,7 @@ fun ParentQuickBlockSheet(
     } else {
         LookSheet(
             onDismissRequest = onDismiss,
+            sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = tone(0xFF282828),
         ) {
             Column(
@@ -473,12 +524,12 @@ fun ParentQuickBlockSheet(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxWidth()
+                            .testTag("parent_sheet_block_${item.kind.name.lowercase()}")
                             .clickable {
                                 ParentBlockActions.toggleBlock(context, item)
                                 onDismiss()
                             }
-                            .padding(horizontal = 20.dp, vertical = 14.dp)
-                            .testTag("parent_sheet_block_${item.kind.name.lowercase()}"),
+                            .padding(horizontal = 20.dp, vertical = 14.dp),
                     ) {
                         Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
                             Icon(
