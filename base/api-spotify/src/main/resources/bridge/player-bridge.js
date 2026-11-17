@@ -441,7 +441,24 @@
     'media.state': async () => {
       const player = await localPlayer();
       const el = player && player._player;
-      if (!(el instanceof HTMLMediaElement)) return null;
+      if (!(el instanceof HTMLMediaElement)) {
+        return {
+          paused: true,
+          muted: false,
+          volume: 1,
+          level: 1,
+          own: 1,
+          time: 0,
+          readyState: 0,
+          networkState: 0,
+          error: null,
+          keys: 0,
+          keyWaits: 0,
+          ended: false,
+          playerVolume: null,
+          active: await activeDevice(),
+        };
+      }
       if (!el.__mspKeyWatch) {
         el.__mspKeyWatch = true;
         el.addEventListener('waitingforkey', () => { el.__mspKeyWaits = (el.__mspKeyWaits || 0) + 1; });
@@ -572,16 +589,24 @@
           : Object.keys(raw).map(k => raw[k]);
         const out = [];
         for (const e of entries) {
-          const n = typeof e === 'string' ? readStr(e)
-            : (e && typeof e === 'object' ? readStr(e.name || e.displayName || e.display_name) : '');
-          if (n && !out.includes(n)) out.push(n);
+          if (!e) continue;
+          if (typeof e === 'string') {
+            const n = readStr(e);
+            if (n) out.push({ id: null, name: n, isGroup: false });
+          } else if (typeof e === 'object') {
+            const n = readStr(e.name || e.displayName || e.display_name);
+            const aliasId = readStr(e.id || e.aliasId);
+            const isGroup = !!(e.isGroup || e.is_group);
+            if (n) out.push({ id: aliasId || null, name: n, isGroup });
+          }
         }
         return out;
       };
-      return list.map(d => {
-        if (!d || typeof d !== 'object') return null;
+      const result = [];
+      for (const d of list) {
+        if (!d || typeof d !== 'object') continue;
         const id = readStr(d.id || d.connectStateId || d.deviceId);
-        if (!id) return null;
+        if (!id) continue;
         const directName = readStr(d.name) || readStr(d.displayName);
         const aliases = readAliases(d.aliases || d.deviceAliases || d.device_aliases);
         const brand = readStr(d.brandDisplayName || d.brand);
@@ -591,11 +616,9 @@
           : !model ? brand
           : model.toLowerCase().startsWith(brand.toLowerCase()) ? model
           : `${brand} ${model}`;
-        return {
+        const activeAliasId = readStr(d.activeAlias || d.active_alias || (d.activeAlias && d.activeAlias.id));
+        const baseDevice = {
           id,
-          name: directName || aliases[0] || brandModel || '',
-          displayName: readStr(d.displayName),
-          aliases,
           brandDisplayName: brand,
           modelDisplayName: model,
           type: readStr(d.type || d.deviceType) || 'unknown',
@@ -603,7 +626,47 @@
           isLocal: !!d.isLocal,
           volume: typeof d.volume === 'number' ? d.volume : null,
         };
-      }).filter(Boolean);
+        if (aliases.length > 1) {
+          for (const a of aliases) {
+            result.push({
+              ...baseDevice,
+              id,
+              aliasId: a.id,
+              name: a.name,
+              displayName: a.name,
+              isGroup: a.isGroup,
+              aliases: [a.name],
+              isActive: !!d.isActive && (!activeAliasId || a.id === activeAliasId),
+            });
+          }
+        } else {
+          const firstAlias = aliases[0];
+          result.push({
+            ...baseDevice,
+            id,
+            aliasId: firstAlias ? firstAlias.id : null,
+            name: directName || (firstAlias ? firstAlias.name : '') || brandModel || '',
+            displayName: readStr(d.displayName),
+            isGroup: firstAlias ? firstAlias.isGroup : false,
+            aliases: aliases.map(a => a.name),
+          });
+        }
+      }
+      return result;
+    },
+
+    // Transfers playback to another Connect device with optional alias metadata.
+    // {deviceId, play, aliasId}
+    'connect.transfer': async a => {
+      const xfer = need().resolve('ConnectTransferAPI');
+      const devId = a.deviceId || a.id;
+      const opts = { playOnTransfer: a.play !== false };
+      const aliasId = a.aliasId || a.targetAliasId;
+      if (aliasId) {
+        opts.targetAliasId = aliasId;
+        opts.aliasId = aliasId;
+      }
+      return toJson(await xfer.transferPlayback(devId, opts));
     },
 
     // A playlist's cover, as the page's "Edit details" sets it: the JPEG goes to the image

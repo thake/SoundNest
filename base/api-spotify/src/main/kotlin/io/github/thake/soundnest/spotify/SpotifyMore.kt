@@ -530,12 +530,13 @@ class SpotifyDevices(
 ) : Devices {
     /** A device id that is this app too (the native engine's, see [AccountAudio.deviceId]); null: none. */
     @Volatile var ownDeviceId: () -> String? = { null }
+    @Volatile var audio: AccountAudio? = null
     private val _devices = MutableStateFlow<List<Device>>(emptyList())
     override val devices: StateFlow<List<Device>> = _devices
 
     override suspend fun refresh() {
         val own = ownDeviceId()
-        _devices.value = ConnectDeviceLabels.fetchDevicesJson(bridge).mapNotNull { d ->
+        val all = ConnectDeviceLabels.fetchDevicesJson(bridge).mapNotNull { d ->
             val id = (d.str("id") ?: d.str("connectStateId") ?: d.str("deviceId"))?.trim()?.takeIf { it.isNotEmpty() }
                 ?: return@mapNotNull null
             val type = (d.str("type") ?: d.str("deviceType"))?.trim()?.takeIf { it.isNotEmpty() } ?: "unknown"
@@ -546,18 +547,52 @@ class SpotifyDevices(
                 active = d.bool("isActive") ?: false,
                 volume = d.double("volume"),
                 local = d.bool("isLocal") ?: false || (own != null && id == own),
+                aliasId = (d.str("aliasId") ?: d.str("targetAliasId"))?.trim()?.takeIf { it.isNotEmpty() },
             )
+        }
+        var localSeen = false
+        _devices.value = all.filter { dev ->
+            if (dev.local) {
+                if (localSeen) false else { localSeen = true; true }
+            } else true
         }
     }
 
     override suspend fun transfer(deviceId: String, play: Boolean) {
-        bridge.service("ConnectTransferAPI", "transferPlayback", JsonPrimitive(deviceId), json(mapOf("playOnTransfer" to play)))
+        transfer(deviceId, play, null)
+    }
+
+    override suspend fun transfer(deviceId: String, play: Boolean, aliasId: String?) {
+        val a = audio
+        val handled = if (a != null && a.holdsPlayback) {
+            runCatching { a.transferTo(deviceId, play) }.getOrDefault(false)
+        } else false
+
+        if (!handled) {
+            val targetAlias = aliasId ?: _devices.value.firstOrNull { it.id == deviceId }?.aliasId
+            val opts = mutableMapOf<String, Any>("playOnTransfer" to play)
+            if (targetAlias != null) {
+                opts["targetAliasId"] = targetAlias
+            }
+            runCatching {
+                bridge.service("ConnectTransferAPI", "transferPlayback", JsonPrimitive(deviceId), json(opts))
+            }.onFailure {
+                bridge.call("connect.transfer", json(mapOf("deviceId" to deviceId, "play" to play) + (if (targetAlias != null) mapOf("aliasId" to targetAlias) else emptyMap())) as kotlinx.serialization.json.JsonObject)
+            }
+        }
         // The transfer is done: a list that cannot be read now is not a failed transfer.
         runCatching { refresh() }
     }
 
     override suspend fun pullHere() {
-        bridge.service("ConnectTransferAPI", "pullToLocalDevice", json(mapOf<String, Any>()))
+        val a = audio
+        val handled = if (a != null && a.on) {
+            runCatching { a.pullHere(play = true) }.getOrDefault(false)
+        } else false
+
+        if (!handled) {
+            bridge.service("ConnectTransferAPI", "pullToLocalDevice", json(mapOf<String, Any>()))
+        }
         refresh()
     }
 

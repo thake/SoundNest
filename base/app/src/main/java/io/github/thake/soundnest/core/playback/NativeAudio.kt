@@ -126,6 +126,7 @@ object NativeAudio : io.github.thake.soundnest.spotify.AccountAudio, io.github.t
     fun attach() {
         val spotify = SoundNestRuntime.spotify
         spotify.player.audio = this
+        spotify.devices.audio = this
         spotify.devices.ownDeviceId = { deviceId }
         scope.launch {
             io.github.thake.soundnest.spotify.AccountPlan.premium.collect { isPremium ->
@@ -170,6 +171,47 @@ object NativeAudio : io.github.thake.soundnest.spotify.AccountAudio, io.github.t
     override suspend fun seek(positionMs: Long) { engine?.seekTo(positionMs) }
     override suspend fun next() { commandAtMs = System.currentTimeMillis(); ready().skipNext() }
     override suspend fun previous() { ready().previous() }
+
+    override suspend fun transferTo(deviceId: String, play: Boolean): Boolean {
+        val e = engine ?: return false
+        val restorePaused = if (play) "restore" else "pause"
+        log("transferTo: from ${e.deviceId} to $deviceId (restore_paused=$restorePaused)")
+        val status = runCatching { e.transferTo(deviceId, restorePaused) }.getOrElse { -1 }
+        if (status !in 200..299) {
+            log("transferTo: status=$status failed")
+            return false
+        }
+        // Wait briefly for dealer playsElsewhere or cluster takeover
+        val takeover = kotlinx.coroutines.withTimeoutOrNull(2_500L) {
+            while (true) {
+                if (e.playsElsewhere.value || e.cluster.value?.activeDeviceId == deviceId) {
+                    return@withTimeoutOrNull true
+                }
+                kotlinx.coroutines.delay(50)
+            }
+            false
+        } ?: false
+
+        if (takeover || e.cluster.value?.activeDeviceId == deviceId || holdsPlayback) {
+            log("remote takeover for $deviceId (or stopping local engine); yielding local playback")
+            runCatching { e.yieldLocalPlayback() }
+        }
+        return true
+    }
+
+    override suspend fun pullHere(play: Boolean): Boolean {
+        if (!on) return false
+        val restorePaused = if (play) "restore" else "pause"
+        log("pullHere: restoring playback to NativeEngine ($restorePaused)")
+        return runCatching {
+            val e = ready()
+            e.transfer(restorePaused)
+            true
+        }.getOrElse {
+            log("pullHere failed: ${it.message}")
+            false
+        }
+    }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val lock = Mutex()

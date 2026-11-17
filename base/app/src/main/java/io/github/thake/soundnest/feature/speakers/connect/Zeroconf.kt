@@ -108,9 +108,11 @@ object Zeroconf {
         val j = runCatching { JSONObject(body) }.getOrNull() ?: return null
         if (j.has("status") && j.optInt("status") != 101) return null
         val id = j.optString("deviceID").ifBlank { return null }
+        val remoteName = j.optString("remoteName").trim()
+        val resolvedName = if (remoteName.isNotEmpty()) remoteName else (extractAliasName(j) ?: "")
         return ZeroconfInfo(
             deviceId = id,
-            name = j.optString("remoteName"),
+            name = resolvedName,
             clientId = j.optString("clientID"),
             tokenType = j.optString("tokenType"),
             version = j.optString("version"),
@@ -121,6 +123,38 @@ object Zeroconf {
             publicKey = j.optString("publicKey"),
             spotifyError = j.optInt("spotifyError", 0),
         )
+    }
+
+    private fun extractAliasName(j: JSONObject): String? {
+        val arr = j.optJSONArray("aliases") ?: j.optJSONArray("device_aliases") ?: j.optJSONArray("deviceAliases")
+        if (arr != null) {
+            for (i in 0 until arr.length()) {
+                val item = arr.opt(i)
+                when (item) {
+                    is String -> if (item.isNotBlank()) return item.trim()
+                    is JSONObject -> {
+                        val n = item.optString("name").ifBlank { item.optString("displayName").ifBlank { item.optString("display_name") } }
+                        if (n.isNotBlank()) return n.trim()
+                    }
+                }
+            }
+        }
+        val obj = j.optJSONObject("device_aliases") ?: j.optJSONObject("aliases") ?: j.optJSONObject("deviceAliases")
+        if (obj != null) {
+            val keys = obj.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                val item = obj.opt(k)
+                when (item) {
+                    is String -> if (item.isNotBlank()) return item.trim()
+                    is JSONObject -> {
+                        val n = item.optString("name").ifBlank { item.optString("displayName").ifBlank { item.optString("display_name") } }
+                        if (n.isNotBlank()) return n.trim()
+                    }
+                }
+            }
+        }
+        return null
     }
 
     /** The status and its name from an addUser answer, for the log (no token is ever in one). */

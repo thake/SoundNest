@@ -3,6 +3,7 @@ package io.github.thake.soundnest.engine
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test
@@ -42,6 +43,56 @@ class ClusterAliasesTest {
         assertEquals("Emma's Echo Dot", dev.name)
         assertEquals(listOf("Emma's Echo Dot"), dev.aliases)
         assertEquals("SPEAKER", dev.type)
+        assertEquals(listOf(DeviceAlias("amzn1.alexa.bedroom", "Emma's Echo Dot", false)), dev.deviceAliases)
+    }
+
+    @Test
+    fun `Cluster parse resolves multi-alias device groups with is_group flag`() {
+        val raw = """
+            {
+              "devices": {
+                "amzn-echo-multi": {
+                  "name": "",
+                  "device_type": "SPEAKER",
+                  "device_aliases": [
+                    { "id": "amzn1.echo", "name": "Living Room Echo", "is_group": false },
+                    { "id": "amzn1.mrm", "name": "Everywhere", "is_group": true }
+                  ]
+                }
+              }
+            }
+        """.trimIndent()
+
+        val cluster = Cluster.parse(Json.parseToJsonElement(raw).jsonObject)
+        assertNotNull(cluster)
+        val dev = cluster!!.devices.single()
+        assertEquals("amzn-echo-multi", dev.id)
+        assertEquals("Living Room Echo", dev.name)
+        assertEquals(listOf("Living Room Echo", "Everywhere"), dev.aliases)
+        assertEquals(
+            listOf(
+                DeviceAlias("amzn1.echo", "Living Room Echo", false),
+                DeviceAlias("amzn1.mrm", "Everywhere", true),
+            ),
+            dev.deviceAliases,
+        )
+    }
+
+    @Test
+    fun `NativeEngine transferTo sends Protobuf-JSON transfer payload to remote device`() = kotlinx.coroutines.test.runTest {
+        val rig = Rig(backgroundScope)
+        val status = rig.engine.transferTo("remote-echo-1", restorePaused = "restore")
+        assertEquals(200, status)
+
+        val lastReq = rig.http.requests.lastOrNull { it.url.contains("/connect/transfer/") }
+        assertNotNull(lastReq)
+        val url = lastReq!!.url
+        assertEquals("POST", lastReq.method)
+        org.junit.jupiter.api.Assertions.assertTrue(url.endsWith("/connect/transfer/from/${rig.engine.deviceId}/to/remote-echo-1"))
+
+        val body = Json.parseToJsonElement(lastReq.body!!.decodeToString()).jsonObject
+        assertEquals("restore", body["transfer_options"]!!.jsonObject["restore_paused"]!!.jsonPrimitive.content)
+        org.junit.jupiter.api.Assertions.assertTrue(body.containsKey("command_id"))
     }
 
     @Test

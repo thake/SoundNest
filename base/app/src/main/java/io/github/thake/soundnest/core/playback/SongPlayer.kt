@@ -282,6 +282,7 @@ object SongPlayer {
         // With nothing playing and no Connect device, the loop below only found it had nothing to do,
         // every 3 s, waking the main thread: it sleeps then, and a pushed state or a Connect device
         // wakes it (the long timeout is only a net against a missed wake).
+        SoundNestRuntime.spotify.player.remoteSelected = { _activeDevice.value != null || chosenRemote != null }
         scope.launch { androidx.compose.runtime.snapshotFlow { _activeDevice.value }.collect { refreshWake.trySend(Unit) } }
         scope.launch {
             var lastRead = 0L
@@ -2143,6 +2144,7 @@ object SongPlayer {
         val isSelf: Boolean,
         val isActive: Boolean,
         val rawName: String = name,
+        val aliasId: String? = null,
     )
 
     private fun toConnectDevice(d: io.github.thake.soundnest.api.Device, forceRemoteActive: Boolean = false): ConnectDevice {
@@ -2154,6 +2156,7 @@ object SongPlayer {
             isSelf = if (forceRemoteActive) false else d.local,
             isActive = if (forceRemoteActive) true else d.active,
             rawName = d.name,
+            aliasId = d.aliasId,
         )
     }
 
@@ -2183,6 +2186,7 @@ object SongPlayer {
         runCatching { api.devices.refresh() }
         val rawList = api.devices.devices.value.map { toConnectDevice(it) }
             .sortedWith(compareByDescending<ConnectDevice> { it.isSelf }.thenBy { it.name })
+            .distinctBy { if (it.isSelf) "self" else "${it.id}:${it.aliasId.orEmpty()}" }
         val list = io.github.thake.soundnest.feature.speakers.settings.TrustedNetworkGate.filterConnectDevices(Graph.app, rawList)
         _activeDevice.value = list.firstOrNull { it.isActive && !it.isSelf }
         // Kinds only (no names or ids): a report that says "no speaker" shows whether Spotify listed one.
@@ -2284,9 +2288,17 @@ object SongPlayer {
 
     /** Move playback to [device] (Spotify Connect transfer). */
     fun transferTo(device: ConnectDevice) {
-        if (io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value) return
+        if (io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value) {
+            main.post {
+                android.widget.Toast.makeText(Graph.app, Graph.app.getString(io.github.thake.soundnest.R.string.cast_failed, device.name), android.widget.Toast.LENGTH_LONG).show()
+            }
+            return
+        }
         if (!io.github.thake.soundnest.feature.speakers.settings.TrustedNetworkGate.isDeviceAllowed(Graph.app, device.id, isSelf = device.isSelf)) {
             io.github.thake.soundnest.host.android.Logbook.log("connect: transfer refused by TrustedNetworkGate")
+            main.post {
+                android.widget.Toast.makeText(Graph.app, Graph.app.getString(io.github.thake.soundnest.R.string.cast_failed, device.name), android.widget.Toast.LENGTH_LONG).show()
+            }
             return
         }
         Haptics.confirm()
@@ -2305,20 +2317,64 @@ object SongPlayer {
             Log.i(TAG, "local song to ${device.name}: $track in $context at $at ms")
             LocalPlayer.stop()
             command(onFailure = { transferFailed(device) }) {
-                api.devices.transfer(device.id)
+                api.devices.transfer(device.id, play = wasPlaying, aliasId = device.aliasId)
                 api.player.play(context, trackUri = track.takeIf { it != context }, positionMs = at)
                 if (!wasPlaying) api.player.pause()
                 else io.github.thake.soundnest.feature.speakers.connect.SonosLocal.afterTransfer(device.id, device.rawName, true)
+                verifyTransfer(device, wanted = wasPlaying)
             }
             return
         }
         val wanted = isPlaying()
         command(onFailure = { transferFailed(device) }) {
-            if (device.isSelf) api.devices.pullHere() else {
-                api.devices.transfer(device.id)
+            if (device.isSelf) {
+                api.devices.pullHere()
+            } else {
+                if (api.player.state.value?.item == null && trackId.isNotBlank()) {
+                    val track = SPOTIFY_TRACK_PREFIX + trackId
+                    val context = currentContextUri.ifBlank { track }
+                    val at = getCurrentPosition()
+                    Log.i(TAG, "seeding dormant session to ${device.name}: $track in $context at $at ms")
+                    api.devices.transfer(device.id, play = wanted, aliasId = device.aliasId)
+                    api.player.play(context, trackUri = track.takeIf { it != context }, positionMs = at)
+                    if (!wanted) api.player.pause()
+                } else {
+                    api.devices.transfer(device.id, play = wanted, aliasId = device.aliasId)
+                }
                 // A Sonos may take the song and stay paused: its own play is pressed then.
                 io.github.thake.soundnest.feature.speakers.connect.SonosLocal.afterTransfer(device.id, device.rawName, wanted)
+                verifyTransfer(device, wanted = wanted)
             }
+        }
+    }
+
+    private suspend fun verifyTransfer(device: ConnectDevice, wanted: Boolean) {
+        val deadline = SystemClock.elapsedRealtime() + 4_000L
+        var confirmedActive = false
+        while (SystemClock.elapsedRealtime() < deadline) {
+            kotlinx.coroutines.delay(500)
+            runCatching { api.devices.refresh() }
+            val match = api.devices.devices.value.firstOrNull { it.id == device.id || (device.aliasId != null && it.aliasId == device.aliasId) }
+            if (match?.active == true && !NativeAudio.holdsPlayback) {
+                confirmedActive = true
+                break
+            }
+        }
+        if (!confirmedActive) {
+            Log.w(TAG, "transfer to ${device.name} (${device.id}) was not confirmed active within 4s; rolling back")
+            withContext(Dispatchers.Main) {
+                transferFailed(device)
+            }
+        } else {
+            if (wanted) {
+                val state = api.player.state.value
+                val isPaused = state?.isPaused ?: false
+                if (isPaused) {
+                    Log.i(TAG, "target device ${device.name} active but paused; nudging resume")
+                    runCatching { api.player.resume() }
+                }
+            }
+            refreshDevice()
         }
     }
 

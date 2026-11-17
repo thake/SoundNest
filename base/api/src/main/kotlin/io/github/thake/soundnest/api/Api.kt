@@ -299,6 +299,7 @@ interface Devices {
     val devices: StateFlow<List<Device>>
     suspend fun refresh()
     suspend fun transfer(deviceId: String, play: Boolean = true)
+    suspend fun transfer(deviceId: String, play: Boolean, aliasId: String?) { transfer(deviceId, play) }
     /** Brings playback back to this app. */
     suspend fun pullHere()
     /** Sets the volume of the Connect device [deviceId] ([level] 0 to 1); false when it could not be sent this way. */

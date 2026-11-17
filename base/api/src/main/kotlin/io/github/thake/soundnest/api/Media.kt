@@ -257,6 +257,7 @@ data class Device(
     val volume: Double?,
     /** This app's own player. */
     val local: Boolean,
+    val aliasId: String? = null,
 )
 
 enum class JamAvailability { AVAILABLE, RESTRICTED, UNKNOWN }

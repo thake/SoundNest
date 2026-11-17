@@ -36,12 +36,14 @@ object LanLogin {
         if (busy.value != null) return
         if (!io.github.thake.soundnest.feature.speakers.settings.TrustedNetworkGate.canProvisionLanDevices(Graph.app)) {
             log("blocked by TrustedNetworkGate: untrusted network")
+            android.widget.Toast.makeText(Graph.app, Graph.app.getString(io.github.thake.soundnest.R.string.cast_failed, d.info.name), android.widget.Toast.LENGTH_SHORT).show()
             return
         }
         if (d.info.deviceId.isNotBlank() &&
             !io.github.thake.soundnest.feature.speakers.settings.TrustedNetworkGate.isDeviceAllowed(Graph.app, d.info.deviceId, isSelf = false)
         ) {
             log("blocked by TrustedNetworkGate: speaker disallowed")
+            android.widget.Toast.makeText(Graph.app, Graph.app.getString(io.github.thake.soundnest.R.string.cast_failed, d.info.name), android.widget.Toast.LENGTH_SHORT).show()
             return
         }
         busy.value = d

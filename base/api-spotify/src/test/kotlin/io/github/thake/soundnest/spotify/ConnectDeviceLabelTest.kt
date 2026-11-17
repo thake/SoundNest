@@ -12,6 +12,8 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.BeforeEach
@@ -209,6 +211,100 @@ class ConnectDeviceLabelTest {
 
         assertEquals(listOf("connect.devices", "service.call"), host.commands)
         assertEquals("Fallback Alexa", devices.devices.value.single().name)
+    }
+
+    @Test
+    fun `SpotifyDevices refresh deduplicates multiple local devices (WebView and NativeEngine)`() = runTest {
+        val payload = """
+            [
+              {"id":"webview-local","name":"Web Player (Chrome)","type":"COMPUTER","isActive":false,"isLocal":true},
+              {"id":"native-local","name":"Phone of Sam","type":"SMARTPHONE","isActive":true,"isLocal":false},
+              {"id":"remote-speaker","name":"Kitchen Echo","type":"SPEAKER","isActive":false,"isLocal":false}
+            ]
+        """.trimIndent()
+        val host = FakeConnectHost(connectDevicesJson = payload)
+        val bridge = Bridge(host, scope)
+        val devices = SpotifyDevices(bridge)
+        devices.ownDeviceId = { "native-local" }
+
+        devices.refresh()
+
+        val list = devices.devices.value
+        assertEquals(2, list.size)
+        assertTrue(list[0].local)
+        assertEquals("Web Player (Chrome)", list[0].name)
+        assertFalse(list[1].local)
+        assertEquals("Kitchen Echo", list[1].name)
+    }
+
+    @Test
+    fun `SpotifyDevices transfer delegates to AccountAudio when holdsPlayback is true`() = runTest {
+        val host = FakeConnectHost(connectDevicesJson = "[]")
+        val bridge = Bridge(host, scope)
+        val devices = SpotifyDevices(bridge)
+        val audio = FakeAccountAudio(holdsPlayback = true)
+        devices.audio = audio
+
+        devices.transfer("remote-echo-1", play = true)
+
+        assertEquals("remote-echo-1" to true, audio.transferToCalledWith)
+        assertFalse("service.call" in host.commands)
+    }
+
+    @Test
+    fun `SpotifyDevices transfer falls back to ConnectTransferAPI when AccountAudio does not hold playback`() = runTest {
+        val host = FakeConnectHost(connectDevicesJson = "[]")
+        val bridge = Bridge(host, scope)
+        val devices = SpotifyDevices(bridge)
+        val audio = FakeAccountAudio(holdsPlayback = false)
+        devices.audio = audio
+
+        devices.transfer("remote-echo-1", play = true)
+
+        assertNull(audio.transferToCalledWith)
+        assertTrue("service.call" in host.commands)
+    }
+
+    @Test
+    fun `SpotifyPlayer play routes remotely and never calls NativeAudio when remoteSelected is true`() = runTest {
+        val host = FakeConnectHost(connectDevicesJson = "[]")
+        val bridge = Bridge(host, scope)
+        val player = SpotifyPlayer(bridge, scope)
+        val audio = FakeAccountAudio(holdsPlayback = false)
+        player.audio = audio
+        player.remoteSelected = { true }
+
+        player.play("spotify:album:123", trackUri = "spotify:track:abc", index = 0, positionMs = 0L)
+
+        assertNull(audio.lastContextUri, "NativeAudio.play must NOT be called when remoteSelected is true")
+        assertTrue("player.play" in host.commands, "Playback must route to the remote Connect player")
+    }
+
+    private class FakeAccountAudio(
+        override val on: Boolean = true,
+        override var holdsPlayback: Boolean = true,
+        override val deviceId: String? = "native-phone-1",
+    ) : AccountAudio {
+        var lastContextUri: String? = null
+        var transferToCalledWith: Pair<String, Boolean>? = null
+        var pullHereCalled: Boolean = false
+
+        override suspend fun play(contextUri: String, trackUri: String?, index: Int?, positionMs: Long?, order: List<String>?, shuffle: Boolean?) {
+            lastContextUri = contextUri
+        }
+        override suspend fun pause() {}
+        override suspend fun resume() {}
+        override suspend fun seek(positionMs: Long) {}
+        override suspend fun next() {}
+        override suspend fun previous() {}
+        override suspend fun transferTo(deviceId: String, play: Boolean): Boolean {
+            transferToCalledWith = deviceId to play
+            return true
+        }
+        override suspend fun pullHere(play: Boolean): Boolean {
+            pullHereCalled = true
+            return true
+        }
     }
 
     private fun findNodeBinary(): String? {

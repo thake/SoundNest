@@ -36,4 +36,6 @@ interface AccountAudio {
     suspend fun seek(positionMs: Long)
     suspend fun next()
     suspend fun previous()
+    suspend fun transferTo(deviceId: String, play: Boolean): Boolean = false
+    suspend fun pullHere(play: Boolean): Boolean = false
 }

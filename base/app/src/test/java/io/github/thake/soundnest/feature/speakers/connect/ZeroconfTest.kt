@@ -130,4 +130,13 @@ class ZeroconfTest {
         assertTrue(Zeroconf.inConnectList(i, emptySet(), setOf("Kitchen")))
         assertFalse(Zeroconf.inConnectList(i, setOf("zzz"), setOf("Bedroom")))
     }
+
+    @Test fun echoPayloadWithEmptyRemoteNameAndAliasesResolvesNameAndDeduplicates() {
+        val echoInfo = """{"status":101,"statusString":"OK","deviceID":"amzn_lan_123","remoteName":"","clientID":"client_echo",
+            "tokenType":"authorization_code","device_aliases":{"0":{"id":"alias1","name":"Emma's Echo Dot"}}}"""
+        val i = Zeroconf.parseInfo(echoInfo)!!
+        assertEquals("amzn_lan_123", i.deviceId)
+        assertEquals("Emma's Echo Dot", i.name)
+        assertTrue(Zeroconf.inConnectList(i, setOf("cloud_uuid_amzn_1"), setOf("Emma's Echo Dot")))
+    }
 }

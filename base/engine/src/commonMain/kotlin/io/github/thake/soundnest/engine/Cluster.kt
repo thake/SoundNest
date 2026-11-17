@@ -43,7 +43,8 @@ data class Cluster(
                 devices = devices.mapNotNull { (id, d) ->
                     (d as? JsonObject)?.let { obj ->
                         val type = obj.text("device_type").orEmpty()
-                        val aliases = extractAliases(obj)
+                        val structured = extractStructuredAliases(obj)
+                        val aliases = structured.map { it.name }.distinct()
                         val name = resolveLabel(obj, aliases, type)
                         ClusterDevice(
                             id = id,
@@ -51,6 +52,7 @@ data class Cluster(
                             type = type,
                             volume = obj.long("volume")?.let { v -> v / 65535.0 },
                             aliases = aliases,
+                            deviceAliases = structured,
                         )
                     }
                 },
@@ -64,7 +66,7 @@ data class Cluster(
             )
         }
 
-        private fun extractAliases(d: JsonObject): List<String> {
+        private fun extractStructuredAliases(d: JsonObject): List<DeviceAlias> {
             val raw: JsonElement = d["device_aliases"] ?: d["aliases"] ?: return emptyList()
             val items: Iterable<JsonElement> = when (raw) {
                 is JsonArray -> raw
@@ -73,13 +75,23 @@ data class Cluster(
             }
             return items.mapNotNull { entry ->
                 when (entry) {
-                    is JsonPrimitive -> entry.content.takeIf { entry.isString }?.trim()?.takeIf { it.isNotEmpty() }
-                    is JsonObject -> (entry.text("name") ?: entry.text("display_name") ?: entry.text("displayName"))
-                        ?.trim()?.takeIf { it.isNotEmpty() }
+                    is JsonPrimitive -> entry.content.takeIf { entry.isString }?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                        DeviceAlias(id = null, name = it, isGroup = false)
+                    }
+                    is JsonObject -> {
+                        val name = (entry.text("name") ?: entry.text("display_name") ?: entry.text("displayName"))
+                            ?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                        val id = (entry.text("id") ?: entry.text("alias_id") ?: entry.text("aliasId"))?.trim()?.takeIf { it.isNotEmpty() }
+                        val isGroup = entry.bool("is_group") ?: entry.bool("isGroup") ?: false
+                        DeviceAlias(id = id, name = name, isGroup = isGroup)
+                    }
                     else -> null
                 }
             }.distinct()
         }
+
+        private fun extractAliases(d: JsonObject): List<String> =
+            extractStructuredAliases(d).map { it.name }.distinct()
 
         private fun resolveLabel(d: JsonObject, aliases: List<String>, type: String): String {
             d.text("name")?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
@@ -116,6 +128,15 @@ data class Cluster(
 }
 
 /**
+ * Structured alias metadata (e.g. Amazon Alexa speaker or Multi-Room Music group).
+ */
+data class DeviceAlias(
+    val id: String?,
+    val name: String,
+    val isGroup: Boolean = false,
+)
+
+/**
  * One device of [Cluster]: its id, the name it shows, its kind as connect-state names it (COMPUTER,
  * SMARTPHONE, SPEAKER, …), its volume (0..1, connect-state's 0..65535) when it gives one, and any
  * user-configured aliases (e.g. Amazon Alexa room/speaker aliases).
@@ -126,4 +147,5 @@ data class ClusterDevice(
     val type: String,
     val volume: Double? = null,
     val aliases: List<String> = emptyList(),
+    val deviceAliases: List<DeviceAlias> = emptyList(),
 )

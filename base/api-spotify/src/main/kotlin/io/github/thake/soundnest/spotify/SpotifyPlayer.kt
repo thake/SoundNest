@@ -278,6 +278,9 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
      * Declared before [init], which starts the watcher (a later initializer left it null there). */
     private val watchWake = kotlinx.coroutines.channels.Channel<Unit>(kotlinx.coroutines.channels.Channel.CONFLATED)
 
+    /** Whether a remote Connect device (such as an Amazon Echo speaker) is currently chosen by the user. */
+    @Volatile var remoteSelected: () -> Boolean = { false }
+
     init {
         scope.launch {
             bridge.events.collect { (type, payload) ->
@@ -639,7 +642,7 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
      * still while the state is that device's. Judged on the element too, as the active flag is read
      * every few seconds and lags a transfer to this phone (whose element then moves).
      */
-    internal val remoteActive: Boolean get() = lastMedia?.let { it.active == false && it.paused } == true &&
+    internal val remoteActive: Boolean get() = (remoteSelected() || lastMedia?.let { it.active == false && it.paused } == true) &&
         // The native engine is the device that plays: the page sees it as another one, it is this phone.
         audio?.takeIf { it.on && !mirroring }?.holdsPlayback != true
 
@@ -1704,8 +1707,8 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
     /** The native engine plays the account's songs now (not the page's element). */
     private fun engineHolds(): Boolean = outside()?.holdsPlayback == true
 
-    /** [audio] when it is enabled on this phone (and the page is not the unheard mirror). */
-    private fun outside(): AccountAudio? = audio?.takeIf { it.on && !mirroring }
+    /** [audio] when it is enabled on this phone (and the page is not the unheard mirror, and no remote speaker is selected). */
+    private fun outside(): AccountAudio? = audio?.takeIf { it.on && !mirroring && !remoteSelected() && !remoteActive }
 
     /** [audio] only while a song is actually loaded on it (not when a remote Connect/Alexa speaker holds playback). */
     private fun activeOutside(): AccountAudio? = outside()?.takeIf { it.holdsPlayback }

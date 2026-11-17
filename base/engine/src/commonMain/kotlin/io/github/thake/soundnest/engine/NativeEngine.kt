@@ -274,13 +274,33 @@ class NativeEngine(
 
     /** Takes the account's playback onto this device (what a page load with a paused session did). */
     suspend fun transfer(restorePaused: String = "pause") {
+        transferTo(deviceId, restorePaused)
+    }
+
+    /** Transfers the account's playback from this device to [targetDeviceId]. Returns the HTTP response status. */
+    suspend fun transferTo(targetDeviceId: String, restorePaused: String = "restore"): Int {
         val id = env.randomHex(32)
         val t0 = env.nowMs()
         val r = sp.send(
-            "POST", "$spclient/connect-state/v1/connect/transfer/from/$deviceId/to/$deviceId", HeaderProfile.PLAYER,
+            "POST", "$spclient/connect-state/v1/connect/transfer/from/$deviceId/to/$targetDeviceId", HeaderProfile.PLAYER,
             body = Bodies.transfer(restorePaused, id).toString().encodeToByteArray(), contentType = "application/json",
         )
         lock.withLock { pendingCommands.addLast(SentCommand("transfer", id, t0, env.nowMs() - t0, r.status)) }
+        return r.status
+    }
+
+    /** Stops local playback and clears state when playback moves to another Connect device. */
+    suspend fun yieldLocalPlayback() {
+        lock.withLock {
+            current?.let {
+                runCatching { finalize(it, "remote", null) }
+                player.stop()
+            }
+            current = null
+            machine = null
+            _playsElsewhere.value = true
+            publishNow(null, 0, false)
+        }
     }
 
     private suspend fun command(endpoint: String, fields: JsonObject = JsonObject(emptyMap())) {
