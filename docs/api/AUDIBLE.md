@@ -1,4 +1,4 @@
-# Audible Integration (`:api-audible` & `io.github.thake.soundnest.audible`)
+# Audible Integration (`:api-audible` & `io.github.thake.soundnest.feature.spokenword.audible`)
 
 SoundNest supports **Audible** as an optional second audiobook source alongside Spotify, allowing a parent to connect their own Audible account and cherry-pick individual owned audiobooks for their child without exposing the rest of the parent's Audible library, Audible Store, or Audible Plus catalog.
 
@@ -18,7 +18,7 @@ SoundNest enforces strict boundaries across authentication, catalog access, DRM 
    - Secrets are never included in `soundnest-policy.json` backups or diagnostic log exports.
 4. **Fail-Closed Parental Gating & Zero Store/Plus Discovery**
    - SoundNest calls only `GET /1.0/library` (owned library sync) and `POST /1.0/content/{asin}/licenserequest` (streaming license + Widevine challenge exchange). Store search, Plus catalog browsing, wishlists, and 1-Click purchasing endpoints are completely absent.
-   - Every Audible book is **blocked by default** in **both** `FILTERED_OPEN` and `STRICT_ALLOWLIST` modes until a parent enables `allowAudiobooks` and explicitly approves its ASIN in `ParentalPolicy.allowedAudibleAsins`.
+   - Every Audible book is **blocked by default** in **both** `FILTERED_OPEN` and `STRICT_ALLOWLIST` modes until a parent enables `spokenWord.allowAudiobooks` and explicitly approves its ASIN in `ParentalPolicy.spokenWord.audible.allowedAsins`.
 5. **Local-Only Playback Progress**
    - Listening positions and finished-chapter marks are saved strictly on-device in `AudibleProgressStore` (`filesDir/audible/progress.json`). SoundNest never writes positions back to Amazon WhisperSync, keeping the parent's own bookmarks untouched.
 
@@ -30,9 +30,9 @@ SoundNest enforces strict boundaries across authentication, catalog access, DRM 
 | :--- | :--- | :--- |
 | **Pure-JVM Protocol Client** | `:api-audible` (`base/api-audible`) | Marketplace registry, OAuth 2.0 + PKCE (`S256`) URL builder, virtual device registration/refresh/deregistration, `SHA256withRSA:1.0` ADP request signing, `GET /1.0/library` parser, and Widevine `licenserequest` manifest/license exchange. |
 | **Canonical URIs** | `:api` (`MediaKind`) & `:app` (`AudibleUris`) | Recognizes `audible:<asin>`, `audible:book:<asin>`, and `audible:chapter:<asin>:<index>` across `MediaKind.of`, `SongPlayer`, `Api`, and `ParentalFilterEngine`. |
-| **On-Device Stores** | `io.github.thake.soundnest.audible` | `AudibleCredentialStore` (Keystore AES-GCM), `AudibleCatalogCache` (synced library metadata + cached chapter tables), `AudibleProgressStore` (per-ASIN local resume & finished chapters). |
-| **Native Widevine Player** | `AudiblePlayer`, `AudibleMediaDrmCallback`, `AudibleChapterProjector` | Media3 `ExoPlayer` (`DashMediaSource` / `HlsMediaSource` + `DefaultDrmSessionManager`), single-stream-to-chapter projection, mutual exclusion with Spotify `SongPlayer` and `LocalPlayer`, and instant policy-revocation stop. |
-| **Parent & Kid UI** | `AudibleLoginDialog`, `AudiblePickerSheet`, `AudibleShowPageLoader` | Marketplace auto-default + manual override sign-in flow, Parent Picker sheet with independent **Approve** and **Pin to Home** controls, and Classic + Immersive Library, Home, Search, ShowScreen, and PodcastPlayer integration. |
+| **On-Device Stores** | `io.github.thake.soundnest.feature.spokenword.audible.data` | `AudibleCredentialStore` (Keystore AES-GCM), `AudibleCatalogCache` (synced library metadata + cached chapter tables), `AudibleProgressStore` (per-ASIN local resume & finished chapters). |
+| **Native Widevine Player** | `io.github.thake.soundnest.feature.spokenword.audible.playback` | `AudiblePlayer`, `AudibleMediaDrmCallback`, `AudibleChapterProjector`: Media3 `ExoPlayer` (`DashMediaSource` / `HlsMediaSource` + `DefaultDrmSessionManager`), single-stream-to-chapter projection, mutual exclusion with Spotify `SongPlayer` and `LocalPlayer`, and instant policy-revocation stop. |
+| **Parent & Kid UI** | `io.github.thake.soundnest.feature.spokenword.audible.{settings,ui}` | `AudibleParentSettingsUi`, `AudibleLoginDialog`, `AudiblePickerSheet`, `AudibleShowPageLoader`: Marketplace auto-default + manual override sign-in flow, Parent Picker sheet with independent **Approve** and **Pin to Home** controls, and Classic + Immersive Library, Home, Search, ShowScreen, and PodcastPlayer integration. |
 
 ---
 
@@ -94,6 +94,6 @@ Headers attached to signed requests:
 3. **Single-Stream Chapter Projection**: Because Audible delivers an audiobook as a continuous MPEG-DASH / HLS timeline with byte/millisecond chapter markers, `AudibleChapterProjector` maps continuous player positions onto `audible:chapter:<asin>:<chapterIndex>` rows so `SongPlayer`, `PodcastPlayerScreen`, `ImmersivePodcastPlayer`, `ShowScreen`, `ImmersiveShowScreen`, and Sleep Timer ("End of chapter") operate seamlessly per chapter.
 
 ### 5.3 Separate Library Approval vs. Home Pinning
-- `ParentalPolicy.allowedAudibleAsins: Set<String>` — books approved in the **Parent Picker** (`AudiblePickerSheet`). Surfaces approved books under Library (`Audiobooks` chip), local Search, and `ShowScreen` / `ImmersiveShowScreen`.
-- `ParentalPolicy.pinnedAudibleAsins: Set<String>` — strict subset of `allowedAudibleAsins` (revoking approval automatically unpins the book).
-- `HomeSectionConfig.showPinnedAudibleOnHome: Boolean` (default `true`) — dedicated shelf toggle controlling whether books in `pinnedAudibleAsins` appear in the **Parent Picks** shelf on Home.
+- `ParentalPolicy.spokenWord.audible.allowedAsins: Set<String>` — books approved in the **Parent Picker** (`AudiblePickerSheet`). Surfaces approved books under Library (`Audiobooks` chip), local Search, and `ShowScreen` / `ImmersiveShowScreen`.
+- `ParentalPolicy.spokenWord.audible.pinnedAsins: Set<String>` — strict subset of `allowedAsins` (revoking approval automatically unpins the book).
+- `ParentalPolicy.home.showPinnedAudibleOnHome: Boolean` (default `true`) — dedicated shelf toggle controlling whether books in `pinnedAsins` appear in the **Parent Picks** shelf on Home.

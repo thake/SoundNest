@@ -30,15 +30,13 @@
 
 -dontwarn java.lang.instrument.**
 
--keep class * extends androidx.room.RoomDatabase {
-    <init>();
-}
 -keep class androidx.work.** {
     <init>(...);
 }
 
 # SoundNest UI & Spotify data layer
--keep class io.github.thake.soundnest.data.entity.** { *; }
+-keep class io.github.thake.soundnest.core.model.** { *; }
+-keep class io.github.thake.soundnest.feature.lyrics.data.** { *; }
 -keepclassmembers @kotlinx.serialization.Serializable class ** { *; }
 -dontwarn org.slf4j.**
 -dontwarn org.conscrypt.**

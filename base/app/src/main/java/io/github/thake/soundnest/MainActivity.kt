@@ -37,15 +37,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
-import io.github.thake.soundnest.R
 import io.github.thake.soundnest.host.android.LoginLoad
 import io.github.thake.soundnest.host.android.Logbook
 import io.github.thake.soundnest.host.android.SoundNestRuntime
 import io.github.thake.soundnest.host.android.SessionWait
-import io.github.thake.soundnest.App
-import io.github.thake.soundnest.di.AutoBrowser
-import io.github.thake.soundnest.ui.screens.WelcomeScreen
-import io.github.thake.soundnest.ui.theme.SpotuiTheme
+import io.github.thake.soundnest.feature.accounts.session.SessionCheck
+import io.github.thake.soundnest.feature.accounts.session.sessionCheck
+import io.github.thake.soundnest.feature.accounts.settings.OnboardingSettings
+import io.github.thake.soundnest.feature.androidauto.AutoBrowser
+import io.github.thake.soundnest.feature.system.settings.SystemSettings
+import io.github.thake.soundnest.feature.accounts.ui.WelcomeScreen
+import io.github.thake.soundnest.core.ui.classic.SpotuiTheme
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -59,21 +61,6 @@ private const val SESSION_WAIT_MS = 6_000L
 
 /** The most a returning page may take to get its bridge ready before the wait gives up anyway. */
 private const val SESSION_LOAD_MAX_MS = 60_000L
-
-/** What one token check says of the session. */
-internal enum class SessionCheck { SIGNED_IN, SIGNED_OUT, UNKNOWN }
-
-/**
- * Reads one [SoundNestRuntime.isSignedIn] answer. Only an answer signs out: an anonymous token, or a
- * Spotify sign-in page open. A check that failed (a bridge error, a token.get left waiting its 20 s,
- * a page offline) says nothing of the session. Taken for "anonymous", it signed the user out with
- * no network and sent them to a sign-in page that could not load either: the reported relogin loop.
- */
-internal fun sessionCheck(answer: Result<Boolean>): SessionCheck = answer.fold(
-    onSuccess = { if (it) SessionCheck.SIGNED_IN else SessionCheck.SIGNED_OUT },
-    // The activity going away is not a failed check: the collect must end there.
-    onFailure = { if (it is kotlinx.coroutines.CancellationException) throw it else SessionCheck.UNKNOWN },
-)
 
 /**
  * The app's only screen host: the Compose UI, with the Web Player page attached behind it.
@@ -94,11 +81,9 @@ class MainActivity : AppCompatActivity() {
     /** Debug builds: `am start ... --ez showLook true` opens the look step alone, signed in or not. */
     private var showLook by mutableStateOf(false)
 
-    private val prefs get() = getSharedPreferences("myspoti_prefs", Context.MODE_PRIVATE)
-
     /** Every finger down on the window: the lyrics keep the screen on for a while after the last one. */
     override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
-        if (ev.actionMasked == android.view.MotionEvent.ACTION_DOWN) io.github.thake.soundnest.ui.components.UserTouch.touched()
+        if (ev.actionMasked == android.view.MotionEvent.ACTION_DOWN) io.github.thake.soundnest.core.ui.look.UserTouch.touched()
         return super.dispatchTouchEvent(ev)
     }
 
@@ -106,40 +91,40 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
         requestedOrientation = orientationFor(resources.configuration)
-        signedIn = prefs.getBoolean("LoggedIn", false)
-        setupNeeded = io.github.thake.soundnest.ui.screens.Setup.needed(this)
+        signedIn = OnboardingSettings.isLoggedIn(this)
+        setupNeeded = io.github.thake.soundnest.feature.accounts.ui.Setup.needed(this)
         root = FrameLayout(this)
         val compose = ComposeView(this).apply {
             setContent {
-                SpotuiTheme { io.github.thake.soundnest.ui.look.ProvideLook { io.github.thake.soundnest.ui.components.ProvideWindowSize {
-                    val orientation = io.github.thake.soundnest.data.preferences.OrientationPref.mode
+                SpotuiTheme { io.github.thake.soundnest.core.ui.look.ProvideLook { io.github.thake.soundnest.core.ui.look.ProvideWindowSize {
+                    val orientation = io.github.thake.soundnest.feature.appearance.settings.OrientationPref.mode
                     val config = androidx.compose.ui.platform.LocalConfiguration.current
                     androidx.compose.runtime.LaunchedEffect(orientation, config.smallestScreenWidthDp, config.screenLayout) {
                         requestedOrientation = orientationFor(config)
                     }
                     androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) {
-                        val securityTick by io.github.thake.soundnest.parental.ParentSecurityManager.sessionTick.collectAsState()
+                        val securityTick by io.github.thake.soundnest.feature.parental.security.ParentSecurityManager.sessionTick.collectAsState()
                         val pinConfigured = androidx.compose.runtime.remember(securityTick) {
-                            io.github.thake.soundnest.parental.ParentSecurityManager.isPinConfigured(this@MainActivity)
+                            io.github.thake.soundnest.feature.parental.security.ParentSecurityManager.isPinConfigured(this@MainActivity)
                         }
-                        val entry = io.github.thake.soundnest.ui.screens.Onboarding.entry(
+                        val entry = io.github.thake.soundnest.feature.accounts.ui.Onboarding.entry(
                             signedIn, setupNeeded, connecting, pinConfigured,
                         )
                         when {
-                            showLook -> io.github.thake.soundnest.ui.look.LookStep(onNext = {
-                                io.github.thake.soundnest.data.preferences.LookPref.setChosen(this@MainActivity); showLook = false
-                                setupNeeded = io.github.thake.soundnest.ui.screens.Setup.needed(this@MainActivity)
+                            showLook -> io.github.thake.soundnest.feature.appearance.ui.LookStep(onNext = {
+                                io.github.thake.soundnest.feature.appearance.settings.LookPref.setChosen(this@MainActivity); showLook = false
+                                setupNeeded = io.github.thake.soundnest.feature.accounts.ui.Setup.needed(this@MainActivity)
                             })
-                            entry == io.github.thake.soundnest.ui.screens.Entry.PARENT_SETUP ->
-                                io.github.thake.soundnest.parental.ParentPinSetupScreen(
-                                    onPinConfigured = { setupNeeded = io.github.thake.soundnest.ui.screens.Setup.needed(this@MainActivity) },
-                                    onSwitchOrLogout = { io.github.thake.soundnest.di.SessionActions.logout(this@MainActivity) },
+                            entry == io.github.thake.soundnest.feature.accounts.ui.Entry.PARENT_SETUP ->
+                                io.github.thake.soundnest.feature.parental.ui.ParentPinSetupScreen(
+                                    onPinConfigured = { setupNeeded = io.github.thake.soundnest.feature.accounts.ui.Setup.needed(this@MainActivity) },
+                                    onSwitchOrLogout = { io.github.thake.soundnest.feature.accounts.session.SessionActions.logout(this@MainActivity) },
                                 )
-                            entry == io.github.thake.soundnest.ui.screens.Entry.SETUP -> io.github.thake.soundnest.ui.screens.SetupScreen(
+                            entry == io.github.thake.soundnest.feature.accounts.ui.Entry.SETUP -> io.github.thake.soundnest.feature.accounts.ui.SetupScreen(
                                 onDone = { setupNeeded = false },
                             )
-                            entry == io.github.thake.soundnest.ui.screens.Entry.APP -> App()
-                            entry == io.github.thake.soundnest.ui.screens.Entry.CONNECTING -> ConnectingScreen(
+                            entry == io.github.thake.soundnest.feature.accounts.ui.Entry.APP -> App()
+                            entry == io.github.thake.soundnest.feature.accounts.ui.Entry.CONNECTING -> ConnectingScreen(
                                 onCancel = {
                                     loginWait?.cancel()
                                     connecting = false
@@ -162,28 +147,28 @@ class MainActivity : AppCompatActivity() {
                                         hideLogin()
                                     },
                                 )
-                                else -> io.github.thake.soundnest.ui.components.LoginHelpButton()
+                                else -> io.github.thake.soundnest.feature.accounts.ui.LoginHelpButton()
                             }
                         }
-                        if (io.github.thake.soundnest.ui.screens.Onboarding.lookOfferShown(
-                                entry, showLook, showingLogin, io.github.thake.soundnest.data.preferences.LookPref.offered)) {
-                            if (io.github.thake.soundnest.data.preferences.LookPref.look == io.github.thake.soundnest.data.preferences.Look.IMMERSIVE) {
+                        if (io.github.thake.soundnest.feature.accounts.ui.Onboarding.lookOfferShown(
+                                entry, showLook, showingLogin, io.github.thake.soundnest.feature.appearance.settings.LookPref.offered)) {
+                            if (io.github.thake.soundnest.feature.appearance.settings.LookPref.look == io.github.thake.soundnest.feature.appearance.settings.Look.IMMERSIVE) {
                                 androidx.compose.runtime.LaunchedEffect(Unit) {
-                                    io.github.thake.soundnest.data.preferences.LookPref.setOffered(this@MainActivity)
+                                    io.github.thake.soundnest.feature.appearance.settings.LookPref.setOffered(this@MainActivity)
                                 }
                             } else {
-                                val close = { look: io.github.thake.soundnest.data.preferences.Look ->
-                                    io.github.thake.soundnest.data.preferences.LookPref.set(this@MainActivity, look)
-                                    io.github.thake.soundnest.data.preferences.LookPref.setOffered(this@MainActivity)
+                                val close = { look: io.github.thake.soundnest.feature.appearance.settings.Look ->
+                                    io.github.thake.soundnest.feature.appearance.settings.LookPref.set(this@MainActivity, look)
+                                    io.github.thake.soundnest.feature.appearance.settings.LookPref.setOffered(this@MainActivity)
                                 }
-                                val keep = { close(io.github.thake.soundnest.data.preferences.Look.CLASSIC) }
+                                val keep = { close(io.github.thake.soundnest.feature.appearance.settings.Look.CLASSIC) }
                                 androidx.compose.ui.window.Dialog(
                                     onDismissRequest = keep,
                                     properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
                                 ) {
-                                    io.github.thake.soundnest.ui.look.LookStep(
-                                        onNext = { close(io.github.thake.soundnest.data.preferences.LookPref.look.takeIf { it == io.github.thake.soundnest.data.preferences.Look.IMMERSIVE } ?: io.github.thake.soundnest.data.preferences.Look.IMMERSIVE) },
-                                        offer = io.github.thake.soundnest.ui.look.LookOffer(onKeep = keep),
+                                    io.github.thake.soundnest.feature.appearance.ui.LookStep(
+                                        onNext = { close(io.github.thake.soundnest.feature.appearance.settings.LookPref.look.takeIf { it == io.github.thake.soundnest.feature.appearance.settings.Look.IMMERSIVE } ?: io.github.thake.soundnest.feature.appearance.settings.Look.IMMERSIVE) },
+                                        offer = io.github.thake.soundnest.feature.appearance.ui.LookOffer(onKeep = keep),
                                     )
                                 }
                             }
@@ -194,7 +179,7 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(compose, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         setContentView(root)
-        io.github.thake.soundnest.di.Haptics.attach(compose)
+        io.github.thake.soundnest.core.util.Haptics.attach(compose)
         val debuggable = applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
         SoundNestRuntime.host.attach(root, visible = debuggable && intent.getBooleanExtra("showPlayer", false))
         if (!signedIn && SoundNestRuntime.loginRequired.value) {
@@ -203,7 +188,7 @@ class MainActivity : AppCompatActivity() {
         }
         showLook = debuggable && intent.getBooleanExtra("showLook", false)
         if (debuggable && intent.getBooleanExtra("resetLookOffer", false)) {
-            io.github.thake.soundnest.data.preferences.LookPref.clearOffered(this)
+            io.github.thake.soundnest.feature.appearance.settings.LookPref.clearOffered(this)
         }
         watchSession()
         watchLoginReturn()
@@ -211,7 +196,7 @@ class MainActivity : AppCompatActivity() {
         watchSwitch()
         val backToAccount = object : androidx.activity.OnBackPressedCallback(false) {
             override fun handleOnBackPressed() {
-                if (!io.github.thake.soundnest.di.SessionActions.backToPreviousAccount(this@MainActivity)) return
+                if (!io.github.thake.soundnest.feature.accounts.session.SessionActions.backToPreviousAccount(this@MainActivity)) return
                 SoundNestRuntime.host.accounts.list.value.current?.name?.let {
                     android.widget.Toast.makeText(this@MainActivity, getString(R.string.accounts_back_to, it), android.widget.Toast.LENGTH_SHORT).show()
                 }
@@ -229,7 +214,7 @@ class MainActivity : AppCompatActivity() {
     private fun orientationFor(config: android.content.res.Configuration): Int {
         val large = config.smallestScreenWidthDp >= 600 || isInMultiWindowMode || isDesktopMode(config)
         return if (large) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-            else io.github.thake.soundnest.data.preferences.OrientationPref.requested()
+            else io.github.thake.soundnest.feature.appearance.settings.OrientationPref.requested()
     }
 
     private fun isDesktopMode(config: android.content.res.Configuration): Boolean {
@@ -253,8 +238,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleShortcut(keyCode: Int, event: android.view.KeyEvent): Boolean {
-        val player = io.github.thake.soundnest.di.SongPlayer
-        if (io.github.thake.soundnest.di.Graph.currentSongState.title.value.isBlank()) return false
+        val player = io.github.thake.soundnest.core.playback.SongPlayer
+        if (io.github.thake.soundnest.core.di.Graph.currentSongState.title.value.isBlank()) return false
         when (keyCode) {
             android.view.KeyEvent.KEYCODE_SPACE, android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                 if (event.repeatCount == 0) { if (player.isPlaying()) player.pause(by = "keyboard") else player.play(by = "keyboard") }
@@ -278,9 +263,9 @@ class MainActivity : AppCompatActivity() {
     override fun onStart() {
         if (io.github.thake.soundnest.BuildConfig.DEBUG) io.github.thake.soundnest.host.android.MainThreadWatch.start()
         super.onStart()
-        io.github.thake.soundnest.di.AppForeground.onForeground()
-        io.github.thake.soundnest.di.SongPlayer.refreshLikedIfStale()
-        if (prefs.getBoolean("keep_screen_on", false)) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        io.github.thake.soundnest.core.util.AppForeground.onForeground()
+        io.github.thake.soundnest.core.playback.SongPlayer.refreshLikedIfStale()
+        if (SystemSettings.isKeepScreenOn(this)) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
@@ -289,7 +274,7 @@ class MainActivity : AppCompatActivity() {
         SoundNestRuntime.host.flushCookies()
         io.github.thake.soundnest.host.android.MainThreadWatch.stop()
         if (!isChangingConfigurations) {
-            io.github.thake.soundnest.di.AppForeground.onBackground()
+            io.github.thake.soundnest.core.util.AppForeground.onBackground()
         }
     }
 
@@ -322,11 +307,11 @@ class MainActivity : AppCompatActivity() {
         // Another door already started the screens over: this activity is on its way out.
         if (isFinishing) return
         loginProblem = false
-        if (io.github.thake.soundnest.di.SessionActions.signedOut.value || io.github.thake.soundnest.di.SessionActions.switching.value) {
+        if (io.github.thake.soundnest.feature.accounts.session.SessionActions.signedOut.value || io.github.thake.soundnest.feature.accounts.session.SessionActions.switching.value) {
             // Signed in again after a logout or an account switch, maybe as someone else: start the
             // screens over (a new activity also drops their view models).
-            io.github.thake.soundnest.di.SessionActions.signedIn()
-            prefs.edit().putBoolean("LoggedIn", true).apply()
+            io.github.thake.soundnest.feature.accounts.session.SessionActions.signedIn()
+            OnboardingSettings.setLoggedIn(this, true)
             SoundNestRuntime.host.flushCookies()
             SoundNestRuntime.host.attach(root, visible = false)
             startActivity(Intent(this, MainActivity::class.java)
@@ -336,14 +321,14 @@ class MainActivity : AppCompatActivity() {
         }
         // Whose session this is, read now when not known (a session lost before may have been
         // another account's): the likes kept for later and the downloads go by it.
-        io.github.thake.soundnest.data.api.ProfileCache.ensure(applicationContext)
+        io.github.thake.soundnest.feature.accounts.session.ProfileCache.ensure(applicationContext)
         // The player reports ready on every page load: only a change is a session being established.
         if (!signedIn || showingLogin || connecting) {
             Logbook.log("session established: player shown")
             SoundNestRuntime.host.flushCookies()
         }
         if (!signedIn) {
-            prefs.edit().putBoolean("LoggedIn", true).apply()
+            OnboardingSettings.setLoggedIn(this, true)
             signedIn = true
         }
         connecting = false
@@ -356,7 +341,7 @@ class MainActivity : AppCompatActivity() {
     /** Logout: leave the app's screens for Spotify's login page. */
     private fun watchLogout() {
         lifecycleScope.launch {
-            io.github.thake.soundnest.di.SessionActions.signedOut.collect { out ->
+            io.github.thake.soundnest.feature.accounts.session.SessionActions.signedOut.collect { out ->
                 if (out && signedIn) {
                     signedIn = false
                     showingLogin = true
@@ -374,7 +359,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun watchSwitch() {
         lifecycleScope.launch {
-            io.github.thake.soundnest.di.SessionActions.switching.collect { on ->
+            io.github.thake.soundnest.feature.accounts.session.SessionActions.switching.collect { on ->
                 if (!on) return@collect
                 signedIn = false
                 showingLogin = false
@@ -510,7 +495,7 @@ class MainActivity : AppCompatActivity() {
             combine(api.ready, SoundNestRuntime.loginRequired) { ready, login -> ready to login }.collect { (ready, login) ->
                 when {
                     login && !showingLogin && signedIn -> {
-                        io.github.thake.soundnest.di.SessionActions.sessionLost()
+                        io.github.thake.soundnest.feature.accounts.session.SessionActions.sessionLost()
                         showLogin()
                     }
                     ready && !login -> {
@@ -520,10 +505,10 @@ class MainActivity : AppCompatActivity() {
                             SessionCheck.UNKNOWN -> Logbook.log("session check failed (${answer.exceptionOrNull()?.message}): session kept")
                             SessionCheck.SIGNED_OUT -> if (signedIn) {
                                 Logbook.log("anonymous token while the app thought it was signed in: back to the sign-in page")
-                                prefs.edit().putBoolean("LoggedIn", false).apply()
+                                OnboardingSettings.setLoggedIn(this@MainActivity, false)
                                 signedIn = false
                                 connecting = false
-                                io.github.thake.soundnest.di.SessionActions.sessionLost()
+                                io.github.thake.soundnest.feature.accounts.session.SessionActions.sessionLost()
                                 showLogin()
                             }
                         }
@@ -538,7 +523,7 @@ class MainActivity : AppCompatActivity() {
         when (intent.action) {
             Intent.ACTION_VIEW -> {
                 val link = intent.data?.toString() ?: return
-                io.github.thake.soundnest.data.api.InviteLinks.handle(link)
+                io.github.thake.soundnest.core.catalog.InviteLinks.handle(link)
             }
             android.provider.MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH -> {
                 val query = intent.getStringExtra(android.app.SearchManager.QUERY).orEmpty()
@@ -552,7 +537,7 @@ class MainActivity : AppCompatActivity() {
 @androidx.compose.runtime.Composable
 internal fun ConnectingScreen(onCancel: (() -> Unit)? = null) {
     androidx.compose.foundation.layout.Box(
-        androidx.compose.ui.Modifier.fillMaxSize().background(io.github.thake.soundnest.ui.theme.AppBackground),
+        androidx.compose.ui.Modifier.fillMaxSize().background(io.github.thake.soundnest.core.ui.classic.AppBackground),
         contentAlignment = androidx.compose.ui.Alignment.Center,
     ) {
         Column(
@@ -560,11 +545,11 @@ internal fun ConnectingScreen(onCancel: (() -> Unit)? = null) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.padding(horizontal = 32.dp),
         ) {
-            androidx.compose.material3.CircularProgressIndicator(color = io.github.thake.soundnest.ui.theme.AppAccent)
+            androidx.compose.material3.CircularProgressIndicator(color = io.github.thake.soundnest.core.ui.classic.AppAccent)
             Text(
                 text = stringResource(R.string.connecting_spotify_status),
-                color = io.github.thake.soundnest.ui.theme.AppText,
-                fontFamily = io.github.thake.soundnest.ui.theme.AppSans,
+                color = io.github.thake.soundnest.core.ui.classic.AppText,
+                fontFamily = io.github.thake.soundnest.core.ui.classic.AppSans,
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp,
                 textAlign = TextAlign.Center,
@@ -572,8 +557,8 @@ internal fun ConnectingScreen(onCancel: (() -> Unit)? = null) {
             )
             Text(
                 text = stringResource(R.string.connecting_spotify_detail),
-                color = io.github.thake.soundnest.ui.theme.AppMuted,
-                fontFamily = io.github.thake.soundnest.ui.theme.AppSans,
+                color = io.github.thake.soundnest.core.ui.classic.AppMuted,
+                fontFamily = io.github.thake.soundnest.core.ui.classic.AppSans,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
                 textAlign = TextAlign.Center,
@@ -585,7 +570,7 @@ internal fun ConnectingScreen(onCancel: (() -> Unit)? = null) {
                 ) {
                     Text(
                         text = stringResource(R.string.connecting_cancel_sign_in),
-                        color = io.github.thake.soundnest.ui.theme.AppMuted,
+                        color = io.github.thake.soundnest.core.ui.classic.AppMuted,
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
@@ -594,7 +579,7 @@ internal fun ConnectingScreen(onCancel: (() -> Unit)? = null) {
         // Reported: a loading that never ends after the sign-in. Past a long wait, a way to a report.
         var long by androidx.compose.runtime.remember { mutableStateOf(false) }
         androidx.compose.runtime.LaunchedEffect(Unit) { kotlinx.coroutines.delay(12_000); long = true }
-        if (long) io.github.thake.soundnest.ui.components.LoginReportLink(
+        if (long) io.github.thake.soundnest.feature.accounts.ui.LoginReportLink(
             Modifier.align(Alignment.BottomCenter).systemBarsPadding().padding(bottom = 24.dp))
     }
 }
@@ -603,22 +588,22 @@ internal fun ConnectingScreen(onCancel: (() -> Unit)? = null) {
 @androidx.compose.runtime.Composable
 internal fun LoginProblemScreen(onRetry: () -> Unit) {
     Column(
-        Modifier.fillMaxSize().background(io.github.thake.soundnest.ui.theme.AppBackground).systemBarsPadding().padding(28.dp),
+        Modifier.fillMaxSize().background(io.github.thake.soundnest.core.ui.classic.AppBackground).systemBarsPadding().padding(28.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(stringResource(R.string.login_failed_title), color = io.github.thake.soundnest.ui.theme.AppText, fontFamily = io.github.thake.soundnest.ui.theme.AppSans,
+        Text(stringResource(R.string.login_failed_title), color = io.github.thake.soundnest.core.ui.classic.AppText, fontFamily = io.github.thake.soundnest.core.ui.classic.AppSans,
             fontWeight = FontWeight.Bold, fontSize = 20.sp, textAlign = TextAlign.Center)
-        Text(stringResource(R.string.login_failed_detail), color = io.github.thake.soundnest.ui.theme.AppText.copy(alpha = 0.6f), fontFamily = io.github.thake.soundnest.ui.theme.AppSans,
+        Text(stringResource(R.string.login_failed_detail), color = io.github.thake.soundnest.core.ui.classic.AppText.copy(alpha = 0.6f), fontFamily = io.github.thake.soundnest.core.ui.classic.AppSans,
             fontSize = 15.sp, lineHeight = 21.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 10.dp, bottom = 28.dp))
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(50))
-                .background(io.github.thake.soundnest.ui.theme.AppAccent).clickable(onClick = onRetry),
+                .background(io.github.thake.soundnest.core.ui.classic.AppAccent).clickable(onClick = onRetry),
         ) {
-            Text(stringResource(R.string.retry_button), color = Color.Black, fontFamily = io.github.thake.soundnest.ui.theme.AppSans,
+            Text(stringResource(R.string.retry_button), color = Color.Black, fontFamily = io.github.thake.soundnest.core.ui.classic.AppSans,
                 fontWeight = FontWeight.Bold, fontSize = 17.sp)
         }
-        io.github.thake.soundnest.ui.components.LoginReportLink(Modifier.padding(top = 12.dp))
+        io.github.thake.soundnest.feature.accounts.ui.LoginReportLink(Modifier.padding(top = 12.dp))
     }
 }

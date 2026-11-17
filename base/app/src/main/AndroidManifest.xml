@@ -37,7 +37,7 @@
         <meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="true" />
         <!-- Cover art for Android Auto (content:// only); Spotify image CDN hosts only. -->
         <provider
-            android:name="io.github.thake.soundnest.di.ArtworkProvider"
+            android:name="io.github.thake.soundnest.feature.androidauto.ArtworkProvider"
             android:authorities="${applicationId}.artwork"
             android:exported="true" />
         <!-- Share-as-image cards, handed to the target app through a read grant. -->
@@ -69,7 +69,7 @@
 
         <!-- Debug builds only (cliEnabled = false in non-debug builds). -->
         <receiver
-            android:name="io.github.thake.soundnest.cli.CliReceiver"
+            android:name="io.github.thake.soundnest.feature.cli.CliReceiver"
             android:enabled="${cliEnabled}"
             android:exported="true"
             android:permission="android.permission.DUMP">
@@ -128,13 +128,13 @@
 
         <!-- Spotify's account pages, in a browser that shares the app's sign-in. -->
         <activity
-            android:name="io.github.thake.soundnest.ui.screens.AccountBrowser"
+            android:name="io.github.thake.soundnest.feature.accounts.ui.AccountBrowser"
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:theme="@style/Theme.SoundNest" />
         <!-- Spotify's consent page for a Connect device (a Sonos), over the device picker. -->
         <activity
-            android:name="io.github.thake.soundnest.connect.DesktopConsentActivity"
+            android:name="io.github.thake.soundnest.feature.speakers.connect.DesktopConsentActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:windowSoftInputMode="adjustResize"
@@ -156,7 +156,7 @@
 
         <!-- Home screen widget: now playing with controls. -->
         <receiver
-            android:name="io.github.thake.soundnest.widget.NowPlayingWidget"
+            android:name="io.github.thake.soundnest.feature.widget.NowPlayingWidget"
             android:exported="false"
             android:label="${appLabel}">
             <intent-filter>

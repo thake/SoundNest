@@ -34,32 +34,35 @@ Classic UI components in `io.github.thake.soundnest` derive from Spotui / Metrol
 https://github.com/kushagrasinghx/BitChord (commit `edc1e6f`)
 
 By the BitChord contributors. The Immersive look is ported from it. These files in
-`base/app/src/main/java/io/github/thake/soundnest/ui/look/` are adapted from BitChord, stay under the
+`base/app/src/main/java/io/github/thake/soundnest/core/ui/look/` and
+`base/app/src/main/java/io/github/thake/soundnest/feature/lyrics/ui/` are adapted from BitChord, stay under the
 GPL-3.0-or-later, and say so in their header:
 
-- `MeshGradient.kt`, from `sharedUi/.../ui/player/MeshGradient.kt` (the mesh backdrop and `cyclingMeshPalette`)
-- `ThinSlider.kt`, from `sharedUi/.../ui/player/ThinSlider.kt` (the thin seek bar, without Automix)
-- `LyricClock.kt`, from `sharedUi/.../ui/player/LyricClock.kt` (the smoothed lyric playhead)
-- `SweptLyricLine.kt`, from `sharedUi/.../ui/player/PlayerLyrics.kt` (`SweptLyricLine`, its drawing
+- `core/ui/look/MeshGradient.kt`, from `sharedUi/.../ui/player/MeshGradient.kt` (the mesh backdrop and `cyclingMeshPalette`)
+- `core/ui/look/ThinSlider.kt`, from `sharedUi/.../ui/player/ThinSlider.kt` (the thin seek bar, without Automix)
+- `feature/lyrics/ui/LyricClock.kt`, from `sharedUi/.../ui/player/LyricClock.kt` (the smoothed lyric playhead)
+- `feature/lyrics/ui/SweptLyricLine.kt`, from `sharedUi/.../ui/player/PlayerLyrics.kt` (`SweptLyricLine`, its drawing
   helpers and constants) and `sharedUi/src/androidMain/.../ui/player/PlayerPlatformUi.android.kt`
-- `SweptLyricModel.kt`, from `shared/.../data/lyrics/LyricLine.kt` (word timing, lift and glow)
+- `feature/lyrics/ui/SweptLyricModel.kt`, from `shared/.../data/lyrics/LyricLine.kt` (word timing, lift and glow)
 
-The Immersive UI in `base/app/src/main/java/io/github/thake/soundnest/ui/immersive/` (player, lyrics, queue,
+The Immersive UI across `base/app/src/main/java/io/github/thake/soundnest/core/ui/immersive/`,
+`base/app/src/main/java/io/github/thake/soundnest/feature/*/ui/immersive/`, and
+`base/app/src/main/java/io/github/thake/soundnest/feature/*/*/ui/immersive/` (player, lyrics, queue,
 tab bar, top bars, sheets, motion, components, Home, Search, Library, Category, album/playlist, artist, and podcast pages) is
 adapted from BitChord files, each named in the header of the file that carries it.
 
-The local player's equalizer, `base/app/src/main/java/io/github/thake/soundnest/di/EqualizerProcessor.kt`, is
+The local player's equalizer, `base/app/src/main/java/io/github/thake/soundnest/feature/equalizer/dsp/EqualizerProcessor.kt`, is
 adapted from BitChord's `app/src/main/java/com/music/bitchord/playback/EqualizerProcessor.kt` (commit
 `b690dc1`) under the GPL-3.0-or-later.
 
 Code that BitChord itself carries from other projects, kept with its own header:
-- `shell/FloatingTabBar.kt`: compose-floating-tab-bar by Elyes Mansour
+- `core/ui/immersive/shell/FloatingTabBar.kt`: compose-floating-tab-bar by Elyes Mansour
   (https://github.com/elyesmansour/compose-floating-tab-bar), Apache-2.0, through Echo-Music
   (https://github.com/EchoMusicApp/Echo-Music), GPL-3.0.
-- `shell/GlassSelectionPill.kt`: the pill motion follows liquid_glass_easy
+- `core/ui/immersive/shell/GlassSelectionPill.kt`: the pill motion follows liquid_glass_easy
   (https://pub.dev/packages/liquid_glass_easy), MIT License, Copyright (c) 2025 Ahmed Gamil.
-- `components/ImmersiveOverscroll.kt`: from Convx (https://github.com/cosmictaserdev-creator/Convx), GPL-3.0.
-- `shell/ImmersiveGlass.kt` (Liquid Glass): adapted from BitChord's `app/.../ui/components/LiquidGlass.kt`,
+- `core/ui/immersive/components/ImmersiveOverscroll.kt`: from Convx (https://github.com/cosmictaserdev-creator/Convx), GPL-3.0.
+- `core/ui/immersive/shell/ImmersiveGlass.kt` (Liquid Glass): adapted from BitChord's `app/.../ui/components/LiquidGlass.kt`,
   itself adapted from Echo-Music's GlassEffectConfig / `Modifier.liquidGlass`
   (https://github.com/EchoMusicApp/Echo-Music), GPL-3.0.
 
@@ -67,7 +70,7 @@ Code that BitChord itself carries from other projects, kept with its own header:
 https://github.com/Kyant0/backdrop (v2.0.0, `io.github.kyant0:backdrop`), Copyright 2025 Kyant0.
 
 The refraction, blur, rim highlight and shadow of the Immersive look's Liquid Glass. Vendored as
-source in `base/app/src/main/java/io/github/thake/soundnest/ui/immersive/shell/backdrop/`, taken from
+source in `base/app/src/main/java/io/github/thake/soundnest/core/ui/immersive/shell/backdrop/`, taken from
 BitChord's vendored copy. Every file keeps its Apache-2.0 header. Licence text in
 `base/licenses/Apache-2.0.txt`.
 
@@ -92,5 +95,5 @@ Project Authors. Licence text in `base/licenses/Inter-OFL.txt`.
 https://chromium.googlesource.com/chromium/src/+/main/components/cast_channel/proto/cast_channel.proto
 
 Copyright The Chromium Authors. Casting to Google Cast devices
-(`base/app/src/main/java/io/github/thake/soundnest/cast/`) implements the CastMessage wire format defined by
+(`base/app/src/main/java/io/github/thake/soundnest/feature/speakers/cast/`) implements the CastMessage wire format defined by
 this file; no Chromium source code is included.

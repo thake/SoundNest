@@ -7,9 +7,9 @@ import android.content.Context
 import android.support.v4.media.MediaBrowserCompat
 import io.github.thake.soundnest.host.android.MediaLibrary
 import io.github.thake.soundnest.host.android.PlaybackService
-import io.github.thake.soundnest.di.AutoBrowser
-import io.github.thake.soundnest.di.Graph
-import io.github.thake.soundnest.di.SongPlayer
+import io.github.thake.soundnest.feature.androidauto.AutoBrowser
+import io.github.thake.soundnest.core.di.Graph
+import io.github.thake.soundnest.core.playback.SongPlayer
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
@@ -22,12 +22,12 @@ class SoundNestApplication : Application() {
         super.onCreate()
         // A crash or a freeze of the last run, back in this run's diagnostic report.
         io.github.thake.soundnest.host.android.LastExit.install(this)
-        io.github.thake.soundnest.power.EnergySettings.init(this)
+        io.github.thake.soundnest.feature.system.settings.EnergySettings.init(this)
         // Spotify session (hidden Web Player + API), caches, data saver.
         Graph.init(this)
         SongPlayer.attachEngine(Graph.currentSongState)
         // Headphones or Bluetooth gone: pause rather than play on the speaker.
-        io.github.thake.soundnest.di.NoisyAudio.register(this)
+        io.github.thake.soundnest.core.playback.NoisyAudio.register(this)
         runCatching { java.io.File(filesDir, "wrapped_queue.json").delete() }
         PlaybackService.library = object : MediaLibrary {
             override suspend fun children(context: Context, parentId: String): List<MediaBrowserCompat.MediaItem> =
@@ -36,7 +36,7 @@ class SoundNestApplication : Application() {
         }
         prefetch()
         // New releases of the artists followed, said in a notification (a setting).
-        io.github.thake.soundnest.data.NewReleaseNotifier.start(this)
+        io.github.thake.soundnest.feature.home.whatsnew.settings.NewReleaseNotifier.start(this)
         followAccount()
     }
 
@@ -48,7 +48,7 @@ class SoundNestApplication : Application() {
                 .map { it.active }.distinctUntilChanged().drop(1)
                 .collect {
                     io.github.thake.soundnest.host.android.Logbook.log("account: settings of the account now in use (quality)")
-                    io.github.thake.soundnest.data.preferences.applyStreamingQuality(ctx)
+                    io.github.thake.soundnest.feature.player.settings.applyStreamingQuality(ctx)
                 }
         }
     }
@@ -56,8 +56,8 @@ class SoundNestApplication : Application() {
     private fun prefetch() {
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO).launch {
             io.github.thake.soundnest.host.android.SoundNestRuntime.api.ready.first { it }
-            if (!getSharedPreferences("myspoti_prefs", MODE_PRIVATE).getBoolean("LoggedIn", false)) return@launch
-            val api = io.github.thake.soundnest.data.api.Api()
+            if (!io.github.thake.soundnest.feature.accounts.settings.OnboardingSettings.isLoggedIn(this@SoundNestApplication)) return@launch
+            val api = io.github.thake.soundnest.core.catalog.Api()
             launch { runCatching { api.getLibraryRoot().collect {} } }
             launch { runCatching { api.getLikedPage().collect {} } }
         }

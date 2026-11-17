@@ -32,7 +32,7 @@ android {
             all { testTask ->
                 testTask.systemProperty("roborazzi.test.record", "true")
                 if (generateDocScreenshotsRequested) {
-                    testTask.filter.includeTestsMatching("io.github.thake.soundnest.ui.DocScreenshotTest")
+                    testTask.filter.includeTestsMatching("io.github.thake.soundnest.core.ui.DocScreenshotTest")
                     testTask.systemProperty("soundnest.docScreenshots", "true")
                     testTask.systemProperty(
                         "soundnest.docScreenshotsDir",
@@ -40,7 +40,7 @@ android {
                     )
                     testTask.outputs.upToDateWhen { false }
                 } else {
-                    testTask.filter.excludeTestsMatching("io.github.thake.soundnest.ui.DocScreenshotTest")
+                    testTask.filter.excludeTestsMatching("io.github.thake.soundnest.core.ui.DocScreenshotTest")
                 }
             }
         }
