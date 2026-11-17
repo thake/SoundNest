@@ -201,6 +201,61 @@ object ParentBlockActions {
         }
     }
 
+    /**
+     * Builds the ordered list of blockable targets for a song or episode options sheet:
+     * - Episodes: `[Block Episode, Block Podcast Show]`
+     * - Music tracks: `[Block Song, Block Artist (<Name>)..., Block Album (<Title>)]`
+     */
+    fun targetsForSong(song: SongsModel): List<ParentBlockTarget> {
+        val out = ArrayList<ParentBlockTarget>(4)
+        if (song.isEpisode || song.showId.isNotBlank()) {
+            val epId = song.url.removePrefix("episode:").substringBefore('|').trim().ifBlank { song.spotifyTrackId }
+            val normEp = ParentalPolicyStore.normalizeSpotifyId(epId)
+            if (normEp.isNotEmpty()) {
+                out += ParentBlockTarget(
+                    kind = ParentRuleKind.EPISODE,
+                    id = normEp,
+                    title = song.title,
+                    subtitle = song.album.ifBlank { song.singer },
+                    coverUri = song.coverUri,
+                )
+            }
+            val normShow = ParentalPolicyStore.normalizeSpotifyId(song.showId.removePrefix(Api.SHOW_PREFIX))
+            if (normShow.isNotEmpty()) {
+                out += ParentBlockTarget(
+                    kind = ParentRuleKind.SHOW,
+                    id = normShow,
+                    title = song.album.ifBlank { song.singer },
+                    subtitle = song.singer,
+                    coverUri = song.coverUri,
+                )
+            }
+            return out
+        }
+        val normTrack = ParentalPolicyStore.normalizeSpotifyId(song.spotifyTrackId)
+        if (normTrack.isNotEmpty()) {
+            out += ParentBlockTarget(
+                kind = ParentRuleKind.TRACK,
+                id = normTrack,
+                title = song.title,
+                subtitle = song.singer,
+                coverUri = song.coverUri,
+            )
+        }
+        out += artistTargetsForSong(song)
+        val normAlbum = ParentalPolicyStore.normalizeSpotifyId(song.albumId)
+        if (normAlbum.isNotEmpty()) {
+            out += ParentBlockTarget(
+                kind = ParentRuleKind.ALBUM,
+                id = normAlbum,
+                title = song.album,
+                subtitle = song.singer,
+                coverUri = song.coverUri,
+            )
+        }
+        return out
+    }
+
     fun targetForHomeItem(item: HomeItem): ParentBlockTarget? = when (item) {
         is HomeItem.Playlist -> {
             val norm = ParentalPolicyStore.normalizeSpotifyId(item.id)

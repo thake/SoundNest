@@ -329,7 +329,7 @@ fun ParentSettingsScreen(
                     }
 
                     Text(
-                        text = "Tip: While Parent Mode is unlocked, open the ⋮ menu on any song, artist, or playlist to Allow or Block it in one tap.",
+                        text = "Tip: While Parent Mode is unlocked, you can also block any song, artist, playlist, album, or show directly from Home, Search, Library, or detail pages.",
                         color = AppMuted,
                         fontSize = 12.sp,
                     )

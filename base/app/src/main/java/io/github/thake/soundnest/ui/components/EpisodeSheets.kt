@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.Done
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.PlaylistAdd
@@ -132,19 +133,47 @@ fun EpisodeOptionsSheet(
                 onDismiss()
                 onOpen()
             }
+            val adminUnlocked = io.github.thake.soundnest.parental.rememberAdminUnlocked()
+            val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+            val parentTargets = androidx.compose.runtime.remember(song) {
+                io.github.thake.soundnest.parental.ParentBlockActions.targetsForSong(song)
+            }
+            if (!isAudible && adminUnlocked && parentTargets.isNotEmpty()) {
+                androidx.compose.material3.HorizontalDivider(
+                    color = tone(0xFF333333),
+                    thickness = 0.5.dp,
+                    modifier = Modifier.padding(vertical = 4.dp),
+                )
+                parentTargets.forEachIndexed { idx, target ->
+                    val blocked = io.github.thake.soundnest.parental.ParentBlockActions.isBlocked(target, policy)
+                    SheetAction(
+                        icon = if (blocked) Icons.Default.Check else androidx.compose.material.icons.Icons.Outlined.Block,
+                        label = io.github.thake.soundnest.parental.ParentBlockActions.actionLabel(
+                            target,
+                            blocked,
+                            includeTitle = idx > 0,
+                        ),
+                        tint = io.github.thake.soundnest.parental.ParentBlockRed,
+                    ) {
+                        io.github.thake.soundnest.parental.ParentBlockActions.toggleBlock(context, target)
+                        onDismiss()
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun SheetAction(icon: ImageVector, label: String, onClick: () -> Unit) {
+private fun SheetAction(icon: ImageVector, label: String, tint: Color? = null, onClick: () -> Unit) {
+    val fg = tint ?: AppText
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 14.dp),
     ) {
-        Icon(icon, contentDescription = null, tint = AppText.copy(alpha = 0.9f), modifier = Modifier.size(22.dp))
+        Icon(icon, contentDescription = null, tint = tint ?: AppText.copy(alpha = 0.9f), modifier = Modifier.size(22.dp))
         Spacer(Modifier.width(16.dp))
-        Text(label, color = AppText, fontSize = 15.sp)
+        Text(label, color = fg, fontSize = 15.sp, fontWeight = if (tint != null) FontWeight.SemiBold else FontWeight.Normal)
     }
 }
 

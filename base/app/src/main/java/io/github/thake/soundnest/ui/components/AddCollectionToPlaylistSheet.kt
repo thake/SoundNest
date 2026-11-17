@@ -202,27 +202,22 @@ fun AlbumOptionsSheet(albumUri: String, name: String, known: io.github.thake.sou
             if (albumUri.startsWith("spotify:album:")) OptionRow(Icons.Outlined.ContentCopy, stringResource(R.string.copy_link)) {
                 SpotifyCode.copyLink(linkContext, albumUri); onDismiss()
             }
-            if (albumUri.startsWith("spotify:album:") && io.github.thake.soundnest.parental.ParentSecurityManager.isAdminUnlocked(linkContext)) {
-                val policy = io.github.thake.soundnest.parental.ParentalPolicyStore.current(linkContext)
-                val normAlbum = io.github.thake.soundnest.parental.ParentalPolicyStore.normalizeSpotifyId(albumUri)
-                val allowed = normAlbum in policy.allowedAlbumIds
-                val blocked = normAlbum in policy.blockedAlbumIds
+            val adminUnlocked = io.github.thake.soundnest.parental.rememberAdminUnlocked()
+            val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+            if (albumUri.startsWith("spotify:album:") && adminUnlocked) {
+                val target = io.github.thake.soundnest.parental.ParentBlockTarget(
+                    kind = io.github.thake.soundnest.parental.ParentRuleKind.ALBUM,
+                    id = albumUri,
+                    title = name,
+                    subtitle = known?.ownerName.orEmpty(),
+                    coverUri = known?.coverUri.orEmpty(),
+                )
+                val blocked = io.github.thake.soundnest.parental.ParentBlockActions.isBlocked(target, policy)
                 OptionRow(
-                    Icons.Outlined.CheckCircle,
-                    if (allowed) "Parent: Remove Album from Allowlist" else "Parent: Allow Album (Parent Picks)",
+                    if (blocked) Icons.Outlined.CheckCircle else Icons.Outlined.Block,
+                    io.github.thake.soundnest.parental.ParentBlockActions.actionLabel(target, blocked),
                 ) {
-                    if (allowed) io.github.thake.soundnest.parental.ParentalPolicyStore.clearAlbumRule(linkContext, normAlbum)
-                    else io.github.thake.soundnest.parental.ParentalPolicyStore.allowAlbum(linkContext, normAlbum, title = name, subtitle = known?.ownerName)
-                    Toast.makeText(linkContext, if (allowed) "Removed album from allowlist" else "Album added to allowlist", Toast.LENGTH_SHORT).show()
-                    onDismiss()
-                }
-                OptionRow(
-                    Icons.Outlined.Block,
-                    if (blocked) "Parent: Unblock Album" else "Parent: Block Album",
-                ) {
-                    if (blocked) io.github.thake.soundnest.parental.ParentalPolicyStore.clearAlbumRule(linkContext, normAlbum)
-                    else io.github.thake.soundnest.parental.ParentalPolicyStore.blockAlbum(linkContext, normAlbum, title = name, subtitle = known?.ownerName)
-                    Toast.makeText(linkContext, if (blocked) "Album unblocked" else "Album blocked", Toast.LENGTH_SHORT).show()
+                    io.github.thake.soundnest.parental.ParentBlockActions.toggleBlock(linkContext, target)
                     onDismiss()
                 }
             }

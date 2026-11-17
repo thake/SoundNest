@@ -39,6 +39,8 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.outlined.PlaylistPlay
 import androidx.compose.material.icons.automirrored.outlined.QueueMusic
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.Block
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
@@ -491,6 +493,20 @@ fun LibraryItemSheet(entry: LibraryEntry, onDismiss: () -> Unit, onChanged: () -
                 // empty heart could not be taken out).
                 if (removable(entry)) SheetRow(Icons.Outlined.RemoveCircleOutline, stringResource(R.string.whats_new_remove_library)) {
                     io.github.thake.soundnest.di.SongPlayer.setSaved(entry.uri, false); onDismiss()
+                }
+                val adminUnlocked = io.github.thake.soundnest.parental.rememberAdminUnlocked()
+                val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+                val parentTarget = remember(entry) { io.github.thake.soundnest.parental.ParentBlockActions.targetForLibraryEntry(entry) }
+                if (adminUnlocked && parentTarget != null) {
+                    val blocked = io.github.thake.soundnest.parental.ParentBlockActions.isBlocked(parentTarget, policy)
+                    SheetRow(
+                        if (blocked) androidx.compose.material.icons.Icons.Outlined.CheckCircle else androidx.compose.material.icons.Icons.Outlined.Block,
+                        io.github.thake.soundnest.parental.ParentBlockActions.actionLabel(parentTarget, blocked),
+                    ) {
+                        io.github.thake.soundnest.parental.ParentBlockActions.toggleBlock(context, parentTarget)
+                        onChanged()
+                        onDismiss()
+                    }
                 }
             } else {
                 val folders by androidx.compose.runtime.produceState<List<io.github.thake.soundnest.api.LibraryItem>?>(null) {

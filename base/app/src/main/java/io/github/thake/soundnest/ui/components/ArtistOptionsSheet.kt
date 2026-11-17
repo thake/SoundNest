@@ -100,28 +100,23 @@ fun ArtistOptionsSheet(artistId: String, artistName: String, artistImage: String
                     io.github.thake.soundnest.di.Haptics.confirm()
                 }
             }
-            if (artistId.isNotBlank() && io.github.thake.soundnest.parental.ParentSecurityManager.isAdminUnlocked(context)) {
-                val policy = io.github.thake.soundnest.parental.ParentalPolicyStore.current(context)
-                val normArtist = io.github.thake.soundnest.parental.ParentalPolicyStore.normalizeSpotifyId(artistId)
-                val allowed = normArtist in policy.allowedArtistIds
-                val blocked = normArtist in policy.blockedArtistIds
+            val adminUnlocked = io.github.thake.soundnest.parental.rememberAdminUnlocked()
+            val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+            if (artistId.isNotBlank() && adminUnlocked) {
+                val target = io.github.thake.soundnest.parental.ParentBlockTarget(
+                    kind = io.github.thake.soundnest.parental.ParentRuleKind.ARTIST,
+                    id = artistId,
+                    title = artistName,
+                    subtitle = "Artist",
+                    coverUri = artistImage,
+                )
+                val blocked = io.github.thake.soundnest.parental.ParentBlockActions.isBlocked(target, policy)
                 HorizontalDivider(color = tone(0xFF3E3E3E), thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
                 ArtistMenuRow(
-                    Icons.Default.Check,
-                    if (allowed) "Parent: Remove Artist from Allowlist" else "Parent: Allow Artist",
+                    if (blocked) Icons.Default.Check else Icons.Default.Block,
+                    io.github.thake.soundnest.parental.ParentBlockActions.actionLabel(target, blocked),
                 ) {
-                    if (allowed) io.github.thake.soundnest.parental.ParentalPolicyStore.clearArtistRule(context, normArtist)
-                    else io.github.thake.soundnest.parental.ParentalPolicyStore.allowArtist(context, normArtist, title = artistName)
-                    Toast.makeText(context, if (allowed) "Removed artist from allowlist" else "Artist added to allowlist", Toast.LENGTH_SHORT).show()
-                    onDismiss()
-                }
-                ArtistMenuRow(
-                    Icons.Default.Block,
-                    if (blocked) "Parent: Unblock Artist" else "Parent: Block Artist",
-                ) {
-                    if (blocked) io.github.thake.soundnest.parental.ParentalPolicyStore.clearArtistRule(context, normArtist)
-                    else io.github.thake.soundnest.parental.ParentalPolicyStore.blockArtist(context, normArtist, title = artistName)
-                    Toast.makeText(context, if (blocked) "Artist unblocked" else "Artist blocked", Toast.LENGTH_SHORT).show()
+                    io.github.thake.soundnest.parental.ParentBlockActions.toggleBlock(context, target)
                     onDismiss()
                 }
             }

@@ -131,4 +131,47 @@ class ParentalQuickBlockTest {
         assertTrue(ParentalFilterEngine.isTrackAllowed(cleanTrack, updated, parentContextUri = "spotify:album:cleanAlbum"))
         assertNotNull(RuleLabelStore.resolve(app, "playlist", "party99"))
     }
+
+    @Test
+    fun `targetsForSong builds song, artist and album targets for music and episode plus show targets for podcasts`() {
+        val musicSong = SongsModel(
+            id = 20,
+            title = "Clair de Lune",
+            album = "Suite bergamasque",
+            singer = "Claude Debussy",
+            coverUri = "https://example.com/c.jpg",
+            url = "spotify:track:tr_clair",
+            spotifyTrackId = "tr_clair",
+            albumId = "al_suite",
+            artistIds = listOf("ar_debussy"),
+        )
+        val musicTargets = ParentBlockActions.targetsForSong(musicSong)
+        assertEquals(
+            listOf(ParentRuleKind.TRACK, ParentRuleKind.ARTIST, ParentRuleKind.ALBUM),
+            musicTargets.map { it.kind },
+        )
+        assertEquals("Block Song", ParentBlockActions.actionLabel(musicTargets[0], blocked = false, includeTitle = false))
+        assertEquals("Block Artist (Claude Debussy)", ParentBlockActions.actionLabel(musicTargets[1], blocked = false, includeTitle = true))
+        assertEquals("Block Album (Suite bergamasque)", ParentBlockActions.actionLabel(musicTargets[2], blocked = false, includeTitle = true))
+
+        val episodeSong = SongsModel(
+            id = 21,
+            title = "Why Is the Sky Blue?",
+            album = "Brains On! Science Podcast",
+            singer = "American Public Media",
+            coverUri = "https://example.com/e.jpg",
+            url = "episode:ep_sky|https://cdn.example.com/audio.mp3",
+            spotifyTrackId = "ep_sky",
+            showId = "__show__:sh_brains",
+        )
+        val episodeTargets = ParentBlockActions.targetsForSong(episodeSong)
+        assertEquals(
+            listOf(ParentRuleKind.EPISODE, ParentRuleKind.SHOW),
+            episodeTargets.map { it.kind },
+        )
+        assertEquals("ep_sky", episodeTargets[0].normalizedId)
+        assertEquals("sh_brains", episodeTargets[1].normalizedId)
+        assertEquals("Block Episode", ParentBlockActions.actionLabel(episodeTargets[0], blocked = false, includeTitle = false))
+        assertEquals("Block Podcast Show (Brains On! Science Podcast)", ParentBlockActions.actionLabel(episodeTargets[1], blocked = false, includeTitle = true))
+    }
 }

@@ -330,42 +330,21 @@ fun SongOptionsSheet(
                 }
                 MenuRow(Icons.Outlined.Analytics, stringResource(R.string.nerd_title)) { showNerd = true }
             }
-            if (hasId && !isRadio && io.github.thake.soundnest.parental.ParentSecurityManager.isAdminUnlocked(context)) {
-                val policy = io.github.thake.soundnest.parental.ParentalPolicyStore.current(context)
-                val normTrack = io.github.thake.soundnest.parental.ParentalPolicyStore.normalizeSpotifyId(song.spotifyTrackId)
-                val trackAllowed = normTrack in policy.allowedTrackIds
-                val trackBlocked = normTrack in policy.blockedTrackIds
+            val adminUnlocked = io.github.thake.soundnest.parental.rememberAdminUnlocked()
+            val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+            val parentTargets = remember(song) { io.github.thake.soundnest.parental.ParentBlockActions.targetsForSong(song) }
+            if (!isRadio && adminUnlocked && parentTargets.isNotEmpty()) {
                 HorizontalDivider(color = tone(0xFF3E3E3E), modifier = Modifier.padding(vertical = 4.dp))
-                MenuRow(
-                    Icons.Default.Check,
-                    if (trackAllowed) "Parent: Remove Track from Allowlist" else "Parent: Allow Track",
-                    tint = MenuGreen,
-                ) {
-                    if (trackAllowed) io.github.thake.soundnest.parental.ParentalPolicyStore.clearTrackRule(context, normTrack)
-                    else io.github.thake.soundnest.parental.ParentalPolicyStore.allowTrack(context, normTrack, title = song.title, subtitle = song.singer)
-                    toast(if (trackAllowed) "Removed track from allowlist" else "Track added to allowlist")
-                    onDismiss()
-                }
-                MenuRow(
-                    Icons.Outlined.Block,
-                    if (trackBlocked) "Parent: Unblock Track" else "Parent: Block Track",
-                ) {
-                    if (trackBlocked) io.github.thake.soundnest.parental.ParentalPolicyStore.clearTrackRule(context, normTrack)
-                    else io.github.thake.soundnest.parental.ParentalPolicyStore.blockTrack(context, normTrack, title = song.title, subtitle = song.singer)
-                    toast(if (trackBlocked) "Track unblocked" else "Track blocked")
-                    onDismiss()
-                }
-                val normAlbum = io.github.thake.soundnest.parental.ParentalPolicyStore.normalizeSpotifyId(song.albumId)
-                if (normAlbum.isNotEmpty()) {
-                    val albumAllowed = normAlbum in policy.allowedAlbumIds
+                parentTargets.forEach { target ->
+                    val blocked = io.github.thake.soundnest.parental.ParentBlockActions.isBlocked(target, policy)
+                    val includeTitle = target.kind != io.github.thake.soundnest.parental.ParentRuleKind.TRACK &&
+                        target.kind != io.github.thake.soundnest.parental.ParentRuleKind.EPISODE
                     MenuRow(
-                        Icons.Default.Album,
-                        if (albumAllowed) "Parent: Remove Album from Allowlist" else "Parent: Allow Entire Album",
-                        tint = MenuGreen,
+                        icon = if (blocked) Icons.Default.Check else Icons.Outlined.Block,
+                        label = io.github.thake.soundnest.parental.ParentBlockActions.actionLabel(target, blocked, includeTitle = includeTitle),
+                        tint = io.github.thake.soundnest.parental.ParentBlockRed,
                     ) {
-                        if (albumAllowed) io.github.thake.soundnest.parental.ParentalPolicyStore.clearAlbumRule(context, normAlbum)
-                        else io.github.thake.soundnest.parental.ParentalPolicyStore.allowAlbum(context, normAlbum, title = song.album, subtitle = song.singer)
-                        toast(if (albumAllowed) "Removed album from allowlist" else "Album added to allowlist")
+                        io.github.thake.soundnest.parental.ParentBlockActions.toggleBlock(context, target)
                         onDismiss()
                     }
                 }

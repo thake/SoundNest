@@ -213,28 +213,23 @@ fun PlaylistOptionsSheet(
                 // The Web Player offers it only where canCancelMembership is true (a collaborator, not the owner).
                 if (page.canLeave) OptionRow(Icons.AutoMirrored.Outlined.Logout, stringResource(R.string.playlist_leave)) { leavingPlaylist = true }
             }
-            if (page.uri.startsWith("spotify:playlist:") && io.github.thake.soundnest.parental.ParentSecurityManager.isAdminUnlocked(context)) {
-                val policy = io.github.thake.soundnest.parental.ParentalPolicyStore.current(context)
-                val normPl = io.github.thake.soundnest.parental.ParentalPolicyStore.normalizeSpotifyId(page.uri)
-                val allowed = normPl in policy.allowedPlaylistIds
-                val blocked = normPl in policy.blockedPlaylistIds
+            val adminUnlocked = io.github.thake.soundnest.parental.rememberAdminUnlocked()
+            val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+            if (page.uri.startsWith("spotify:playlist:") && adminUnlocked) {
+                val target = io.github.thake.soundnest.parental.ParentBlockTarget(
+                    kind = io.github.thake.soundnest.parental.ParentRuleKind.PLAYLIST,
+                    id = page.uri,
+                    title = page.name,
+                    subtitle = page.ownerName,
+                    coverUri = page.coverUri,
+                )
+                val blocked = io.github.thake.soundnest.parental.ParentBlockActions.isBlocked(target, policy)
                 androidx.compose.material3.HorizontalDivider(color = AppText.copy(alpha = 0.08f), modifier = Modifier.padding(vertical = 4.dp))
                 OptionRow(
-                    Icons.Outlined.CheckCircle,
-                    if (allowed) "Parent: Remove Playlist from Allowlist" else "Parent: Allow Playlist (Parent Picks)",
+                    if (blocked) Icons.Outlined.CheckCircle else Icons.Outlined.Block,
+                    io.github.thake.soundnest.parental.ParentBlockActions.actionLabel(target, blocked),
                 ) {
-                    if (allowed) io.github.thake.soundnest.parental.ParentalPolicyStore.clearPlaylistRule(context, normPl)
-                    else io.github.thake.soundnest.parental.ParentalPolicyStore.allowPlaylist(context, normPl, title = page.name, subtitle = page.ownerName)
-                    android.widget.Toast.makeText(context, if (allowed) "Removed playlist from allowlist" else "Playlist added to allowlist", android.widget.Toast.LENGTH_SHORT).show()
-                    onDismiss()
-                }
-                OptionRow(
-                    Icons.Outlined.Block,
-                    if (blocked) "Parent: Unblock Playlist" else "Parent: Block Playlist",
-                ) {
-                    if (blocked) io.github.thake.soundnest.parental.ParentalPolicyStore.clearPlaylistRule(context, normPl)
-                    else io.github.thake.soundnest.parental.ParentalPolicyStore.blockPlaylist(context, normPl, title = page.name, subtitle = page.ownerName)
-                    android.widget.Toast.makeText(context, if (blocked) "Playlist unblocked" else "Playlist blocked", android.widget.Toast.LENGTH_SHORT).show()
+                    io.github.thake.soundnest.parental.ParentBlockActions.toggleBlock(context, target)
                     onDismiss()
                 }
             }
