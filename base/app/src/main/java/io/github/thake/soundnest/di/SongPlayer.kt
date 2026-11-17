@@ -256,6 +256,11 @@ object SongPlayer {
         restoreLastTrack(state)
         restoreRepeat(state)
         scope.launch { api.player.state.collect { s -> if (acceptsSessionUpdates()) applyState(s) } }
+        scope.launch {
+            io.github.thake.soundnest.parental.ParentalPolicyStore.policyFlow.collect {
+                main.post { enforceParentalPolicyNow() }
+            }
+        }
         NativeAudio.attach()
         // Another device plays (the phone as a remote): the state is read again every few seconds
         // so the notification, the mini player and the slider keep up. Reported: the notification
@@ -694,6 +699,32 @@ object SongPlayer {
     private val parentalSkipped = mutableSetOf<String>()
     private const val PARENTAL_SKIPS_MAX = 10
 
+    /**
+     * Immediately re-sanitizes the queue and re-evaluates the currently playing item against
+     * the latest [io.github.thake.soundnest.parental.ParentalPolicy] so blocking a song, artist,
+     * album, playlist, or show mid-playback takes effect on the spot.
+     */
+    fun enforceParentalPolicyNow() {
+        val ctx = runCatching { Graph.app }.getOrNull() ?: return
+        val policy = io.github.thake.soundnest.parental.ParentalPolicyStore.current(ctx)
+        val q = apiQueue
+        if (q != null && acceptsSessionUpdates()) {
+            applyQueue(q)
+        } else {
+            _queue.value = io.github.thake.soundnest.parental.PlaybackGuardrail.sanitizeQueue(
+                _queue.value,
+                policy,
+                currentContextUri,
+            )
+        }
+        runCatching {
+            val latestState = api.player.state.value
+            if (latestState != null && acceptsSessionUpdates()) {
+                applyState(latestState)
+            }
+        }
+    }
+
     private fun applyState(s: PlayerState?) {
         if (s == null) return
         stateSeen = true
@@ -726,7 +757,8 @@ object SongPlayer {
             io.github.thake.soundnest.parental.LivePlaybackDecision.BLOCK_AND_SKIP_OR_PAUSE -> {
                 if (uri.isNotEmpty()) lastPageUri = uri
                 if (!s.isPaused) {
-                    if (uri.isNotEmpty() && parentalSkipped.add(uri) && parentalSkipped.size <= PARENTAL_SKIPS_MAX) {
+                    val contextBlocked = io.github.thake.soundnest.parental.ParentalFilterEngine.isContextBlocked(s.contextUri, policy)
+                    if (!contextBlocked && uri.isNotEmpty() && parentalSkipped.add(uri) && parentalSkipped.size <= PARENTAL_SKIPS_MAX) {
                         io.github.thake.soundnest.host.android.Logbook.log("parental: $uri blocked, skipping")
                         main.post { next(by = "parental filter") }
                     } else {

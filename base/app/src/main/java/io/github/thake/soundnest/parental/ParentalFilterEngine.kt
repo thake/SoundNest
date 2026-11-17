@@ -146,6 +146,22 @@ object ParentalFilterEngine {
         return false
     }
 
+    fun isContextBlocked(contextUri: String?, policy: ParentalPolicy): Boolean {
+        if (contextUri.isNullOrBlank()) return false
+        if (contextUri == "spotify:collection:tracks") return false
+        val parts = canonicalUri(contextUri).split(':')
+        if (parts.size < 3 || parts[0] != "spotify") return false
+        val kind = parts[1]
+        val id = parts.last()
+        return when (kind) {
+            "playlist" -> id in policy.blockedPlaylistIds
+            "album" -> id in policy.blockedAlbumIds
+            "artist" -> id in policy.blockedArtistIds
+            "show" -> id in policy.blockedShowIds
+            else -> false
+        }
+    }
+
     private fun isContextAllowlisted(contextUri: String?, policy: ParentalPolicy): Boolean {
         if (contextUri.isNullOrBlank()) return false
         if (contextUri == "spotify:collection:tracks") return false // Liked Songs filters per-track in strict mode
@@ -184,6 +200,7 @@ object ParentalFilterEngine {
             val showId = song.showId.trim()
             if (episodeId.isNotEmpty() && episodeId in policy.blockedTrackIds) return false
             if (showId.isNotEmpty() && showId in policy.blockedShowIds) return false
+            if (isContextBlocked(parentContextUri, policy)) return false
             val explicitlyAllowedEpisode = episodeId.isNotEmpty() && episodeId in policy.allowedTrackIds
             if (explicitlyAllowedEpisode) return true
             if (policy.blockExplicit && song.explicit) return false
@@ -210,6 +227,7 @@ object ParentalFilterEngine {
         val artistIds = song.artistIds.map(ParentalPolicyStore::normalizeSpotifyId).filter { it.isNotEmpty() }
 
         if (trackId.isNotEmpty() && trackId in policy.blockedTrackIds) return false
+        if (isContextBlocked(parentContextUri, policy)) return false
         val explicitlyAllowedTrack = trackId.isNotEmpty() && trackId in policy.allowedTrackIds
         if (explicitlyAllowedTrack) return true
 

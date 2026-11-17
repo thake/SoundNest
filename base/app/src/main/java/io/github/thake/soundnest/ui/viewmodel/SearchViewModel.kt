@@ -111,14 +111,26 @@ class SearchViewModel constructor(private val repository: AppRepository = Graph.
     private object RecentSearches {
         private const val KEEP = 20
         private const val FRESH_MS = 3 * 60_000L
+        private var seenPolicyRevision = -1L
         private val map = object : LinkedHashMap<String, Pair<Long, SearchResults>>(24, 0.75f, true) {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<Long, SearchResults>>) = size > KEEP
         }
 
-        @Synchronized fun get(query: String): SearchResults? =
-            map[key(query)]?.takeIf { System.currentTimeMillis() - it.first < FRESH_MS }?.second
+        private fun syncRevision() {
+            val rev = io.github.thake.soundnest.parental.ParentalPolicyStore.revision.value
+            if (rev != seenPolicyRevision) {
+                map.clear()
+                seenPolicyRevision = rev
+            }
+        }
+
+        @Synchronized fun get(query: String): SearchResults? {
+            syncRevision()
+            return map[key(query)]?.takeIf { System.currentTimeMillis() - it.first < FRESH_MS }?.second
+        }
 
         @Synchronized fun put(query: String, results: SearchResults) {
+            syncRevision()
             if (results != SearchResults()) map[key(query)] = System.currentTimeMillis() to results
         }
 
