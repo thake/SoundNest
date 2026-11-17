@@ -244,50 +244,15 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel, facet: St
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 private fun HomeHeaderRow(navController: NavController, facet: String, onFacet: (String) -> Unit) {
-    var showProfile by remember { androidx.compose.runtime.mutableStateOf(false) }
-    if (showProfile) ProfileSheet(onOpen = { route -> showProfile = false; navController.navigate(route) }) { showProfile = false }
-    val context = androidx.compose.ui.platform.LocalContext.current
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        io.github.thake.soundnest.data.api.ProfileCache.ensure(context)
-    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         // The row's 10 dp above and below sit in each child instead, so the avatar's tap area
         // takes them in (and the margin up to the separator) without moving anything.
         modifier = Modifier.fillMaxWidth(),
     ) {
-        val avatarUrl = io.github.thake.soundnest.data.api.ProfileCache.imageUrl
-        val initial = io.github.thake.soundnest.data.api.ProfileCache.name
-            ?.trim()?.firstOrNull()?.uppercase() ?: "•"
-        Box(
-            modifier = Modifier
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { showProfile = true }
-                .padding(start = 16.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
-        ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(Color(0xFFE8622C)),
-        ) {
-            if (avatarUrl != null) {
-                GlideImage(
-                    model = avatarUrl,
-                    contentScale = ContentScale.Crop,
-                    contentDescription = stringResource(R.string.recently_played_user_profile),
-                    modifier = Modifier.size(34.dp),
-                )
-            } else {
-                Text(
-                    text = initial,
-                    color = Color.Black,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-        }
-        }
+        ClassicMenuAvatarButton(
+            modifier = Modifier.padding(start = 16.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
+        )
         val policy by io.github.thake.soundnest.parental.ParentalPolicyStore.policyFlow.collectAsState()
         val showBell = io.github.thake.soundnest.parental.HomeSectionFilter.isWhatsNewAllowed(policy)
         val showChips = !policy.homeSections.minimalHomeMode && policy.homeSections.showFilterChips
@@ -609,118 +574,3 @@ private fun WhatsNewBell(onClick: () -> Unit) {
         )
     }
 }
-
-/** Profile sheet behind the avatar: account name and sign-out (in the Web Player). */
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, ExperimentalGlideComposeApi::class)
-@Composable
-private fun ProfileSheet(onOpen: (route: String) -> Unit = {}, onDismiss: () -> Unit) {
-    val name = io.github.thake.soundnest.data.api.ProfileCache.name.orEmpty()
-    val avatar = io.github.thake.soundnest.data.api.ProfileCache.imageUrl
-    // Opened in full: half-open, the sheet and its list both moved under the finger.
-    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, containerColor = tone(0xFF282828),
-        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        androidx.compose.foundation.layout.Column(
-            modifier = Modifier.fillMaxWidth().then(Modifier.windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.navigationBars))
-                .verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(bottom = 16.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp)) {
-                io.github.thake.soundnest.ui.components.ProfileAvatar(url = avatar, name = name, size = 48.dp)
-                Text(name.ifBlank { stringResource(R.string.spotify_account) }, color = AppText, fontSize = 18.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(start = 14.dp))
-            }
-            androidx.compose.material3.HorizontalDivider(color = tone(0xFF3E3E3E), modifier = Modifier.padding(vertical = 8.dp))
-            // Sound quality, data, battery, display: one page.
-            androidx.compose.foundation.layout.Column(
-                Modifier.fillMaxWidth().clickable { onOpen(io.github.thake.soundnest.ui.navigation.Routes.Settings.route) }
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-            ) {
-                Text(stringResource(R.string.settings_title), color = AppText, fontSize = 16.sp)
-                Text(stringResource(R.string.settings_detail), color = AppMuted, fontSize = 12.sp)
-            }
-            // Parental Controls Dashboard (Parent PIN required).
-            androidx.compose.foundation.layout.Column(
-                Modifier.fillMaxWidth().clickable {
-                    io.github.thake.soundnest.parental.ParentSecurityManager.runProtected(
-                        io.github.thake.soundnest.di.Graph.app,
-                        io.github.thake.soundnest.parental.AppSurface.PARENT_CONTROLS,
-                    ) { onOpen(io.github.thake.soundnest.ui.navigation.Routes.ParentSettings.route) }
-                }.padding(horizontal = 20.dp, vertical = 10.dp),
-            ) {
-                Text("Parental Controls", color = AppAccent, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                Text("Content filters, Home sections, features, speakers & backup", color = AppMuted, fontSize = 12.sp)
-            }
-            // In-app recap: every listen on this phone, Spotify and local files.
-            androidx.compose.foundation.layout.Column(
-                Modifier.fillMaxWidth().clickable { onOpen(io.github.thake.soundnest.ui.navigation.Routes.Recap.route) }
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-            ) {
-                Text(stringResource(R.string.recap_title), color = AppText, fontSize = 16.sp)
-                Text(stringResource(R.string.recap_detail_soundnest), color = AppMuted, fontSize = 12.sp)
-            }
-            // The account's own listening history, as Spotify keeps it: it belongs beside the
-            // recap (the local counter) because both answer "what did I listen to".
-            androidx.compose.foundation.layout.Column(
-                Modifier.fillMaxWidth().clickable { onOpen(io.github.thake.soundnest.ui.navigation.Routes.Recent.route) }
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-            ) {
-                Text(stringResource(R.string.recents_title), color = AppText, fontSize = 16.sp)
-                Text(stringResource(R.string.recents_detail), color = AppMuted, fontSize = 12.sp)
-            }
-            // The Spotify account page (plan, privacy, devices), in the app's signed-in browser (Parent PIN required).
-            androidx.compose.foundation.layout.Column(
-                Modifier.fillMaxWidth().clickable {
-                    onDismiss()
-                    io.github.thake.soundnest.parental.ParentSecurityManager.runProtected(
-                        io.github.thake.soundnest.di.Graph.app,
-                        io.github.thake.soundnest.parental.AppSurface.ACCOUNTS_AND_LOGOUT,
-                    ) {
-                        io.github.thake.soundnest.ui.screens.AccountBrowser.open(io.github.thake.soundnest.di.Graph.app, io.github.thake.soundnest.ui.screens.AccountBrowser.ACCOUNT_URL)
-                    }
-                }.padding(horizontal = 20.dp, vertical = 10.dp),
-            ) {
-                Text(stringResource(R.string.account_page_title), color = AppText, fontSize = 16.sp)
-                Text(stringResource(R.string.account_page_detail), color = AppMuted, fontSize = 12.sp)
-            }
-            // About: GPL-3.0 attribution and source code.
-            var about by remember { androidx.compose.runtime.mutableStateOf(false) }
-            if (about) io.github.thake.soundnest.ui.components.AboutSheet(onDismiss = { about = false })
-            androidx.compose.foundation.layout.Column(
-                Modifier.fillMaxWidth().clickable { about = true }.padding(horizontal = 20.dp, vertical = 10.dp),
-            ) {
-                Text(stringResource(R.string.creator_biography_section_title), color = AppText, fontSize = 16.sp)
-                Text(stringResource(R.string.about_detail), color = AppMuted, fontSize = 12.sp)
-            }
-            // The other Spotify accounts kept on the phone: switch, add, remove (Parent PIN required).
-            var accounts by remember { androidx.compose.runtime.mutableStateOf(false) }
-            if (accounts) io.github.thake.soundnest.ui.components.AccountsSheet(onDismiss = { accounts = false }, onLeave = { accounts = false; onDismiss() })
-            androidx.compose.foundation.layout.Column(
-                Modifier.fillMaxWidth().clickable {
-                    io.github.thake.soundnest.parental.ParentSecurityManager.runProtected(
-                        io.github.thake.soundnest.di.Graph.app,
-                        io.github.thake.soundnest.parental.AppSurface.ACCOUNTS_AND_LOGOUT,
-                    ) { accounts = true }
-                }.padding(horizontal = 20.dp, vertical = 10.dp),
-            ) {
-                Text(stringResource(R.string.accounts_switch_row), color = AppText, fontSize = 16.sp)
-                Text(io.github.thake.soundnest.ui.components.switchAccountDetail(), color = AppMuted, fontSize = 12.sp)
-            }
-            Text(
-                stringResource(R.string.connect_device_menu_logout),
-                color = AppText, fontSize = 16.sp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        onDismiss()
-                        io.github.thake.soundnest.parental.ParentSecurityManager.runProtected(
-                            io.github.thake.soundnest.di.Graph.app,
-                            io.github.thake.soundnest.parental.AppSurface.ACCOUNTS_AND_LOGOUT,
-                        ) { io.github.thake.soundnest.di.SessionActions.logout(io.github.thake.soundnest.di.Graph.app) }
-                    }
-                    .padding(horizontal = 20.dp, vertical = 14.dp),
-            )
-        }
-    }
-}
-
-

@@ -294,7 +294,11 @@ fun ImmersiveSearchScreen(navController: NavController) {
                 )
             }
         }
-        ImmersiveTopBar(title, listState)
+        ImmersiveTopBar(
+            title = title,
+            listState = listState,
+            leading = { io.github.thake.soundnest.ui.screens.ImmersiveMenuAvatarButton() },
+        )
     }
 }
 

@@ -2,15 +2,15 @@
 
 Auto-generated deterministically by `./gradlew :app:generateDocScreenshots` ([`DocScreenshotTest.kt`](../../base/app/src/test/java/io/github/thake/soundnest/ui/DocScreenshotTest.kt)).
 
-Total captured screens, panels, dialogs & sheets: **130**.
+Total captured screens, panels, dialogs & sheets: **135**.
 
 ## Contents
 - [Hero Overview (6)](#hero-overview)
 - [Onboarding & Session (9)](#onboarding-session)
 - [Parental Controls & Security (17)](#parental-controls-security)
-- [Classic Look (40)](#classic-look)
-- [Immersive Look (46)](#immersive-look)
-- [Sheets & Modals (12)](#sheets-modals)
+- [Classic Look (42)](#classic-look)
+- [Immersive Look (48)](#immersive-look)
+- [Sheets & Modals (13)](#sheets-modals)
 
 ## Hero Overview
 
@@ -103,6 +103,8 @@ Total captured screens, panels, dialogs & sheets: **130**.
 | **Settings: About** (`CLASSIC`) | <img src="classic/38-settings-about.png" width="180" alt="Settings: About" /> | [`classic/38-settings-about.png`](classic/38-settings-about.png)<br/>Classic Settings About tab (version, diagnostics, credits). |
 | **Settings: Accounts (PIN-Unlocked)** (`CLASSIC`) | <img src="classic/39-settings-accounts.png" width="180" alt="Settings: Accounts (PIN-Unlocked)" /> | [`classic/39-settings-accounts.png`](classic/39-settings-accounts.png)<br/>Classic Settings Accounts tab after parent PIN unlock. |
 | **Settings: Library** (`CLASSIC`) | <img src="classic/40-settings-library.png" width="180" alt="Settings: Library" /> | [`classic/40-settings-library.png`](classic/40-settings-library.png)<br/>Classic Settings Library tab. |
+| **Menu: About SoundNest** (`CLASSIC`) | <img src="classic/41-about-soundnest.png" width="180" alt="Menu: About SoundNest" /> | [`classic/41-about-soundnest.png`](classic/41-about-soundnest.png)<br/>Full-screen Classic About page with GPL-3.0 credits and upstream attributions. |
+| **Menu: Switch Account (PIN-Unlocked)** (`CLASSIC`) | <img src="classic/42-switch-account.png" width="180" alt="Menu: Switch Account (PIN-Unlocked)" /> | [`classic/42-switch-account.png`](classic/42-switch-account.png)<br/>Full-screen Classic Switch Account page opened from the menu drawer. |
 
 ## Immersive Look
 
@@ -154,6 +156,8 @@ Total captured screens, panels, dialogs & sheets: **130**.
 | **Settings: Library** (`IMMERSIVE`) | <img src="immersive/44-settings-library.png" width="180" alt="Settings: Library" /> | [`immersive/44-settings-library.png`](immersive/44-settings-library.png)<br/>Immersive Settings Library preferences sub-page. |
 | **Settings: Accounts (PIN-Unlocked)** (`IMMERSIVE`) | <img src="immersive/45-settings-accounts.png" width="180" alt="Settings: Accounts (PIN-Unlocked)" /> | [`immersive/45-settings-accounts.png`](immersive/45-settings-accounts.png)<br/>Immersive Settings Spotify Accounts sub-page. |
 | **Settings: About SoundNest** (`IMMERSIVE`) | <img src="immersive/46-settings-app-about.png" width="180" alt="Settings: About SoundNest" /> | [`immersive/46-settings-app-about.png`](immersive/46-settings-app-about.png)<br/>Immersive Settings App version, diagnostics, and credits sub-page. |
+| **Menu: About SoundNest** (`IMMERSIVE`) | <img src="immersive/47-about-soundnest.png" width="180" alt="Menu: About SoundNest" /> | [`immersive/47-about-soundnest.png`](immersive/47-about-soundnest.png)<br/>Full-screen Immersive About page with GPL-3.0 credits and upstream attributions. |
+| **Menu: Switch Account (PIN-Unlocked)** (`IMMERSIVE`) | <img src="immersive/48-switch-account.png" width="180" alt="Menu: Switch Account (PIN-Unlocked)" /> | [`immersive/48-switch-account.png`](immersive/48-switch-account.png)<br/>Full-screen Immersive Switch Account page opened from the menu drawer. |
 
 ## Sheets & Modals
 
@@ -168,7 +172,8 @@ Total captured screens, panels, dialogs & sheets: **130**.
 | **About SoundNest Sheet** (`CLASSIC`) | <img src="sheets/07-about-sheet.png" width="180" alt="About SoundNest Sheet" /> | [`sheets/07-about-sheet.png`](sheets/07-about-sheet.png)<br/>App version, license, and open-source notices modal sheet. |
 | **Stats for Nerds Sheet** (`CLASSIC`) | <img src="sheets/08-stats-for-nerds-sheet.png" width="180" alt="Stats for Nerds Sheet" /> | [`sheets/08-stats-for-nerds-sheet.png`](sheets/08-stats-for-nerds-sheet.png)<br/>Playback engine, codec, buffer, and audio pipeline diagnostics sheet. |
 | **New Look Offer Screen** (`IMMERSIVE`) | <img src="sheets/09-look-offer-modal.png" width="180" alt="New Look Offer Screen" /> | [`sheets/09-look-offer-modal.png`](sheets/09-look-offer-modal.png)<br/>One-time upgrade prompt offering existing users the Immersive look. |
-| **Immersive Home Profile Sheet** (`IMMERSIVE`) | <img src="sheets/10-immersive-profile-sheet.png" width="180" alt="Immersive Home Profile Sheet" /> | [`sheets/10-immersive-profile-sheet.png`](sheets/10-immersive-profile-sheet.png)<br/>Quick drawer sheet from Home avatar linking to Recents, Stats, and Settings. |
+| **Immersive Menu Navigation Drawer** (`IMMERSIVE`) | <img src="sheets/10-immersive-menu-drawer.png" width="180" alt="Immersive Menu Navigation Drawer" /> | [`sheets/10-immersive-menu-drawer.png`](sheets/10-immersive-menu-drawer.png)<br/>90%-width Material 3 left-sliding drawer from top-left avatar with 10% Home peek on the right. |
 | **Playlist Options Sheet** (`CLASSIC`) | <img src="sheets/11-playlist-options-sheet.png" width="180" alt="Playlist Options Sheet" /> | [`sheets/11-playlist-options-sheet.png`](sheets/11-playlist-options-sheet.png)<br/>Playlist actions sheet (shuffle, sort, share, library controls). |
 | **Podcast Episode Options Sheet** (`CLASSIC`) | <img src="sheets/12-episode-options-sheet.png" width="180" alt="Podcast Episode Options Sheet" /> | [`sheets/12-episode-options-sheet.png`](sheets/12-episode-options-sheet.png)<br/>Episode actions sheet (save, mark played, share). |
+| **Classic Menu Navigation Drawer** (`CLASSIC`) | <img src="sheets/13-classic-menu-drawer.png" width="180" alt="Classic Menu Navigation Drawer" /> | [`sheets/13-classic-menu-drawer.png`](sheets/13-classic-menu-drawer.png)<br/>90%-width Material 3 left-sliding drawer in Classic look with 10% Home peek on the right. |
 

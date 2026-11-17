@@ -130,8 +130,6 @@ fun LibraryScreen(navController: NavController) {
         }
         if (top.isNotEmpty()) ContextViewModel.prefetchSoon(top)
     }
-    val account by libraryViewModel.account.collectAsState()
-    var showAccount by remember { mutableStateOf(false) }
     val context = LocalContext.current
     io.github.thake.soundnest.parental.ParentalPolicyStore.current(context)
     val policy by io.github.thake.soundnest.parental.ParentalPolicyStore.policyFlow.collectAsState()
@@ -151,14 +149,6 @@ fun LibraryScreen(navController: NavController) {
         }
     }
 
-    if (showAccount) {
-        AccountSheet(
-            account = (account as? Response.Success)?.data ?: AccountModel(),
-            navController = navController,
-            onDismiss = { showAccount = false },
-        )
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -168,14 +158,14 @@ fun LibraryScreen(navController: NavController) {
             .background(Color(AppBackground.toArgb()))
             .statusBarsPadding()
     ) {
-        // Header: title + account avatar. Built by hand (rather than a fixed-height
-        // TopAppBar) so the title isn't clipped under the status bar.
+        // Header: top-left menu avatar + title + library actions.
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp, 12.dp, 16.dp, 8.dp)
         ) {
+            ClassicMenuAvatarButton(modifier = Modifier.padding(end = 12.dp))
             Text(
                 text = stringResource(R.string.navigationbar_musicappitems_yourlibrary_title),
                 fontWeight = FontWeight.Bold,
@@ -206,25 +196,8 @@ fun LibraryScreen(navController: NavController) {
                         searchActive = !searchActive
                         if (!searchActive) searchQuery = ""
                     }
-                    .padding(end = 14.dp)
-                    .size(22.dp)
-                    ,
+                    .size(22.dp),
             )
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .clip(CircleShape)
-                    .background(tone(0xFF3A3A3A))
-                    .clickable { showAccount = true },
-                contentAlignment = Alignment.Center
-            ) {
-                val avatar = (account as? Response.Success)?.data?.imageUrl.orEmpty()
-                if (avatar.isNotBlank()) {
-                    AccountAvatar(avatar, 34.dp)
-                } else {
-                    Icon(Icons.Default.Person, contentDescription = stringResource(R.string.account_title), tint = AppText, modifier = Modifier.size(20.dp))
-                }
-            }
         }
 
         LibraryChipRow(
@@ -1061,69 +1034,6 @@ private fun LibrarySkeleton(padding: PaddingValues) {
             }
         }
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AccountSheet(
-    account: AccountModel,
-    navController: NavController,
-    onDismiss: () -> Unit,
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val context = LocalContext.current
-    io.github.thake.soundnest.ui.components.LookSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = tone(0xFF1A1A1A),
-    ) {
-        Column(modifier = Modifier.navigationBarsPadding()) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp, 16.dp, 16.dp)
-            ) {
-                Box(
-                    modifier = Modifier.size(56.dp).clip(CircleShape).background(tone(0xFF3A3A3A)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (account.imageUrl.isNotBlank()) AccountAvatar(account.imageUrl, 56.dp)
-                    else Icon(Icons.Default.Person, contentDescription = null, tint = AppText, modifier = Modifier.size(30.dp))
-                }
-                Spacer(modifier = Modifier.width(14.dp))
-                Column {
-                    Text(account.name.ifBlank { stringResource(R.string.spotify_user) }, color = AppText, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (account.email.isNotBlank()) Text(account.email, color = AppMuted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (account.plan.isNotBlank()) Text(stringResource(R.string.spotify_plan, account.plan), color = AppAccent, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                }
-            }
-            HorizontalDivider(color = tone(0xFF2A2A2A))
-
-            // Spotify's own account pages (plan, privacy, devices), signed in, in the app.
-            AccountRow(stringResource(R.string.settings_title)) {
-                onDismiss()
-                navController.navigate(io.github.thake.soundnest.ui.navigation.Routes.Settings.route)
-            }
-            AccountRow(stringResource(R.string.account_page_title) + "  \u2197") {
-                onDismiss()
-                AccountBrowser.open(context, AccountBrowser.ACCOUNT_URL)
-            }
-            HorizontalDivider(color = tone(0xFF2A2A2A))
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-    }
-}
-
-@Composable
-private fun AccountRow(label: String, tint: Color = AppText, onClick: () -> Unit) {
-    Text(
-        text = label,
-        color = tint,
-        fontSize = 15.sp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(20.dp, 16.dp)
-    )
 }
 
 private fun sortLabel(sort: LibraryOrder.Sort) = when (sort) {

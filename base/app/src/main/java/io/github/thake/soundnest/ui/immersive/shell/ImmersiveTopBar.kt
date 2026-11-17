@@ -152,6 +152,7 @@ fun ImmersiveTopBar(
     collapse: () -> Float,
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
+    leading: (@Composable () -> Unit)? = null,
     hazeState: HazeState? = LocalImmersiveHaze.current,
     actions: (@Composable RowScope.() -> Unit)? = null,
 ) {
@@ -191,6 +192,13 @@ fun ImmersiveTopBar(
                                 tint = Immersive.Text,
                                 modifier = Modifier.size(controlSize * 0.64f),
                             )
+                        }
+                    } else if (leading != null) {
+                        Box(
+                            modifier = Modifier.padding(start = Immersive.Gutter),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CompositionLocalProvider(LocalBarControlSize provides controlSize) { leading() }
                         }
                     }
                 },
@@ -246,6 +254,7 @@ fun ImmersiveTopBar(
     listState: LazyListState,
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
+    leading: (@Composable () -> Unit)? = null,
     hazeState: HazeState? = LocalImmersiveHaze.current,
     collapseDistance: Dp = 40.dp,
     actions: (@Composable RowScope.() -> Unit)? = null,
@@ -254,6 +263,7 @@ fun ImmersiveTopBar(
     collapse = rememberTopBarCollapse(listState, collapseDistance),
     modifier = modifier,
     onBack = onBack,
+    leading = leading,
     hazeState = hazeState,
     actions = actions,
 )
@@ -265,6 +275,7 @@ fun ImmersiveTopBar(
     scrollState: ScrollState,
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
+    leading: (@Composable () -> Unit)? = null,
     hazeState: HazeState? = LocalImmersiveHaze.current,
     collapseDistance: Dp = 40.dp,
     actions: (@Composable RowScope.() -> Unit)? = null,
@@ -273,6 +284,7 @@ fun ImmersiveTopBar(
     collapse = rememberTopBarCollapse(scrollState, collapseDistance),
     modifier = modifier,
     onBack = onBack,
+    leading = leading,
     hazeState = hazeState,
     actions = actions,
 )
@@ -453,6 +465,7 @@ fun ImmersiveFloatingHeader(
     modifier: Modifier = Modifier,
     hazeState: HazeState? = LocalImmersiveHaze.current,
     collapse: () -> Float = { 1f },
+    leading: (@Composable RowScope.() -> Unit)? = null,
     trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val controlSize = rememberBarControlSize()
@@ -466,6 +479,10 @@ fun ImmersiveFloatingHeader(
                 .padding(start = Immersive.Gutter, end = Immersive.Gutter - 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (leading != null) {
+                CompositionLocalProvider(LocalBarControlSize provides controlSize) { leading() }
+                androidx.compose.foundation.layout.Spacer(Modifier.padding(end = 10.dp))
+            }
             Text(
                 text = title,
                 style = Immersive.Title,

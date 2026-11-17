@@ -39,6 +39,8 @@ sealed class Routes(
     object WhatsNew : Routes(0, "WhatsNew", "whatsnew")
     object Settings : Routes(0, "Settings", "settings")
     object ParentSettings : Routes(0, "ParentSettings", "parentsettings")
+    object About : Routes(0, "About", "about")
+    object Accounts : Routes(0, "Accounts", "accounts")
 }
 
 /** Builds a Browse-category route carrying the search genre and a display title. */

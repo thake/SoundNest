@@ -858,4 +858,16 @@
     <string name="audible_home_pinned_toggle_title" tools:ignore="MissingTranslation">Show Pinned Audible Books on Home</string>
     <string name="audible_home_pinned_toggle_subtitle" tools:ignore="MissingTranslation">Include parent-pinned Audible audiobooks in the Parent Picks shelf on Home</string>
     <string name="library_chip_audiobooks" tools:ignore="MissingTranslation">Audiobooks</string>
+    <!-- Material 3 left-sliding Menu drawer -->
+    <string name="menu_title" tools:ignore="MissingTranslation">Menu</string>
+    <string name="menu_open_content_description" tools:ignore="MissingTranslation">Open account and app menu</string>
+    <string name="menu_section_quick_access" tools:ignore="MissingTranslation">QUICK ACCESS</string>
+    <string name="menu_section_explore" tools:ignore="MissingTranslation">EXPLORE &amp; AUDIO</string>
+    <string name="menu_section_app" tools:ignore="MissingTranslation">APP &amp; PREFERENCES</string>
+    <string name="menu_section_parent_account" tools:ignore="MissingTranslation">PARENT &amp; ACCOUNT</string>
+    <string name="menu_parent_mode_active" tools:ignore="MissingTranslation">Parent Mode Active</string>
+    <string name="menu_lock_now" tools:ignore="MissingTranslation">Lock</string>
+    <string name="menu_recents_subtitle" tools:ignore="MissingTranslation">Played recently</string>
+    <string name="menu_recap_subtitle" tools:ignore="MissingTranslation">Top music &amp; stats</string>
+    <string name="menu_about_title" tools:ignore="MissingTranslation">About SoundNest</string>
 </resources>

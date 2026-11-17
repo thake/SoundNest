@@ -171,7 +171,6 @@ fun ImmersiveLibraryScreen(navController: NavController) {
         if (top.isNotEmpty()) ContextViewModel.prefetchSoon(top)
     }
 
-    var showAccount by remember { mutableStateOf(false) }
     var creating by remember { mutableStateOf(false) }
     var sorting by remember { mutableStateOf(false) }
     var itemMenu by remember { mutableStateOf<LibraryEntry?>(null) }
@@ -201,13 +200,6 @@ fun ImmersiveLibraryScreen(navController: NavController) {
     // The shows are only read once the Podcasts chip is chosen.
     LaunchedEffect(kind, policy.allowPodcasts) { if (kind == LibraryChip.PODCASTS && policy.allowPodcasts) vm.loadFollowedShows() }
 
-    if (showAccount) {
-        ImmersiveAccountSheet(
-            account = (account as? Response.Success)?.data ?: AccountModel(),
-            navController = navController,
-            onDismiss = { showAccount = false },
-        )
-    }
     if (creating) LibraryCreateSheet(navController, onDismiss = { creating = false }, onLibraryChanged = { vm.load() })
     if (sorting) ImmersiveLibrarySortSheet(onDismiss = { sorting = false })
     itemMenu?.let { LibraryItemSheet(it, onDismiss = { itemMenu = null }, onChanged = { vm.load() }) }
@@ -311,7 +303,11 @@ fun ImmersiveLibraryScreen(navController: NavController) {
         }
       }
         val collapse = if (gridView && !loading) gridCollapse(gridState) else rememberTopBarCollapse(listState)
-        ImmersiveTopBar(title, collapse) {
+        ImmersiveTopBar(
+            title = title,
+            collapse = collapse,
+            leading = { io.github.thake.soundnest.ui.screens.ImmersiveMenuAvatarButton() },
+        ) {
             ImmersiveBarAction(
                 Icons.Rounded.Add,
                 stringResource(R.string.create_playlist_content_description),
@@ -326,18 +322,6 @@ fun ImmersiveLibraryScreen(navController: NavController) {
                 },
                 tint = if (searchActive) Immersive.Accent else Immersive.Text,
             )
-            // The whole 44 dp slot takes the tap, not only the 36 dp disc in it.
-            Box(
-                Modifier.size(44.dp).immersiveClickable(onClick = { showAccount = true }),
-                contentAlignment = Alignment.Center,
-            ) {
-                AvatarDisc(
-                    url = avatar?.imageUrl,
-                    initial = avatar?.name?.trim()?.firstOrNull()?.uppercase() ?: "•",
-                    contentDescription = stringResource(R.string.account_title),
-                    onClick = null,
-                )
-            }
         }
     }
 

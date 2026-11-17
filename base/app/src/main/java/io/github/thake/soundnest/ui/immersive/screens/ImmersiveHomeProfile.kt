@@ -1,54 +1,28 @@
 /*
  * Adapted from BitChord (https://github.com/kushagrasinghx/BitChord), GPL-3.0-or-later,
  * sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/screens/HomeScreen.kt at edc1e6f.
- * The sheet's rows are those of Myspoti's Classic Home profile sheet. Modified for Myspoti, 2026-10.
+ * Modified for Myspoti, 2026-10.
  */
 package io.github.thake.soundnest.ui.immersive.screens
 
-import io.github.thake.soundnest.ui.immersive.sheets.ImmersiveGlassSheet
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.thake.soundnest.R
 import io.github.thake.soundnest.data.api.ProfileCache
-import io.github.thake.soundnest.di.Graph
-import io.github.thake.soundnest.di.SessionActions
-import io.github.thake.soundnest.ui.components.AboutSheet
 import io.github.thake.soundnest.ui.immersive.Immersive
 import io.github.thake.soundnest.ui.immersive.components.ImmersiveCover
 import io.github.thake.soundnest.ui.immersive.components.immersiveClickable
-import io.github.thake.soundnest.ui.navigation.Routes
-import io.github.thake.soundnest.ui.screens.AccountBrowser
 
 /**
  * The profile picture as a disc (the first letter of the name until it loads), opening [onClick];
@@ -95,131 +69,6 @@ internal fun AvatarDisc(
             )
         } else {
             Text(text = initial, style = Immersive.BodyStrong.copy(color = Immersive.Page, fontWeight = FontWeight.Bold))
-        }
-    }
-}
-
-/**
- * The profile sheet behind the avatar: account name and picture,
- * settings, recap, history, the account page, about and sign-out.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun ImmersiveProfileSheet(onOpen: (route: String) -> Unit, onDismiss: () -> Unit) {
-    val name = ProfileCache.name.orEmpty()
-    val avatar = ProfileCache.imageUrl
-    val adminUnlocked = io.github.thake.soundnest.parental.ParentSecurityManager.isAdminUnlocked(Graph.app)
-    // Opened in full: half-open, the sheet and its list both moved under the finger.
-    ImmersiveGlassSheet(onDismiss, rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(bottom = 16.dp),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Immersive.Gutter, vertical = 8.dp),
-            ) {
-                AvatarDisc(
-                    url = avatar,
-                    initial = name.trim().firstOrNull()?.uppercase() ?: "•",
-                    contentDescription = null,
-                    onClick = null,
-                    size = 48.dp,
-                )
-                Text(
-                    text = name.ifBlank { stringResource(R.string.immersive_screens_account) },
-                    style = Immersive.Headline,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(start = 14.dp),
-                )
-            }
-            HorizontalDivider(color = Immersive.Separator, modifier = Modifier.padding(vertical = 8.dp))
-            SheetRow(stringResource(R.string.settings_title), stringResource(R.string.settings_detail)) {
-                onOpen(Routes.Settings.route)
-            }
-            SheetRow("Parental Controls", "Content filters, Home sections, features, speakers & backup", locked = !adminUnlocked) {
-                io.github.thake.soundnest.parental.ParentSecurityManager.runProtected(
-                    Graph.app,
-                    io.github.thake.soundnest.parental.AppSurface.PARENT_CONTROLS,
-                ) { onOpen(Routes.ParentSettings.route) }
-            }
-            SheetRow(stringResource(R.string.recap_title), stringResource(R.string.recap_detail_soundnest)) {
-                onOpen(Routes.Recap.route)
-            }
-            SheetRow(stringResource(R.string.recents_title), stringResource(R.string.recents_detail)) {
-                onOpen(Routes.Recent.route)
-            }
-            // The account page (plan, privacy, devices), in the app's signed-in browser (Parent PIN required).
-            SheetRow(
-                stringResource(R.string.immersive_screens_account_page),
-                stringResource(R.string.immersive_screens_account_page_detail),
-                locked = !adminUnlocked,
-            ) {
-                onDismiss()
-                io.github.thake.soundnest.parental.ParentSecurityManager.runProtected(
-                    Graph.app,
-                    io.github.thake.soundnest.parental.AppSurface.ACCOUNTS_AND_LOGOUT,
-                ) {
-                    AccountBrowser.open(Graph.app, AccountBrowser.ACCOUNT_URL)
-                }
-            }
-            var about by remember { mutableStateOf(false) }
-            if (about) AboutSheet(onDismiss = { about = false })
-            SheetRow(stringResource(R.string.creator_biography_section_title), stringResource(R.string.about_detail)) {
-                about = true
-            }
-            // The other Spotify accounts kept on the phone: switch, add, remove (Parent PIN required).
-            var accounts by remember { mutableStateOf(false) }
-            if (accounts) io.github.thake.soundnest.ui.components.AccountsSheet(onDismiss = { accounts = false }, onLeave = { accounts = false; onDismiss() })
-            SheetRow(stringResource(R.string.accounts_switch_row), io.github.thake.soundnest.ui.components.switchAccountDetail(), locked = !adminUnlocked) {
-                io.github.thake.soundnest.parental.ParentSecurityManager.runProtected(
-                    Graph.app,
-                    io.github.thake.soundnest.parental.AppSurface.ACCOUNTS_AND_LOGOUT,
-                ) { accounts = true }
-            }
-            SheetRow(stringResource(R.string.connect_device_menu_logout), null, locked = !adminUnlocked) {
-                onDismiss()
-                io.github.thake.soundnest.parental.ParentSecurityManager.runProtected(
-                    Graph.app,
-                    io.github.thake.soundnest.parental.AppSurface.ACCOUNTS_AND_LOGOUT,
-                ) { SessionActions.logout(Graph.app) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SheetRow(
-    title: String,
-    detail: String?,
-    titleColor: androidx.compose.ui.graphics.Color = Immersive.Text,
-    locked: Boolean = false,
-    onClick: () -> Unit,
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = Immersive.Gutter, vertical = if (detail == null) 14.dp else 10.dp),
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = Immersive.Body.copy(color = titleColor))
-            if (detail != null) Text(detail, style = Immersive.Caption)
-        }
-        if (locked) {
-            Icon(
-                imageVector = Icons.Rounded.Lock,
-                contentDescription = "Protected by Parent PIN",
-                tint = Immersive.TextTertiary,
-                modifier = Modifier.padding(start = 12.dp).size(16.dp),
-            )
         }
     }
 }

@@ -116,13 +116,6 @@ fun ImmersiveHomeScreen(navController: NavController) {
 
     val homeTitle = stringResource(R.string.navigationbar_musicappitems_home_title)
     val title = feed?.greeting?.takeIf { it.isNotBlank() } ?: homeTitle
-    var showProfile by remember { mutableStateOf(false) }
-    if (showProfile) {
-        ImmersiveProfileSheet(
-            onOpen = { route -> showProfile = false; navController.navigate(route) },
-            onDismiss = { showProfile = false },
-        )
-    }
 
     // The context playing right now (empty while paused), derived once for every card: a card
     // only recomposes when its own answer flips, not on every change of the player's state.
@@ -244,27 +237,15 @@ fun ImmersiveHomeScreen(navController: NavController) {
                 }
             }
         }
-        // The greeting, the bell and the profile disc on floating glass; the feed scrolls under it.
-        ImmersiveFloatingHeader(title, collapse = rememberTopBarCollapse(listState, 24.dp)) {
+        // The top-left menu avatar, greeting, and What's New bell on floating glass; the feed scrolls under it.
+        ImmersiveFloatingHeader(
+            title = title,
+            collapse = rememberTopBarCollapse(listState, 24.dp),
+            leading = { io.github.thake.soundnest.ui.screens.ImmersiveMenuAvatarButton() },
+        ) {
             val size = LocalBarControlSize.current
             if (showBell) {
                 WhatsNewBell(size) { navController.navigate(Routes.WhatsNew.route) }
-            }
-            // The tap area is the header's full height and reaches past the disc toward the
-            // title, so the small disc of the minimized bar is still easy to hit.
-            Box(
-                Modifier
-                    .height(ImmersiveHeaderContentHeight)
-                    .width(size + 20.dp)
-                    .immersiveClickable(onClick = { showProfile = true }),
-                contentAlignment = Alignment.CenterEnd,
-            ) {
-                Box(
-                    Modifier.size(size).graphicsLayer { scaleX = size / 44.dp; scaleY = scaleX },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    ProfileDisc(onClick = null)
-                }
             }
         }
     }

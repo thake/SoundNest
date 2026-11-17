@@ -1011,15 +1011,21 @@ private fun BrowseCategoryTile(
 
 @Composable
 fun SearchTopBar() {
-    Row(horizontalArrangement = Arrangement.Start,
+    Row(
+        horizontalArrangement = Arrangement.Start,
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp)
+            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
     ) {
-        Text(text = stringResource(R.string.navigationbar_musicappitems_search_title), color = AppText, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        ClassicMenuAvatarButton(modifier = Modifier.padding(end = 12.dp))
+        Text(
+            text = stringResource(R.string.navigationbar_musicappitems_search_title),
+            color = AppText,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+        )
     }
-
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

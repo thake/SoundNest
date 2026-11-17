@@ -175,8 +175,10 @@ import io.github.thake.soundnest.ui.immersive.screens.ImmersiveCategoryScreen
 import io.github.thake.soundnest.ui.immersive.screens.ImmersiveContextScreen
 import io.github.thake.soundnest.ui.immersive.screens.ImmersiveHomeScreen
 import io.github.thake.soundnest.ui.immersive.screens.ImmersiveLibraryScreen
-import io.github.thake.soundnest.ui.immersive.screens.ImmersiveProfileSheet
 import io.github.thake.soundnest.ui.immersive.screens.ImmersiveSearchScreen
+import io.github.thake.soundnest.ui.screens.AboutScreen
+import io.github.thake.soundnest.ui.screens.AccountsScreen
+import io.github.thake.soundnest.ui.screens.MenuNavigationDrawer
 import io.github.thake.soundnest.ui.immersive.sheets.ImmersiveSleepTimerSheet
 import io.github.thake.soundnest.ui.immersive.sheets.ImmersiveSongOptionsSheet
 import io.github.thake.soundnest.ui.immersive.shell.ImmersiveBottomChrome
@@ -940,6 +942,12 @@ class DocScreenshotTest {
         add("Classic Look", "classic/40-settings-library.png", "Settings: Library", "Classic Settings Library tab.", Look.CLASSIC) {
             ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav, initialTab = 6) }
         }
+        add("Classic Look", "classic/41-about-soundnest.png", "Menu: About SoundNest", "Full-screen Classic About page with GPL-3.0 credits and upstream attributions.", Look.CLASSIC) {
+            ClassicShell("detail", capped = true) { nav -> AboutScreen(nav) }
+        }
+        add("Classic Look", "classic/42-switch-account.png", "Menu: Switch Account (PIN-Unlocked)", "Full-screen Classic Switch Account page opened from the menu drawer.", Look.CLASSIC, parentAdminPrep) {
+            ClassicShell("detail", capped = true) { nav -> AccountsScreen(nav) }
+        }
 
         // ── 5. Immersive Look — Complete Screen, Player & Settings Catalog ──
         add("Immersive Look", "immersive/01-home-filtered-open.png", "Home (Filtered Open)", "Immersive Home with glass pills, shortcuts, and curated shelves.", Look.IMMERSIVE, filteredOpenPrep) {
@@ -1094,6 +1102,12 @@ class DocScreenshotTest {
         add("Immersive Look", "immersive/46-settings-app-about.png", "Settings: About SoundNest", "Immersive Settings App version, diagnostics, and credits sub-page.", Look.IMMERSIVE) {
             ImmersiveShell("detail", capped = true) { nav -> ImmersiveSettingsScreen(nav, initialPage = SettingsPage.App) }
         }
+        add("Immersive Look", "immersive/47-about-soundnest.png", "Menu: About SoundNest", "Full-screen Immersive About page with GPL-3.0 credits and upstream attributions.", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> AboutScreen(nav) }
+        }
+        add("Immersive Look", "immersive/48-switch-account.png", "Menu: Switch Account (PIN-Unlocked)", "Full-screen Immersive Switch Account page opened from the menu drawer.", Look.IMMERSIVE, parentAdminPrep) {
+            ImmersiveShell("detail", capped = true) { nav -> AccountsScreen(nav) }
+        }
 
         // ── 6. Bottom Sheets, Modals & Overlays ──
         add("Sheets & Modals", "sheets/01-classic-song-options.png", "Classic Song Options Sheet", "Track context menu in Classic look (read-only library aware).", Look.CLASSIC) {
@@ -1140,10 +1154,13 @@ class DocScreenshotTest {
         add("Sheets & Modals", "sheets/09-look-offer-modal.png", "New Look Offer Screen", "One-time upgrade prompt offering existing users the Immersive look.", Look.IMMERSIVE) {
             LookStep(onNext = {}, offer = LookOffer(onKeep = {}))
         }
-        add("Sheets & Modals", "sheets/10-immersive-profile-sheet.png", "Immersive Home Profile Sheet", "Quick drawer sheet from Home avatar linking to Recents, Stats, and Settings.", Look.IMMERSIVE) {
-            ImmersiveShell(Routes.Home.route, capped = false) { nav ->
-                ImmersiveHomeScreen(nav)
-                ImmersiveProfileSheet(onOpen = {}, onDismiss = {})
+        add("Sheets & Modals", "sheets/10-immersive-menu-drawer.png", "Immersive Menu Navigation Drawer", "90%-width Material 3 left-sliding drawer from top-left avatar with 10% Home peek on the right.", Look.IMMERSIVE) {
+            val nav = rememberNavController()
+            val drawerState = androidx.compose.material3.rememberDrawerState(androidx.compose.material3.DrawerValue.Open)
+            MenuNavigationDrawer(navController = nav, drawerState = drawerState) {
+                ImmersiveShell(Routes.Home.route, capped = false) { innerNav ->
+                    ImmersiveHomeScreen(innerNav)
+                }
             }
         }
         add("Sheets & Modals", "sheets/11-playlist-options-sheet.png", "Playlist Options Sheet", "Playlist actions sheet (shuffle, sort, share, library controls).", Look.CLASSIC) {
@@ -1171,6 +1188,15 @@ class DocScreenshotTest {
                     onOpen = {},
                     onDismiss = {},
                 )
+            }
+        }
+        add("Sheets & Modals", "sheets/13-classic-menu-drawer.png", "Classic Menu Navigation Drawer", "90%-width Material 3 left-sliding drawer in Classic look with 10% Home peek on the right.", Look.CLASSIC) {
+            val nav = rememberNavController()
+            val drawerState = androidx.compose.material3.rememberDrawerState(androidx.compose.material3.DrawerValue.Open)
+            MenuNavigationDrawer(navController = nav, drawerState = drawerState) {
+                ClassicShell(Routes.Home.route, capped = false) { innerNav ->
+                    HomeScreen(innerNav)
+                }
             }
         }
 

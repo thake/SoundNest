@@ -202,6 +202,32 @@ fun MyNavHost(
             io.github.thake.soundnest.parental.ParentSettingsScreen(navHostController)
         }
 
+        page(Routes.About.route) {
+            io.github.thake.soundnest.ui.screens.AboutScreen(navHostController)
+        }
+
+        page(Routes.Accounts.route) {
+            val tick by io.github.thake.soundnest.parental.ParentSecurityManager.sessionTick.collectAsState()
+            val unlocked = androidx.compose.runtime.remember(tick) {
+                io.github.thake.soundnest.parental.ParentSecurityManager.canAccessWithoutPrompt(
+                    context,
+                    io.github.thake.soundnest.parental.AppSurface.ACCOUNTS_AND_LOGOUT,
+                )
+            }
+            LaunchedEffect(unlocked) {
+                if (!unlocked) {
+                    navHostController.popBackStack()
+                    io.github.thake.soundnest.parental.ParentSecurityManager.runProtected(
+                        context,
+                        io.github.thake.soundnest.parental.AppSurface.ACCOUNTS_AND_LOGOUT,
+                    ) { navHostController.navigate(Routes.Accounts.route) }
+                }
+            }
+            if (unlocked) {
+                io.github.thake.soundnest.ui.screens.AccountsScreen(navHostController)
+            }
+        }
+
         page(
             "${Routes.Category.route}/{genre}?title={title}",
             arguments = listOf(navArgument("title") { defaultValue = "" }),
