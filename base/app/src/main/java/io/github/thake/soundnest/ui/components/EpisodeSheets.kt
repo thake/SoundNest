@@ -92,6 +92,33 @@ fun EpisodeOptionsSheet(
                     Text(song.singer, color = AppText.copy(alpha = 0.65f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
+            val adminUnlocked = io.github.thake.soundnest.parental.rememberAdminUnlocked()
+            val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+            val parentTargets = androidx.compose.runtime.remember(song) {
+                io.github.thake.soundnest.parental.ParentBlockActions.targetsForSong(song)
+            }
+            if (!isAudible && adminUnlocked && parentTargets.isNotEmpty()) {
+                parentTargets.forEachIndexed { idx, target ->
+                    val blocked = io.github.thake.soundnest.parental.ParentBlockActions.isBlocked(target, policy)
+                    SheetAction(
+                        icon = if (blocked) Icons.Default.Check else androidx.compose.material.icons.Icons.Outlined.Block,
+                        label = io.github.thake.soundnest.parental.ParentBlockActions.actionLabel(
+                            target,
+                            blocked,
+                            includeTitle = idx > 0,
+                        ),
+                        tint = io.github.thake.soundnest.parental.ParentBlockRed,
+                    ) {
+                        io.github.thake.soundnest.parental.ParentBlockActions.toggleBlock(context, target)
+                        onDismiss()
+                    }
+                }
+                androidx.compose.material3.HorizontalDivider(
+                    color = tone(0xFF333333),
+                    thickness = 0.5.dp,
+                    modifier = Modifier.padding(vertical = 4.dp),
+                )
+            }
             if (!isAudible) {
                 SheetAction(Icons.Outlined.Share, stringResource(R.string.a11y_share)) {
                     onDismiss()
@@ -132,33 +159,6 @@ fun EpisodeOptionsSheet(
             if (onOpen != null && !isAudible) SheetAction(Icons.Outlined.Info, stringResource(R.string.episode_open)) {
                 onDismiss()
                 onOpen()
-            }
-            val adminUnlocked = io.github.thake.soundnest.parental.rememberAdminUnlocked()
-            val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
-            val parentTargets = androidx.compose.runtime.remember(song) {
-                io.github.thake.soundnest.parental.ParentBlockActions.targetsForSong(song)
-            }
-            if (!isAudible && adminUnlocked && parentTargets.isNotEmpty()) {
-                androidx.compose.material3.HorizontalDivider(
-                    color = tone(0xFF333333),
-                    thickness = 0.5.dp,
-                    modifier = Modifier.padding(vertical = 4.dp),
-                )
-                parentTargets.forEachIndexed { idx, target ->
-                    val blocked = io.github.thake.soundnest.parental.ParentBlockActions.isBlocked(target, policy)
-                    SheetAction(
-                        icon = if (blocked) Icons.Default.Check else androidx.compose.material.icons.Icons.Outlined.Block,
-                        label = io.github.thake.soundnest.parental.ParentBlockActions.actionLabel(
-                            target,
-                            blocked,
-                            includeTitle = idx > 0,
-                        ),
-                        tint = io.github.thake.soundnest.parental.ParentBlockRed,
-                    ) {
-                        io.github.thake.soundnest.parental.ParentBlockActions.toggleBlock(context, target)
-                        onDismiss()
-                    }
-                }
             }
         }
     }

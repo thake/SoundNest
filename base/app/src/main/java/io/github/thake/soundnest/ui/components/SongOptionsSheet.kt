@@ -170,6 +170,26 @@ fun SongOptionsSheet(
             HorizontalDivider(color = tone(0xFF3E3E3E), thickness = 0.5.dp)
             Spacer(Modifier.height(8.dp))
 
+            val adminUnlocked = io.github.thake.soundnest.parental.rememberAdminUnlocked()
+            val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
+            val parentTargets = remember(song) { io.github.thake.soundnest.parental.ParentBlockActions.targetsForSong(song) }
+            if (!isRadio && adminUnlocked && parentTargets.isNotEmpty()) {
+                parentTargets.forEach { target ->
+                    val blocked = io.github.thake.soundnest.parental.ParentBlockActions.isBlocked(target, policy)
+                    val includeTitle = target.kind != io.github.thake.soundnest.parental.ParentRuleKind.TRACK &&
+                        target.kind != io.github.thake.soundnest.parental.ParentRuleKind.EPISODE
+                    MenuRow(
+                        icon = if (blocked) Icons.Default.Check else Icons.Outlined.Block,
+                        label = io.github.thake.soundnest.parental.ParentBlockActions.actionLabel(target, blocked, includeTitle = includeTitle),
+                        tint = io.github.thake.soundnest.parental.ParentBlockRed,
+                    ) {
+                        io.github.thake.soundnest.parental.ParentBlockActions.toggleBlock(context, target)
+                        onDismiss()
+                    }
+                }
+                HorizontalDivider(color = tone(0xFF3E3E3E), modifier = Modifier.padding(vertical = 4.dp))
+            }
+
             val canModifyLib = io.github.thake.soundnest.parental.FeatureGates.canModifySpotifyLibrary(context)
             val canRadio = io.github.thake.soundnest.parental.FeatureGates.canUseAutoplayAndRadio(context)
 
@@ -329,25 +349,6 @@ fun SongOptionsSheet(
                     MenuRow(Icons.Outlined.GraphicEq, stringResource(R.string.quality_sheet_title)) { showQuality = true }
                 }
                 MenuRow(Icons.Outlined.Analytics, stringResource(R.string.nerd_title)) { showNerd = true }
-            }
-            val adminUnlocked = io.github.thake.soundnest.parental.rememberAdminUnlocked()
-            val policy = io.github.thake.soundnest.parental.rememberParentalPolicy()
-            val parentTargets = remember(song) { io.github.thake.soundnest.parental.ParentBlockActions.targetsForSong(song) }
-            if (!isRadio && adminUnlocked && parentTargets.isNotEmpty()) {
-                HorizontalDivider(color = tone(0xFF3E3E3E), modifier = Modifier.padding(vertical = 4.dp))
-                parentTargets.forEach { target ->
-                    val blocked = io.github.thake.soundnest.parental.ParentBlockActions.isBlocked(target, policy)
-                    val includeTitle = target.kind != io.github.thake.soundnest.parental.ParentRuleKind.TRACK &&
-                        target.kind != io.github.thake.soundnest.parental.ParentRuleKind.EPISODE
-                    MenuRow(
-                        icon = if (blocked) Icons.Default.Check else Icons.Outlined.Block,
-                        label = io.github.thake.soundnest.parental.ParentBlockActions.actionLabel(target, blocked, includeTitle = includeTitle),
-                        tint = io.github.thake.soundnest.parental.ParentBlockRed,
-                    ) {
-                        io.github.thake.soundnest.parental.ParentBlockActions.toggleBlock(context, target)
-                        onDismiss()
-                    }
-                }
             }
             Spacer(Modifier.height(12.dp))
         }

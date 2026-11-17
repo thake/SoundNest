@@ -2,12 +2,12 @@
 
 Auto-generated deterministically by `./gradlew :app:generateDocScreenshots` ([`DocScreenshotTest.kt`](../../base/app/src/test/java/io/github/thake/soundnest/ui/DocScreenshotTest.kt)).
 
-Total captured screens, panels, dialogs & sheets: **127**.
+Total captured screens, panels, dialogs & sheets: **130**.
 
 ## Contents
 - [Hero Overview (6)](#hero-overview)
 - [Onboarding & Session (9)](#onboarding-session)
-- [Parental Controls & Security (14)](#parental-controls-security)
+- [Parental Controls & Security (17)](#parental-controls-security)
 - [Classic Look (40)](#classic-look)
 - [Immersive Look (46)](#immersive-look)
 - [Sheets & Modals (12)](#sheets-modals)
@@ -55,6 +55,9 @@ Total captured screens, panels, dialogs & sheets: **127**.
 | **Manage Content Rules Sheet** (`CLASSIC`) | <img src="parental/12-manage-content-rules-sheet.png" width="180" alt="Manage Content Rules Sheet" /> | [`parental/12-manage-content-rules-sheet.png`](parental/12-manage-content-rules-sheet.png)<br/>Searchable Approved & Blocked item rules manager with human-readable titles. |
 | **Dashboard: Audible Audiobooks** (`CLASSIC`) | <img src="parental/13-audible-account-controls.png" width="180" alt="Dashboard: Audible Audiobooks" /> | [`parental/13-audible-account-controls.png`](parental/13-audible-account-controls.png)<br/>Connected Audible marketplace status, library sync, and approved/pinned book counts. |
 | **Audible Parent Picker Sheet** (`CLASSIC`) | <img src="parental/14-audible-parent-picker-sheet.png" width="180" alt="Audible Parent Picker Sheet" /> | [`parental/14-audible-parent-picker-sheet.png`](parental/14-audible-parent-picker-sheet.png)<br/>Explicit per-book Approve and separate Pin to Home controls over the parent's owned Audible library. |
+| **In-App Blocking: Playlist Header Pill** (`IMMERSIVE`) | <img src="parental/15-playlist-inline-block-pill.png" width="180" alt="In-App Blocking: Playlist Header Pill" /> | [`parental/15-playlist-inline-block-pill.png`](parental/15-playlist-inline-block-pill.png)<br/>1-tap Block Playlist pill and floating Parent Mode banner directly on a regular playlist detail page (zero Spotify URIs needed). |
+| **In-App Blocking: Song Options Menu** (`IMMERSIVE`) | <img src="parental/16-song-options-parent-block.png" width="180" alt="In-App Blocking: Song Options Menu" /> | [`parental/16-song-options-parent-block.png`](parental/16-song-options-parent-block.png)<br/>Song context menu while Parent Mode is unlocked, exposing 1-tap Block Song, Block Artist, and Block Album actions. |
+| **In-App Blocking: Home Card Quick-Block Sheet** (`IMMERSIVE`) | <img src="parental/17-quick-block-sheet.png" width="180" alt="In-App Blocking: Home Card Quick-Block Sheet" /> | [`parental/17-quick-block-sheet.png`](parental/17-quick-block-sheet.png)<br/>Home card overflow buttons and 1-tap ParentQuickBlockSheet while Parent Mode is unlocked. |
 
 ## Classic Look
 

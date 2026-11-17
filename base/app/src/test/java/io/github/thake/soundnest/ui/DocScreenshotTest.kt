@@ -118,8 +118,11 @@ import io.github.thake.soundnest.parental.HomeSectionConfig
 import io.github.thake.soundnest.parental.ManageContentRulesSheet
 import io.github.thake.soundnest.parental.NetworkSnapshot
 import io.github.thake.soundnest.parental.ParentAdminSessionBanner
+import io.github.thake.soundnest.parental.ParentBlockTarget
 import io.github.thake.soundnest.parental.ParentPinPromptHost
 import io.github.thake.soundnest.parental.ParentPinSetupScreen
+import io.github.thake.soundnest.parental.ParentQuickBlockSheet
+import io.github.thake.soundnest.parental.ParentRuleKind
 import io.github.thake.soundnest.parental.ParentSecurityManager
 import io.github.thake.soundnest.parental.ParentSettingsScreen
 import io.github.thake.soundnest.parental.ParentalPolicy
@@ -769,6 +772,33 @@ class DocScreenshotTest {
         add("Parental Controls & Security", "parental/14-audible-parent-picker-sheet.png", "Audible Parent Picker Sheet", "Explicit per-book Approve and separate Pin to Home controls over the parent's owned Audible library.", Look.CLASSIC, audibleAdminPrep) {
             ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(3, 360))
             io.github.thake.soundnest.audible.ui.AudiblePickerSheet(onDismiss = {})
+        }
+        add("Parental Controls & Security", "parental/15-playlist-inline-block-pill.png", "In-App Blocking: Playlist Header Pill", "1-tap Block Playlist pill and floating Parent Mode banner directly on a regular playlist detail page (zero Spotify URIs needed).", Look.IMMERSIVE, parentAdminPrep) {
+            ImmersiveShell("detail", capped = true) { nav ->
+                ImmersiveContextScreen(nav, type = "playlist", id = "ghibli")
+            }
+        }
+        add("Parental Controls & Security", "parental/16-song-options-parent-block.png", "In-App Blocking: Song Options Menu", "Song context menu while Parent Mode is unlocked, exposing 1-tap Block Song, Block Artist, and Block Album actions.", Look.IMMERSIVE, parentAdminPrep) {
+            val ctx = LocalContext.current
+            ImmersiveShell("detail", capped = true) { nav ->
+                ImmersiveContextScreen(nav, type = "playlist", id = "ghibli")
+                ImmersiveSongOptionsSheet(song = sampleTrackSongs()[1], navController = nav, context = ctx, onDismiss = {})
+            }
+        }
+        add("Parental Controls & Security", "parental/17-quick-block-sheet.png", "In-App Blocking: Home Card Quick-Block Sheet", "Home card overflow buttons and 1-tap ParentQuickBlockSheet while Parent Mode is unlocked.", Look.IMMERSIVE, parentAdminPrep) {
+            ImmersiveShell(Routes.Home.route, capped = false) { nav ->
+                ImmersiveHomeScreen(nav)
+                ParentQuickBlockSheet(
+                    target = ParentBlockTarget(
+                        kind = ParentRuleKind.PLAYLIST,
+                        id = "ghibli",
+                        title = "Studio Ghibli Piano",
+                        subtitle = "Playlist • Parent Picks",
+                        coverUri = covers.getValue("ghibli"),
+                    ),
+                    onDismiss = {},
+                )
+            }
         }
 
         // ── 4. Classic Look — Complete Screen & Settings Catalog ──
