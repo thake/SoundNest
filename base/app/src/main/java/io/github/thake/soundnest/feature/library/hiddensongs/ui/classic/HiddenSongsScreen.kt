@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,6 +42,9 @@ import io.github.thake.soundnest.core.ui.classic.AppAccent
 import io.github.thake.soundnest.core.ui.classic.AppBackground
 import io.github.thake.soundnest.core.ui.classic.AppMuted
 import io.github.thake.soundnest.core.ui.classic.AppText
+import io.github.thake.soundnest.feature.parental.filter.ParentalFilterEngine
+import io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore
+import io.github.thake.soundnest.feature.parental.settings.rememberParentalPolicy
 
 /**
  * Settings > Hidden songs (Classic): the songs marked "Not interested" (see [HiddenSongs]), newest
@@ -50,7 +54,15 @@ import io.github.thake.soundnest.core.ui.classic.AppText
 @Composable
 fun HiddenSongsScreen(navController: NavController) {
     val context = LocalContext.current
-    val songs = HiddenSongs.songs
+    val policy = rememberParentalPolicy()
+    val songs = remember(HiddenSongs.songs, policy) {
+        HiddenSongs.songs.filter { s ->
+            val normId = ParentalPolicyStore.normalizeSpotifyId(s.id)
+            if (normId.isNotEmpty() && normId in policy.blockedTrackIds) return@filter false
+            if (normId.isNotEmpty() && normId in policy.allowedTrackIds) return@filter true
+            !ParentalFilterEngine.matchesBlockedText(policy, s.title, s.singer)
+        }
+    }
     Column(Modifier.fillMaxSize().background(AppBackground).statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(48.dp).clickable { navController.popBackStack() }, contentAlignment = Alignment.Center) {

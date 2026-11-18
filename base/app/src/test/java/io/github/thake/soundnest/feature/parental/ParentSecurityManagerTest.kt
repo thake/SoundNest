@@ -205,6 +205,7 @@ class ParentSecurityManagerTest {
         assertTrue(ParentSecurityManager.canAccessWithoutPrompt(context, AppSurface.KID_APPEARANCE))
         assertTrue(ParentSecurityManager.canAccessWithoutPrompt(context, AppSurface.KID_AUDIO))
         assertTrue(ParentSecurityManager.canAccessWithoutPrompt(context, AppSurface.KID_SLEEP_TIMER))
+        assertTrue(ParentSecurityManager.canAccessWithoutPrompt(context, AppSurface.KID_HIDDEN_SONGS))
 
         var kidActionRan = false
         ParentSecurityManager.runProtected(context, AppSurface.KID_SLEEP_TIMER) {
@@ -217,7 +218,7 @@ class ParentSecurityManagerTest {
         val lockedSurfaces = listOf(
             AppSurface.PARENT_CONTROLS,
             AppSurface.ACCOUNTS_AND_LOGOUT,
-            AppSurface.HIDDEN_SONGS_AND_BANS,
+            AppSurface.ARTIST_BANS,
             AppSurface.DIAGNOSTIC_EXPORT,
         )
         for (surface in lockedSurfaces) {

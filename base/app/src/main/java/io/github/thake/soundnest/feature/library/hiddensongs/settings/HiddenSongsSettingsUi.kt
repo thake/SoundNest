@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -21,11 +20,9 @@ import io.github.thake.soundnest.core.ui.classic.AppText
 import io.github.thake.soundnest.core.ui.immersive.pages.ImmersiveGroupRow
 import io.github.thake.soundnest.core.ui.immersive.pages.ImmersiveGroupScope
 import io.github.thake.soundnest.core.ui.navigation.Routes
-import io.github.thake.soundnest.feature.parental.security.AppSurface
-import io.github.thake.soundnest.feature.parental.security.ParentSecurityManager
 
 /**
- * PIN-protected Kid Settings rows (Classic & Immersive) and Settings Search entry for Hidden Songs.
+ * Kid Settings rows (Classic & Immersive) and Settings Search entry for Hidden Songs.
  */
 object HiddenSongsSettingsUi {
     val settingsEntries: List<SettingsEntry> = listOf(
@@ -39,15 +36,11 @@ object HiddenSongsSettingsUi {
 
     @Composable
     fun ClassicLibraryRow(navController: NavController) {
-        val ctx = LocalContext.current
         Column(
             Modifier
                 .fillMaxWidth()
                 .clickable {
-                    ParentSecurityManager.runProtected(
-                        ctx,
-                        AppSurface.HIDDEN_SONGS_AND_BANS,
-                    ) { navController.navigate(Routes.HiddenSongs.route) }
+                    navController.navigate(Routes.HiddenSongs.route)
                 }
                 .padding(horizontal = 20.dp, vertical = 10.dp),
         ) {
@@ -63,10 +56,7 @@ object HiddenSongsSettingsUi {
                 detail = stringResource(R.string.hidden_songs_detail),
                 chevron = true,
                 onClick = {
-                    ParentSecurityManager.runProtected(
-                        ctx,
-                        AppSurface.HIDDEN_SONGS_AND_BANS,
-                    ) { navController.navigate(Routes.HiddenSongs.route) }
+                    navController.navigate(Routes.HiddenSongs.route)
                 },
             )
         }

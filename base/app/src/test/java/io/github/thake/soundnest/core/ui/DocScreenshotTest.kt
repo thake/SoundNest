@@ -900,7 +900,7 @@ class DocScreenshotTest {
         add("Classic Look", "classic/26-live-radio.png", "Live Radio", "Classic Live Radio screen with favorite stations and search.", Look.CLASSIC) {
             ClassicShell("detail", capped = true) { nav -> LiveRadioScreen(nav) }
         }
-        add("Classic Look", "classic/27-hidden-songs.png", "Hidden Songs", "Classic PIN-protected Hidden Songs list.", Look.CLASSIC) {
+        add("Classic Look", "classic/27-hidden-songs.png", "Hidden Songs", "Classic Hidden Songs list.", Look.CLASSIC) {
             ClassicShell("detail", capped = true) { nav -> HiddenSongsScreen(nav) }
         }
         add("Classic Look", "classic/28-equalizer.png", "Equalizer & Audio Effects", "Classic 5-band equalizer, presets, playback speed, and silence skip.", Look.CLASSIC) {
@@ -1046,7 +1046,7 @@ class DocScreenshotTest {
         add("Immersive Look", "immersive/26-live-radio.png", "Live Radio", "Immersive Live Radio station browser and favorites.", Look.IMMERSIVE) {
             ImmersiveShell("detail", capped = true) { nav -> ImmersiveLiveRadioScreen(nav) }
         }
-        add("Immersive Look", "immersive/27-hidden-songs.png", "Hidden Songs", "Immersive PIN-protected Hidden Songs screen.", Look.IMMERSIVE) {
+        add("Immersive Look", "immersive/27-hidden-songs.png", "Hidden Songs", "Immersive Hidden Songs screen.", Look.IMMERSIVE) {
             ImmersiveShell("detail", capped = true) { nav -> ImmersiveHiddenSongsScreen(nav) }
         }
         add("Immersive Look", "immersive/28-equalizer.png", "Equalizer & Audio Effects", "Immersive inset-grouped Equalizer & playback effects screen.", Look.IMMERSIVE) {

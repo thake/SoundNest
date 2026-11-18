@@ -117,26 +117,8 @@ fun MyNavHost(
         }
 
         page(Routes.HiddenSongs.route) {
-            val tick by io.github.thake.soundnest.feature.parental.security.ParentSecurityManager.sessionTick.collectAsState()
-            val unlocked = androidx.compose.runtime.remember(tick) {
-                io.github.thake.soundnest.feature.parental.security.ParentSecurityManager.canAccessWithoutPrompt(
-                    context,
-                    io.github.thake.soundnest.feature.parental.security.AppSurface.HIDDEN_SONGS_AND_BANS,
-                )
-            }
-            LaunchedEffect(unlocked) {
-                if (!unlocked) {
-                    navHostController.popBackStack()
-                    io.github.thake.soundnest.feature.parental.security.ParentSecurityManager.runProtected(
-                        context,
-                        io.github.thake.soundnest.feature.parental.security.AppSurface.HIDDEN_SONGS_AND_BANS,
-                    ) { navHostController.navigate(Routes.HiddenSongs.route) }
-                }
-            }
-            if (unlocked) {
-                if (isImmersive()) io.github.thake.soundnest.feature.library.hiddensongs.ui.immersive.ImmersiveHiddenSongsScreen(navHostController)
-                else io.github.thake.soundnest.feature.library.hiddensongs.ui.classic.HiddenSongsScreen(navHostController)
-            }
+            if (isImmersive()) io.github.thake.soundnest.feature.library.hiddensongs.ui.immersive.ImmersiveHiddenSongsScreen(navHostController)
+            else io.github.thake.soundnest.feature.library.hiddensongs.ui.classic.HiddenSongsScreen(navHostController)
         }
 
         // The local player's equalizer, speed and silence skipping (Settings > Playback, the player's menu).

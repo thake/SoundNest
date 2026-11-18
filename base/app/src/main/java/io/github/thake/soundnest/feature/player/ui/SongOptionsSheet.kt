@@ -256,17 +256,12 @@ fun SongOptionsSheet(
                 playerViewModel.goToArtist(song.spotifyTrackId, song.singer) { route -> navController.navigate(route) }
             }
             MenuRow(Icons.Outlined.Info, stringResource(R.string.track_credits), enabled = hasId) { showCredits = true }
-            // "Not interested": kept on this phone only; Parent PIN required to change hidden songs.
+            // "Not interested": kept on this phone only; child-accessible.
             if (hasId && !song.url.startsWith("episode:")) {
                 val hidden = io.github.thake.soundnest.feature.library.hiddensongs.settings.HiddenSongs.isHidden(song.spotifyTrackId)
                 MenuRow(Icons.Outlined.ThumbDownOffAlt, stringResource(if (hidden) R.string.show_song_again else R.string.hide_song)) {
                     onDismiss()
-                    io.github.thake.soundnest.feature.parental.security.ParentSecurityManager.runProtected(
-                        context,
-                        io.github.thake.soundnest.feature.parental.security.AppSurface.HIDDEN_SONGS_AND_BANS,
-                    ) {
-                        if (hidden) io.github.thake.soundnest.feature.library.hiddensongs.settings.HiddenSongs.show(context, song.spotifyTrackId) else SongPlayer.hideSong(song)
-                    }
+                    if (hidden) io.github.thake.soundnest.feature.library.hiddensongs.settings.HiddenSongs.show(context, song.spotifyTrackId) else SongPlayer.hideSong(song)
                 }
             }
             // Taste profile: shown only when the account supports taste exclusion and has loaded.
@@ -299,7 +294,7 @@ fun SongOptionsSheet(
                     onDismiss()
                     io.github.thake.soundnest.feature.parental.security.ParentSecurityManager.runProtected(
                         context,
-                        io.github.thake.soundnest.feature.parental.security.AppSurface.HIDDEN_SONGS_AND_BANS,
+                        io.github.thake.soundnest.feature.parental.security.AppSurface.ARTIST_BANS,
                     ) {
                         io.github.thake.soundnest.host.android.SoundNestRuntime.scope.launch {
                             runCatching { io.github.thake.soundnest.host.android.SoundNestRuntime.api.extras.setArtistBanned(artist, !banned) }

@@ -60,7 +60,7 @@ SoundNest supports **both** Spotify Free and Spotify Premium accounts without re
 2. Immediately after sign-in, SoundNest blocks access to the app until you set a **Parent PIN or password (4+ characters)** (`Set Up Parent PIN or Password` — digits, letters, symbols, or passphrases are all supported).
 3. Your PIN or password is hashed with **PBKDF2-HMAC-SHA256** (65,536 iterations) and wrapped in an **Android Keystore AES-GCM** hardware-backed key, with persistent exponential cooldowns after repeated wrong guesses (30s up to 15m).
 4. Optionally enable **Fingerprint / Face Unlock** to enter Parent Mode quickly, and toggle **Trust Current Wi-Fi as Home Network** while at home.
-5. Unlocking Parent Mode starts a **5-minute Admin Session** that automatically re-locks (or tap **Lock & Exit** before handing the device back to your child). Account switching, sign-out, hidden-song management, and diagnostic exports all require your Parent PIN or password.
+5. Unlocking Parent Mode starts a **5-minute Admin Session** that automatically re-locks (or tap **Lock & Exit** before handing the device back to your child). Account switching, sign-out, artist bans, and diagnostic exports all require your Parent PIN or password.
 
 ### 2. Choosing a Content Filter Mode
 Open **Settings -> Open Parental Controls Dashboard** to pick between two modes:

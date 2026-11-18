@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -18,6 +19,9 @@ import io.github.thake.soundnest.feature.library.hiddensongs.settings.HiddenSong
 import io.github.thake.soundnest.core.ui.immersive.Immersive
 import io.github.thake.soundnest.core.ui.immersive.components.immersiveClickable
 import androidx.compose.ui.unit.dp
+import io.github.thake.soundnest.feature.parental.filter.ParentalFilterEngine
+import io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore
+import io.github.thake.soundnest.feature.parental.settings.rememberParentalPolicy
 
 /**
  * Settings > Hidden songs (Immersive): the songs marked "Not interested" (see [HiddenSongs]),
@@ -26,7 +30,15 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun ImmersiveHiddenSongsScreen(navController: NavController) {
     val context = LocalContext.current
-    val songs = HiddenSongs.songs
+    val policy = rememberParentalPolicy()
+    val songs = remember(HiddenSongs.songs, policy) {
+        HiddenSongs.songs.filter { s ->
+            val normId = ParentalPolicyStore.normalizeSpotifyId(s.id)
+            if (normId.isNotEmpty() && normId in policy.blockedTrackIds) return@filter false
+            if (normId.isNotEmpty() && normId in policy.allowedTrackIds) return@filter true
+            !ParentalFilterEngine.matchesBlockedText(policy, s.title, s.singer)
+        }
+    }
     ImmersivePage(title = stringResource(R.string.hidden_songs_title), onBack = { navController.popBackStack() }) {
         if (songs.isEmpty()) immersiveBlock("empty") {
             Text(stringResource(R.string.hidden_songs_empty), style = Immersive.Subhead, textAlign = TextAlign.Center)

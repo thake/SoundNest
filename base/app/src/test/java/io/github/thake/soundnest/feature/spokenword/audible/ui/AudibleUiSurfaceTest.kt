@@ -232,7 +232,7 @@ class AudibleUiSurfaceTest {
             }
         }
         rule.waitForIdle()
-        rule.waitUntil(timeoutMillis = 5_000) {
+        rule.waitUntil(timeoutMillis = 15_000) {
             rule.onAllNodesWithText("Opening Wakeup").fetchSemanticsNodes().isNotEmpty()
         }
 

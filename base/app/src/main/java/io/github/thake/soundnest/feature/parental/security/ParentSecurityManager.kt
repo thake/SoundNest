@@ -25,11 +25,12 @@ enum class AppSurface(val requiresParentPin: Boolean) {
     KID_APPEARANCE(requiresParentPin = false),
     KID_AUDIO(requiresParentPin = false),
     KID_SLEEP_TIMER(requiresParentPin = false),
+    KID_HIDDEN_SONGS(requiresParentPin = false),
 
     // Parent-PIN-locked surfaces
     PARENT_CONTROLS(requiresParentPin = true),
     ACCOUNTS_AND_LOGOUT(requiresParentPin = true),
-    HIDDEN_SONGS_AND_BANS(requiresParentPin = true),
+    ARTIST_BANS(requiresParentPin = true),
     DIAGNOSTIC_EXPORT(requiresParentPin = true),
 }
 

@@ -258,17 +258,12 @@ fun ImmersiveSongOptionsSheet(
             }
         }
 
-        // "Not interested": Parent PIN required to change hidden songs.
+        // "Not interested": child-accessible.
         if (hasId && !song.url.startsWith("episode:")) {
             val hidden = io.github.thake.soundnest.feature.library.hiddensongs.settings.HiddenSongs.isHidden(song.spotifyTrackId)
             ImmersiveSheetRow(Icons.Rounded.ThumbDownOffAlt, stringResource(if (hidden) R.string.show_song_again else R.string.hide_song)) {
                 onDismiss()
-                io.github.thake.soundnest.feature.parental.security.ParentSecurityManager.runProtected(
-                    context,
-                    io.github.thake.soundnest.feature.parental.security.AppSurface.HIDDEN_SONGS_AND_BANS,
-                ) {
-                    if (hidden) io.github.thake.soundnest.feature.library.hiddensongs.settings.HiddenSongs.show(context, song.spotifyTrackId) else SongPlayer.hideSong(song)
-                }
+                if (hidden) io.github.thake.soundnest.feature.library.hiddensongs.settings.HiddenSongs.show(context, song.spotifyTrackId) else SongPlayer.hideSong(song)
             }
         }
 
@@ -300,7 +295,7 @@ fun ImmersiveSongOptionsSheet(
                 onDismiss()
                 io.github.thake.soundnest.feature.parental.security.ParentSecurityManager.runProtected(
                     context,
-                    io.github.thake.soundnest.feature.parental.security.AppSurface.HIDDEN_SONGS_AND_BANS,
+                    io.github.thake.soundnest.feature.parental.security.AppSurface.ARTIST_BANS,
                 ) {
                     io.github.thake.soundnest.host.android.SoundNestRuntime.scope.launch {
                         runCatching { io.github.thake.soundnest.host.android.SoundNestRuntime.api.extras.setArtistBanned(artist, !banned) }

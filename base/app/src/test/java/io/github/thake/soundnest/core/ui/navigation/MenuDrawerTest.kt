@@ -282,4 +282,44 @@ class MenuDrawerTest {
         assertFalse(ParentSecurityManager.isAdminUnlocked(appContext))
         assertEquals(0, rule.onAllNodesWithText("Parent Mode Active").fetchSemanticsNodes().size)
     }
+
+    @Test
+    fun hiddenSongsRowIsChildAccessibleWhenLocked() {
+        ParentSecurityManager.setupInitialPin(appContext, "2468")
+        ParentSecurityManager.lockNow(appContext)
+
+        var openedHiddenSongs = false
+
+        rule.setContent {
+            SpotuiTheme {
+                CompositionLocalProvider(LocalLook provides Look.CLASSIC) {
+                    ProvideWindowSize {
+                        val nav = rememberNavController()
+                        val drawerState = rememberDrawerState(DrawerValue.Open)
+                        MenuNavigationDrawer(navController = nav, drawerState = drawerState) {
+                            NavHost(navController = nav, startDestination = Routes.Home.route) {
+                                composable(Routes.Home.route) { Text("Home") }
+                                composable(Routes.HiddenSongs.route) {
+                                    openedHiddenSongs = true
+                                    Text("Hidden Songs")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        rule.waitForIdle()
+
+        // Tapping Hidden songs while locked navigates directly without opening a PIN prompt
+        assertNull(ParentSecurityManager.pendingPrompt.value)
+        rule.onNodeWithTag("menu_drawer_list")
+            .performScrollToNode(hasText("Hidden songs"))
+        rule.onNodeWithText("Hidden songs").performClick()
+        rule.waitForIdle()
+
+        assertNull(ParentSecurityManager.pendingPrompt.value)
+        assertTrue(openedHiddenSongs)
+    }
 }

@@ -461,6 +461,14 @@ fun MenuDrawerSheet(
                         )
                         MenuRowDivider(palette)
                         MenuGroupRow(
+                            icon = Icons.Rounded.VisibilityOff,
+                            title = stringResource(R.string.hidden_songs_title),
+                            detail = stringResource(R.string.hidden_songs_detail),
+                            palette = palette,
+                            onClick = { openRoute(Routes.HiddenSongs.route) },
+                        )
+                        MenuRowDivider(palette)
+                        MenuGroupRow(
                             icon = Icons.Rounded.Info,
                             title = stringResource(R.string.menu_about_title),
                             detail = stringResource(R.string.about_detail),
@@ -486,19 +494,6 @@ fun MenuDrawerSheet(
                             onClick = {
                                 ParentSecurityManager.runProtected(context.applicationContext, AppSurface.PARENT_CONTROLS) {
                                     openRoute(Routes.ParentSettings.route)
-                                }
-                            },
-                        )
-                        MenuRowDivider(palette)
-                        MenuGroupRow(
-                            icon = Icons.Rounded.VisibilityOff,
-                            title = stringResource(R.string.hidden_songs_title),
-                            detail = stringResource(R.string.hidden_songs_detail),
-                            palette = palette,
-                            locked = !adminUnlocked,
-                            onClick = {
-                                ParentSecurityManager.runProtected(context.applicationContext, AppSurface.HIDDEN_SONGS_AND_BANS) {
-                                    openRoute(Routes.HiddenSongs.route)
                                 }
                             },
                         )

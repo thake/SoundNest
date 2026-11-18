@@ -472,9 +472,9 @@ fun ParentPinPromptHost() {
 private fun surfaceDescription(surface: AppSurface): String = when (surface) {
     AppSurface.PARENT_CONTROLS -> "Enter your Parent PIN or password to open Parental Controls (unlocked for 5 minutes)."
     AppSurface.ACCOUNTS_AND_LOGOUT -> "Enter your Parent PIN or password to manage Spotify accounts or sign out."
-    AppSurface.HIDDEN_SONGS_AND_BANS -> "Enter your Parent PIN or password to change hidden songs or artist bans."
+    AppSurface.ARTIST_BANS -> "Enter your Parent PIN or password to change artist bans."
     AppSurface.DIAGNOSTIC_EXPORT -> "Enter your Parent PIN or password to export diagnostic logs."
-    AppSurface.KID_APPEARANCE, AppSurface.KID_AUDIO, AppSurface.KID_SLEEP_TIMER -> ""
+    AppSurface.KID_APPEARANCE, AppSurface.KID_AUDIO, AppSurface.KID_SLEEP_TIMER, AppSurface.KID_HIDDEN_SONGS -> ""
 }
 
 private fun Context.findActivity(): Activity? =
