@@ -164,7 +164,7 @@ object HomeSectionFilter {
     fun filterShortcutItems(items: List<HomeItem>?, policy: ParentalPolicy): List<HomeItem>? {
         if (!policy.home.showShortcutsGrid) return null
         val base = items ?: return null
-        val withoutShows = if (policy.spokenWord.allowPodcasts || policy.spokenWord.allowAudiobooks) {
+        val withoutShows = if (policy.spokenWord.allowPodcasts || policy.spokenWord.allowAnyAudiobooks) {
             base
         } else {
             base.filterNot { it is HomeItem.Show }
@@ -198,7 +198,7 @@ object HomeSectionFilter {
             return listOfNotNull(parentPicks)
         }
 
-        val showsAllowed = policy.spokenWord.allowPodcasts || policy.spokenWord.allowAudiobooks
+        val showsAllowed = policy.spokenWord.allowPodcasts || policy.spokenWord.allowAnyAudiobooks
         val step1 = if (showsAllowed) {
             sections
         } else {

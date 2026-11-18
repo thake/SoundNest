@@ -857,6 +857,11 @@
     <string name="audible_picker_search_hint" tools:ignore="MissingTranslation">Search by title, author, or series</string>
     <string name="audible_home_pinned_toggle_title" tools:ignore="MissingTranslation">Show Pinned Audible Books on Home</string>
     <string name="audible_home_pinned_toggle_subtitle" tools:ignore="MissingTranslation">Include parent-pinned Audible audiobooks in the Parent Picks shelf on Home</string>
+    <string name="parent_spotify_audiobooks_title" tools:ignore="MissingTranslation">Spotify Audiobooks</string>
+    <string name="parent_spotify_audiobooks_subtitle" tools:ignore="MissingTranslation">Allow Spotify audiobooks (note: Spotify audiobooks may have separate hour limits or billing)</string>
+    <string name="parent_audible_audiobooks_title" tools:ignore="MissingTranslation">Audible Audiobooks</string>
+    <string name="parent_audible_audiobooks_subtitle" tools:ignore="MissingTranslation">Allow parent-approved Audible audiobooks without enabling Spotify audiobooks</string>
+    <string name="audible_paused_notice" tools:ignore="MissingTranslation">Audible playback and library visibility are paused. Turn on Audible Audiobooks above to show approved books.</string>
     <string name="library_chip_audiobooks" tools:ignore="MissingTranslation">Audiobooks</string>
     <!-- Material 3 left-sliding Menu drawer -->
     <string name="menu_title" tools:ignore="MissingTranslation">Menu</string>

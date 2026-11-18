@@ -97,7 +97,7 @@ object AudibleCatalogCache {
         context: Context,
         policy: io.github.thake.soundnest.feature.parental.settings.ParentalPolicy = io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore.current(context),
     ): List<io.github.thake.soundnest.core.model.LibraryEntry> {
-        if (!policy.spokenWord.allowAudiobooks || !AudibleCredentialStore.isConnected(context)) return emptyList()
+        if (!policy.spokenWord.allowAudible || !AudibleCredentialStore.isConnected(context)) return emptyList()
         val pinnedSet = policy.spokenWord.audible.pinnedAsins
         return books(context)
             .filter { io.github.thake.soundnest.feature.parental.filter.ParentalFilterEngine.isAudibleBookAllowed(it.asin, policy) }
@@ -122,7 +122,7 @@ object AudibleCatalogCache {
         policy: io.github.thake.soundnest.feature.parental.settings.ParentalPolicy = io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore.current(context),
     ): List<io.github.thake.soundnest.core.model.PodcastModel> {
         val needle = query.trim()
-        if (needle.isEmpty() || !policy.spokenWord.allowAudiobooks || !AudibleCredentialStore.isConnected(context)) return emptyList()
+        if (needle.isEmpty() || !policy.spokenWord.allowAudible || !AudibleCredentialStore.isConnected(context)) return emptyList()
         return books(context)
             .filter { book ->
                 io.github.thake.soundnest.feature.parental.filter.ParentalFilterEngine.isAudibleBookAllowed(book.asin, policy) &&

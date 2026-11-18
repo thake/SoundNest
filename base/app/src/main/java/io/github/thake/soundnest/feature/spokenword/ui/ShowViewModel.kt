@@ -82,7 +82,13 @@ class ShowViewModel constructor(
                 val loaded = (response as? Response.Success)?.data
                 if (loaded != null) {
                     val pol = io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore.current()
-                    val gateOpen = if (loaded.audiobook) pol.spokenWord.allowAudiobooks else pol.spokenWord.allowPodcasts
+                    val gateOpen = if (io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.isAudibleUri(showId)) {
+                        pol.spokenWord.allowAudible
+                    } else if (loaded.audiobook) {
+                        pol.spokenWord.allowAudiobooks
+                    } else {
+                        pol.spokenWord.allowPodcasts
+                    }
                     if (!gateOpen || !io.github.thake.soundnest.feature.parental.filter.ParentalFilterEngine.isShowAllowed(loaded.show, pol)) {
                         _page.value = Response.Error("Blocked by Parental Controls")
                         showKey = null

@@ -81,6 +81,14 @@ data class ParentalPolicy(
      */
     val effectiveAllowAutoplayAndRadio: Boolean
         get() = filterMode != FilterMode.STRICT_ALLOWLIST && playback.allowAutoplayAndRadio
+
+    val allowAudiobooks: Boolean get() = spokenWord.allowAudiobooks
+    val allowAudible: Boolean get() = spokenWord.allowAudible
+    val allowAnyAudiobooks: Boolean get() = spokenWord.allowAnyAudiobooks
+    val allowPodcasts: Boolean get() = spokenWord.allowPodcasts
+    val allowedAudibleAsins: Set<String> get() = spokenWord.audible.allowedAsins
+    val pinnedAudibleAsins: Set<String> get() = spokenWord.audible.pinnedAsins
+    val homeSections: HomeParentalPolicy get() = home
 }
 
 object ParentalPolicyStore {
@@ -126,9 +134,19 @@ object ParentalPolicyStore {
         return _policyFlow.value
     }
 
+    internal fun migrateLegacyAudiblePolicy(rawJson: String, policy: ParentalPolicy): ParentalPolicy {
+        if (!rawJson.contains("\"allowAudible\"") && policy.spokenWord.allowAudiobooks && policy.spokenWord.audible.allowedAsins.isNotEmpty()) {
+            return policy.copy(spokenWord = policy.spokenWord.copy(allowAudible = true))
+        }
+        return policy
+    }
+
     private fun loadFromDisk(context: Context): ParentalPolicy {
         val raw = prefs(context).getString(KEY_POLICY_JSON, null) ?: return ParentalPolicy()
-        return runCatching { json.decodeFromString<ParentalPolicy>(raw) }.getOrDefault(ParentalPolicy())
+        return runCatching {
+            val decoded = json.decodeFromString<ParentalPolicy>(raw)
+            migrateLegacyAudiblePolicy(raw, decoded)
+        }.getOrDefault(ParentalPolicy())
     }
 
     private fun sanitizePolicy(policy: ParentalPolicy): ParentalPolicy {

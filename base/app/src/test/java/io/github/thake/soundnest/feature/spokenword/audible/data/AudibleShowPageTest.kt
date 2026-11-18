@@ -101,7 +101,8 @@ class AudibleShowPageTest {
         // 1. Disconnected
         val disconnectedPolicy = ParentalPolicy(
             spokenWord = SpokenWordParentalPolicy(
-                allowAudiobooks = true,
+                allowAudiobooks = false,
+                allowAudible = true,
                 audible = AudibleParentalPolicy(allowedAsins = setOf("B08G9PRS1K")),
             ),
         )
@@ -111,16 +112,18 @@ class AudibleShowPageTest {
         connectAudible()
         val unapprovedPolicy = ParentalPolicy(
             spokenWord = SpokenWordParentalPolicy(
-                allowAudiobooks = true,
+                allowAudiobooks = false,
+                allowAudible = true,
                 audible = AudibleParentalPolicy(allowedAsins = emptySet()),
             ),
         )
         assertTrue(AudibleShowPageLoader.load(app, "audible:B08G9PRS1K", unapprovedPolicy).isFailure)
 
-        // 3. Connected and approved, but allowAudiobooks == false
+        // 3. Connected and approved, but allowAudible == false
         val disabledGatePolicy = ParentalPolicy(
             spokenWord = SpokenWordParentalPolicy(
                 allowAudiobooks = false,
+                allowAudible = false,
                 audible = AudibleParentalPolicy(allowedAsins = setOf("B08G9PRS1K")),
             ),
         )
@@ -137,7 +140,8 @@ class AudibleShowPageTest {
         var manifestFetches = 0
         val policy = ParentalPolicy(
             spokenWord = SpokenWordParentalPolicy(
-                allowAudiobooks = true,
+                allowAudiobooks = false,
+                allowAudible = true,
                 audible = AudibleParentalPolicy(allowedAsins = setOf("B08G9PRS1K")),
             ),
         )
@@ -191,7 +195,8 @@ class AudibleShowPageTest {
             it.copy(
                 spokenWord = SpokenWordParentalPolicy(
                     allowPodcasts = false,
-                    allowAudiobooks = true,
+                    allowAudiobooks = false,
+                    allowAudible = true,
                     audible = AudibleParentalPolicy(allowedAsins = setOf("B08G9PRS1K")),
                 ),
             )
@@ -213,7 +218,8 @@ class AudibleShowPageTest {
         ParentalPolicyStore.update(app) {
             it.copy(
                 spokenWord = SpokenWordParentalPolicy(
-                    allowAudiobooks = true,
+                    allowAudiobooks = false,
+                    allowAudible = true,
                     audible = AudibleParentalPolicy(allowedAsins = setOf("B08G9PRS1K")),
                 ),
             )

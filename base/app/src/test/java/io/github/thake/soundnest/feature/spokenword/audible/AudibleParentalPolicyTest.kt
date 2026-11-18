@@ -62,7 +62,7 @@ class AudibleParentalPolicyTest {
     fun `audible books are fail-closed in BOTH Filtered Open and Strict Allowlist unless explicitly allowed and connected`() {
         connectAudible()
         ParentalPolicyStore.update(context) {
-            it.copy(filterMode = FilterMode.FILTERED_OPEN, spokenWord = it.spokenWord.copy(allowAudiobooks = true))
+            it.copy(filterMode = FilterMode.FILTERED_OPEN, spokenWord = it.spokenWord.copy(allowAudiobooks = false, allowAudible = true))
         }
 
         // Unapproved ASIN must NOT pass even in FILTERED_OPEN
@@ -88,7 +88,7 @@ class AudibleParentalPolicyTest {
         ParentalPolicyStore.setAudibleBookAllowed(context, "B08G9PRS1K", allowed = true, title = "Project Hail Mary", subtitle = "Andy Weir")
 
         for (mode in listOf(FilterMode.FILTERED_OPEN, FilterMode.STRICT_ALLOWLIST)) {
-            ParentalPolicyStore.update(context) { it.copy(filterMode = mode, spokenWord = it.spokenWord.copy(allowAudiobooks = true)) }
+            ParentalPolicyStore.update(context) { it.copy(filterMode = mode, spokenWord = it.spokenWord.copy(allowAudiobooks = false, allowAudible = true)) }
             val pol = ParentalPolicyStore.current(context)
             assertTrue(ParentalFilterEngine.isShowAllowed("audible:B08G9PRS1K", "Project Hail Mary", isAudiobook = true, policy = pol))
             assertTrue(
@@ -117,12 +117,12 @@ class AudibleParentalPolicyTest {
             assertNotNull(ParentalFilterEngine.filterLibraryEntry(libEntry, pol))
         }
 
-        // Turning off allowAudiobooks gate immediately blocks the book
-        ParentalPolicyStore.update(context) { it.copy(spokenWord = it.spokenWord.copy(allowAudiobooks = false)) }
+        // Turning off allowAudible gate immediately blocks the book
+        ParentalPolicyStore.update(context) { it.copy(spokenWord = it.spokenWord.copy(allowAudible = false)) }
         assertFalse(ParentalFilterEngine.isShowAllowed("audible:B08G9PRS1K", "Project Hail Mary", isAudiobook = true, policy = ParentalPolicyStore.current(context)))
 
         // Re-enable gate, then disconnect Audible -> immediately blocked
-        ParentalPolicyStore.update(context) { it.copy(spokenWord = it.spokenWord.copy(allowAudiobooks = true)) }
+        ParentalPolicyStore.update(context) { it.copy(spokenWord = it.spokenWord.copy(allowAudible = true)) }
         AudibleCredentialStore.clear(context)
         assertFalse(ParentalFilterEngine.isShowAllowed("audible:B08G9PRS1K", "Project Hail Mary", isAudiobook = true, policy = ParentalPolicyStore.current(context)))
     }
@@ -151,7 +151,8 @@ class AudibleParentalPolicyTest {
         ParentalPolicyStore.update(context) {
             it.copy(
                 spokenWord = it.spokenWord.copy(
-                    allowAudiobooks = true,
+                    allowAudiobooks = false,
+                    allowAudible = true,
                     audible = it.spokenWord.audible.copy(showPinnedOnHome = true),
                 ),
                 home = it.home.copy(
@@ -193,7 +194,7 @@ class AudibleParentalPolicyTest {
     @Test
     fun `SpotifyLinkGuard enforces Audible policy on internal audible URIs and delegates audible web links externally`() {
         connectAudible()
-        ParentalPolicyStore.update(context) { it.copy(spokenWord = it.spokenWord.copy(allowAudiobooks = true)) }
+        ParentalPolicyStore.update(context) { it.copy(spokenWord = it.spokenWord.copy(allowAudiobooks = false, allowAudible = true)) }
         ParentalPolicyStore.setAudibleBookAllowed(context, "B08G9PRS1K", allowed = true)
 
         val pol = ParentalPolicyStore.current(context)
@@ -206,5 +207,91 @@ class AudibleParentalPolicyTest {
             LinkDecision.ExternalBrowser("https://www.audible.de/pd/B08G9PRS1K"),
             SpotifyLinkGuard.evaluate("https://www.audible.de/pd/B08G9PRS1K", pol),
         )
+    }
+
+    @Test
+    fun `independent toggles guarantee complete Spotify audiobooks isolation when Audible is enabled`() {
+        connectAudible()
+        ParentalPolicyStore.update(context) {
+            it.copy(
+                filterMode = FilterMode.FILTERED_OPEN,
+                spokenWord = it.spokenWord.copy(
+                    allowAudiobooks = false,
+                    allowAudible = true,
+                ),
+            )
+        }
+        ParentalPolicyStore.setAudibleBookAllowed(context, "B08G9PRS1K", allowed = true)
+        val policy = ParentalPolicyStore.current(context)
+
+        // Audible is allowed
+        assertTrue(ParentalFilterEngine.isShowAllowed("audible:B08G9PRS1K", "Project Hail Mary", isAudiobook = true, policy = policy))
+        assertTrue(
+            ParentalFilterEngine.isTrackAllowed(
+                SongsModel(
+                    id = 1,
+                    title = "Chapter 1",
+                    album = "Project Hail Mary",
+                    singer = "Andy Weir",
+                    coverUri = "",
+                    url = "audible:chapter:B08G9PRS1K:0",
+                    showId = "audible:B08G9PRS1K",
+                ),
+                policy,
+                isAudiobookChapter = true,
+            ),
+        )
+
+        // Spotify audiobook show is blocked
+        assertFalse(ParentalFilterEngine.isShowAllowed("spotify:show:7vK70cstG7i980MaoZ8z74", "Spotify Audiobook", isAudiobook = true, policy = policy))
+
+        // Spotify chapter track is blocked
+        assertFalse(
+            ParentalFilterEngine.isTrackAllowed(
+                SongsModel(
+                    id = 2,
+                    title = "Chapter 1",
+                    album = "Spotify Audiobook",
+                    singer = "Author",
+                    coverUri = "",
+                    url = "spotify:chapter:6qU9d7M7Q24b80k4J79o01",
+                    showId = "7vK70cstG7i980MaoZ8z74",
+                ),
+                policy,
+                isAudiobookChapter = true,
+            ),
+        )
+
+        // Spotify audiobook LibraryEntry is blocked
+        val spotifyLibEntry = LibraryEntry(
+            spotifyId = "7vK70cstG7i980MaoZ8z74",
+            name = "Spotify Audiobook",
+            subtitle = "Author",
+            coverUri = "",
+            isPlaylist = false,
+            uri = "spotify:audiobook:7vK70cstG7i980MaoZ8z74",
+        )
+        assertNull(ParentalFilterEngine.filterLibraryEntry(spotifyLibEntry, policy))
+
+        // Spotify chapter LibraryEntry is blocked
+        val spotifyChapterEntry = LibraryEntry(
+            spotifyId = "6qU9d7M7Q24b80k4J79o01",
+            name = "Chapter 1",
+            subtitle = "Author",
+            coverUri = "",
+            isPlaylist = false,
+            uri = "spotify:chapter:6qU9d7M7Q24b80k4J79o01",
+        )
+        assertNull(ParentalFilterEngine.filterLibraryEntry(spotifyChapterEntry, policy))
+
+        // Spotify audiobook link is blocked
+        assertTrue(SpotifyLinkGuard.evaluate("spotify:audiobook:7vK70cstG7i980MaoZ8z74", policy) is LinkDecision.Blocked)
+        assertTrue(SpotifyLinkGuard.evaluate("spotify:chapter:6qU9d7M7Q24b80k4J79o01", policy) is LinkDecision.Blocked)
+
+        // Disabling allowAudible immediately revokes Audible without affecting Spotify state
+        ParentalPolicyStore.update(context) { it.copy(spokenWord = it.spokenWord.copy(allowAudible = false)) }
+        val disabledPolicy = ParentalPolicyStore.current(context)
+        assertFalse(ParentalFilterEngine.isAudibleBookAllowed("B08G9PRS1K", disabledPolicy))
+        assertFalse(ParentalFilterEngine.isShowAllowed("audible:B08G9PRS1K", "Project Hail Mary", isAudiobook = true, policy = disabledPolicy))
     }
 }

@@ -18,7 +18,7 @@ import io.github.thake.soundnest.core.ui.classic.OptionRow
 
 /**
  * Kid Settings rows (Classic & Immersive) and Settings Search entry for spoken-word headset skip,
- * gated on `policy.spokenWord.allowPodcasts || policy.spokenWord.allowAudiobooks`.
+ * gated on `policy.spokenWord.allowPodcasts || policy.spokenWord.allowAnyAudiobooks`.
  */
 object SpokenWordSettingsUi {
     val settingsEntries: List<SettingsEntry> = listOf(
@@ -27,13 +27,13 @@ object SpokenWordSettingsUi {
             detail = R.string.settings_headset_skip_detail,
             classicPlace = "0",
             immersivePage = "Playback",
-            isVisible = { it.spokenWord.allowPodcasts || it.spokenWord.allowAudiobooks },
+            isVisible = { it.spokenWord.allowPodcasts || it.spokenWord.allowAnyAudiobooks },
         ),
     )
 
     @Composable
     fun ClassicControlsRow(policy: ParentalPolicy) {
-        if (!policy.spokenWord.allowPodcasts && !policy.spokenWord.allowAudiobooks) return
+        if (!policy.spokenWord.allowPodcasts && !policy.spokenWord.allowAnyAudiobooks) return
         val ctx = LocalContext.current
         var headsetSkip by remember { mutableStateOf(SpokenWordSettings.skipsOnEpisodes(ctx)) }
         OptionRow(
@@ -48,7 +48,7 @@ object SpokenWordSettingsUi {
     }
 
     internal fun ImmersiveGroupScope.immersiveControlsRow(context: Context, policy: ParentalPolicy) {
-        if (!policy.spokenWord.allowPodcasts && !policy.spokenWord.allowAudiobooks) return
+        if (!policy.spokenWord.allowPodcasts && !policy.spokenWord.allowAnyAudiobooks) return
         row {
             var headsetSkip by remember { mutableStateOf(SpokenWordSettings.skipsOnEpisodes(context)) }
             ImmersiveSwitchRow(

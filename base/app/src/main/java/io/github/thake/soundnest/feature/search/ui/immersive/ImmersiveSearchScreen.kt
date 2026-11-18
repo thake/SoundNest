@@ -219,7 +219,7 @@ fun ImmersiveSearchScreen(navController: NavController) {
                     }
                     if (text.isNotBlank()) {
                         ImmersiveChipRow {
-                            val filters = SearchFilter.entries.filter { it != SearchFilter.Podcasts || Features.PODCASTS || Features.AUDIOBOOKS }
+                            val filters = SearchFilter.entries.filter { it != SearchFilter.Podcasts || Features.PODCASTS || Features.AUDIOBOOKS || Features.AUDIBLE }
                             filters.forEach { f ->
                                 val on = f == filter
                                 ImmersiveChip(stringResource(f.label), selected = on) {
@@ -308,7 +308,7 @@ fun ImmersiveSearchScreen(navController: NavController) {
 private fun loadRecents(context: Context, policy: io.github.thake.soundnest.feature.parental.settings.ParentalPolicy): List<RecentItem> =
     getRecentItems(context).filter { item ->
         (item.type != "show" ||
-            (if (io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.isAudibleUri(item.key)) Features.AUDIOBOOKS else Features.PODCASTS)) &&
+            (if (io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.isAudibleUri(item.key)) Features.AUDIBLE else Features.PODCASTS)) &&
             io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.isRecentItemAllowed(item, policy)
     }
 
@@ -465,7 +465,7 @@ private fun LazyListScope.searchResults(
     val artists = if (top || filter == SearchFilter.Artists) data.artists else emptyList()
     val albums = if (top || filter == SearchFilter.Albums) data.albums else emptyList()
     val playlists = if (top || filter == SearchFilter.Playlists) data.playlists else emptyList()
-    val podcasts = (Features.PODCASTS || Features.AUDIOBOOKS) && (top || filter == SearchFilter.Podcasts)
+    val podcasts = (Features.PODCASTS || Features.AUDIOBOOKS || Features.AUDIBLE) && (top || filter == SearchFilter.Podcasts)
     val shows = if (podcasts) data.shows else emptyList()
     val episodes = if (Features.PODCASTS && (top || filter == SearchFilter.Podcasts)) data.episodes else emptyList()
     val sectioned = top

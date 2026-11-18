@@ -399,7 +399,7 @@ fun SumUpSearchScreen(
                 }
             }
             // ── Podcasts & Audiobooks: shows / books (→ detail) then individual episodes (→ play) ──
-            if ((io.github.thake.soundnest.core.catalog.Features.PODCASTS || io.github.thake.soundnest.core.catalog.Features.AUDIOBOOKS) && (filter == SearchFilter.Top || filter == SearchFilter.Podcasts)) {
+            if ((io.github.thake.soundnest.core.catalog.Features.PODCASTS || io.github.thake.soundnest.core.catalog.Features.AUDIOBOOKS || io.github.thake.soundnest.core.catalog.Features.AUDIBLE) && (filter == SearchFilter.Top || filter == SearchFilter.Podcasts)) {
             if (results.shows.isNotEmpty()) {
                 val hasPodcasts = results.shows.any { !io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.isAudibleUri(it.id) }
                 val headerRes = if (hasPodcasts) R.string.assisted_curation_search_filter_podcasts else R.string.audiobooks_title
@@ -497,7 +497,7 @@ private fun SearchFilterChips(selected: SearchFilter, onSelect: (SearchFilter) -
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
     ) {
         val filters = SearchFilter.entries.filter {
-            it != SearchFilter.Podcasts || io.github.thake.soundnest.core.catalog.Features.PODCASTS || io.github.thake.soundnest.core.catalog.Features.AUDIOBOOKS
+            it != SearchFilter.Podcasts || io.github.thake.soundnest.core.catalog.Features.PODCASTS || io.github.thake.soundnest.core.catalog.Features.AUDIOBOOKS || io.github.thake.soundnest.core.catalog.Features.AUDIBLE
         }
         items(filters.size) { i ->
             val f = filters[i]
@@ -1137,7 +1137,7 @@ private fun loadClassicSearchRecents(
 ): List<io.github.thake.soundnest.feature.recap.settings.RecentItem> =
     io.github.thake.soundnest.feature.recap.settings.getRecentItems(context).filter { item ->
         (item.type != "show" ||
-            (if (io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.isAudibleUri(item.key)) io.github.thake.soundnest.core.catalog.Features.AUDIOBOOKS else io.github.thake.soundnest.core.catalog.Features.PODCASTS)) &&
+            (if (io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.isAudibleUri(item.key)) io.github.thake.soundnest.core.catalog.Features.AUDIBLE else io.github.thake.soundnest.core.catalog.Features.PODCASTS)) &&
             ParentBlockActions.isRecentItemAllowed(item, policy)
     }
 

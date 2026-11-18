@@ -3,12 +3,14 @@ package io.github.thake.soundnest.feature.spokenword.podcasts.settings
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import io.github.thake.soundnest.R
 import io.github.thake.soundnest.feature.parental.settings.ParentalPolicy
 import io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore
 import io.github.thake.soundnest.feature.parental.ui.PolicyToggleRow
 
 /**
- * Parent Controls Dashboard toggle rows for Podcasts and Audiobooks.
+ * Parent Controls Dashboard toggle rows for Podcasts and Spotify Audiobooks.
  */
 @Composable
 fun PodcastParentSettingsRows(policy: ParentalPolicy) {
@@ -21,9 +23,10 @@ fun PodcastParentSettingsRows(policy: ParentalPolicy) {
         ParentalPolicyStore.update(context) { it.copy(spokenWord = it.spokenWord.copy(allowPodcasts = v)) }
     }
     PolicyToggleRow(
-        title = "Audiobooks",
-        subtitle = "Allow Spotify audiobooks & parent-approved Audible audiobooks",
+        title = stringResource(R.string.parent_spotify_audiobooks_title),
+        subtitle = stringResource(R.string.parent_spotify_audiobooks_subtitle),
         checked = policy.spokenWord.allowAudiobooks,
+        switchTestTag = "parent_spotify_audiobooks_toggle",
     ) { v ->
         ParentalPolicyStore.update(context) { it.copy(spokenWord = it.spokenWord.copy(allowAudiobooks = v)) }
     }

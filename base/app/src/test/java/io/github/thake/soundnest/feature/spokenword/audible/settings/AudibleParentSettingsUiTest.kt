@@ -16,6 +16,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTextInput
 import androidx.navigation.compose.rememberNavController
@@ -254,5 +255,91 @@ class AudibleParentSettingsUiTest {
         rule.onNodeWithTag("parent_home_pinned_audible_toggle").assertIsOn().performClick()
         assertFalse(ParentalPolicyStore.current(app).spokenWord.audible.showPinnedOnHome)
         rule.onNodeWithTag("parent_home_pinned_audible_toggle").assertIsOff()
+    }
+
+    @Test
+    fun `connected card displays paused notice when audibleEnabled is false while keeping actions interactive`() {
+        val app = RuntimeEnvironment.getApplication()
+        AudibleCredentialStore.save(
+            app,
+            AudibleSessionTokens(
+                marketplace = AudibleMarketplace.DE,
+                deviceSerial = "SERIAL123",
+                adpToken = "adp_tok",
+                devicePrivateKeyPem = "-----BEGIN RSA PRIVATE KEY-----\nMIIB\n-----END RSA PRIVATE KEY-----",
+                refreshToken = "refresh_tok",
+                accessToken = "access_tok",
+                customerName = "Parent Account",
+            ),
+        )
+        var manageClicked = false
+        rule.setContent {
+            SpotuiTheme {
+                AudibleParentControlsCard(
+                    audibleEnabled = false,
+                    onOpenPicker = { manageClicked = true },
+                )
+            }
+        }
+
+        rule.onNodeWithTag("audible_paused_notice").assertIsDisplayed()
+        rule.onNodeWithTag("audible_manage_books_button").performClick()
+        assertTrue(manageClicked)
+        rule.onNodeWithTag("audible_sync_library_button").assertIsDisplayed()
+        rule.onNodeWithTag("audible_disconnect_button").assertIsDisplayed()
+    }
+
+    @Test
+    fun `ParentSettingsScreen provides independent Spotify Audiobooks and Audible Audiobooks toggles`() {
+        val app = RuntimeEnvironment.getApplication()
+        ParentSecurityManager.setupInitialPin(app, "1234")
+        assertTrue(ParentSecurityManager.isAdminUnlocked(app))
+        val listState = LazyListState()
+
+        rule.setContent {
+            SpotuiTheme {
+                val nav = rememberNavController()
+                ParentSettingsScreen(navController = nav, listState = listState)
+            }
+        }
+
+        // Scroll to feature gates card
+        rule.onNodeWithTag("parent_settings_list").performScrollToIndex(3)
+        rule.waitForIdle()
+
+        // Toggle Spotify audiobooks -> updates allowAudiobooks only
+        rule.onNodeWithTag("parent_spotify_audiobooks_toggle").performScrollTo().assertIsOff().performClick()
+        rule.waitForIdle()
+        assertTrue(ParentalPolicyStore.current(app).spokenWord.allowAudiobooks)
+        assertFalse(ParentalPolicyStore.current(app).spokenWord.allowAudible)
+
+        // Toggle Audible audiobooks -> updates allowAudible only
+        rule.onNodeWithTag("parent_audible_audiobooks_toggle").performScrollTo().assertIsOff().performClick()
+        rule.waitForIdle()
+        assertTrue(ParentalPolicyStore.current(app).spokenWord.allowAudiobooks)
+        assertTrue(ParentalPolicyStore.current(app).spokenWord.allowAudible)
+
+        // Turn off Spotify audiobooks -> Audible remains enabled
+        rule.onNodeWithTag("parent_spotify_audiobooks_toggle").performScrollTo().performClick()
+        rule.waitForIdle()
+        assertFalse(ParentalPolicyStore.current(app).spokenWord.allowAudiobooks)
+        assertTrue(ParentalPolicyStore.current(app).spokenWord.allowAudible)
+    }
+
+    @Test
+    fun `disconnected card allows signing in even when audibleEnabled is false`() {
+        var started = false
+        rule.setContent {
+            SpotuiTheme {
+                AudibleParentControlsCard(
+                    audibleEnabled = false,
+                    onOpenPicker = {},
+                    onStartSignIn = { started = true },
+                )
+            }
+        }
+
+        rule.onNodeWithTag("audible_sign_in_button").performClick()
+        assertTrue(started)
     }
 }

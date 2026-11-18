@@ -215,13 +215,15 @@ object AudibleAccountCoordinator {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AudibleParentControlsCard(
-    audiobooksEnabled: Boolean,
+    audibleEnabled: Boolean = true,
+    audiobooksEnabled: Boolean = audibleEnabled,
     defaultLocale: Locale = Locale.getDefault(),
     onOpenPicker: () -> Unit,
     onStartSignIn: ((AudibleMarketplace) -> Unit)? = null,
     onSyncLibraryOverride: (suspend () -> Result<Int>)? = null,
     onDisconnectOverride: (suspend () -> Unit)? = null,
 ) {
+    val isAudibleActive = audibleEnabled && audiobooksEnabled
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val policy by ParentalPolicyStore.policyFlow.collectAsState()
@@ -277,15 +279,16 @@ fun AudibleParentControlsCard(
             fontSize = 12.sp,
         )
 
-        if (!audiobooksEnabled) {
+        val connected = summary
+        if (connected != null && !isAudibleActive) {
             Text(
-                text = "Turn on the Audiobooks toggle above to enable Audible playback and library selection.",
+                text = stringResource(R.string.audible_paused_notice),
                 color = Color(0xFFFFB74D),
                 fontSize = 12.sp,
+                modifier = Modifier.testTag("audible_paused_notice"),
             )
         }
 
-        val connected = summary
         if (connected == null) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 Row(
@@ -347,7 +350,7 @@ fun AudibleParentControlsCard(
             }
 
             Button(
-                enabled = audiobooksEnabled && !busy,
+                enabled = !busy,
                 onClick = {
                     if (onStartSignIn != null) {
                         onStartSignIn(selectedMarketplace)
@@ -464,6 +467,11 @@ fun AudibleParentControlsCard(
             onDismiss = { activeLoginMarketplace = null },
             onConnected = { count ->
                 activeLoginMarketplace = null
+                scope.launch {
+                    ParentalPolicyStore.update(context) {
+                        it.copy(spokenWord = it.spokenWord.copy(allowAudible = true))
+                    }
+                }
                 Toast.makeText(context, "Audible connected ($count books synced).", Toast.LENGTH_SHORT).show()
                 onOpenPicker()
             },

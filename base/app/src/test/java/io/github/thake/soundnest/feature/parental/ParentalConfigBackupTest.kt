@@ -208,7 +208,8 @@ class ParentalConfigBackupTest {
         ParentalPolicyStore.update(context) {
             it.copy(
                 spokenWord = it.spokenWord.copy(
-                    allowAudiobooks = true,
+                    allowAudiobooks = false,
+                    allowAudible = true,
                     audible = it.spokenWord.audible.copy(showPinnedOnHome = false),
                 ),
             )
@@ -232,5 +233,58 @@ class ParentalConfigBackupTest {
         assertEquals(setOf("B08G9PRS1K", "B07KIDSBOOK"), restored.spokenWord.audible.allowedAsins)
         assertEquals(setOf("B07KIDSBOOK"), restored.spokenWord.audible.pinnedAsins)
         assertFalse(restored.spokenWord.audible.showPinnedOnHome)
+        assertFalse(restored.spokenWord.allowAudiobooks)
+        assertTrue(restored.spokenWord.allowAudible)
+    }
+
+    @Test
+    fun `legacy JSON migration sets allowAudible true when older config had allowAudiobooks true and approved Audible books`() {
+        val legacyJson = """
+            {
+              "schemaVersion": 1,
+              "policy": {
+                "filterMode": "FILTERED_OPEN",
+                "spokenWord": {
+                  "allowPodcasts": false,
+                  "allowAudiobooks": true,
+                  "audible": {
+                    "allowedAsins": ["B08G9PRS1K"]
+                  }
+                }
+              },
+              "ruleLabels": {}
+            }
+        """.trimIndent()
+
+        assertTrue(ParentalConfigBackup.importJson(context, legacyJson).isSuccess)
+        val restored = ParentalPolicyStore.current(context)
+        assertTrue(restored.spokenWord.allowAudiobooks)
+        assertTrue(restored.spokenWord.allowAudible)
+        assertEquals(setOf("B08G9PRS1K"), restored.spokenWord.audible.allowedAsins)
+    }
+
+    @Test
+    fun `legacy JSON migration does not enable allowAudible if older config had no approved Audible books`() {
+        val legacyJson = """
+            {
+              "schemaVersion": 1,
+              "policy": {
+                "filterMode": "FILTERED_OPEN",
+                "spokenWord": {
+                  "allowPodcasts": false,
+                  "allowAudiobooks": true,
+                  "audible": {
+                    "allowedAsins": []
+                  }
+                }
+              },
+              "ruleLabels": {}
+            }
+        """.trimIndent()
+
+        assertTrue(ParentalConfigBackup.importJson(context, legacyJson).isSuccess)
+        val restored = ParentalPolicyStore.current(context)
+        assertTrue(restored.spokenWord.allowAudiobooks)
+        assertFalse(restored.spokenWord.allowAudible)
     }
 }

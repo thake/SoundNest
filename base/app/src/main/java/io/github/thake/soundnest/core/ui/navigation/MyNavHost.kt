@@ -287,12 +287,16 @@ fun MyNavHost(
             arguments = listOf(navArgument("name") { defaultValue = "" }),
         ) { navBackStackEntry ->
             val policy = io.github.thake.soundnest.feature.parental.settings.rememberParentalPolicy()
-            val allowed = policy.spokenWord.allowPodcasts || policy.spokenWord.allowAudiobooks
+            val sId = navBackStackEntry.arguments?.getString("sId").orEmpty()
+            val allowed = if (io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.isAudibleUri(sId)) {
+                policy.spokenWord.allowAudible
+            } else {
+                policy.spokenWord.allowPodcasts || policy.spokenWord.allowAudiobooks
+            }
             LaunchedEffect(allowed) { if (!allowed) blockAndPop(context, navHostController) }
-            if (allowed) {
-                val sId = navBackStackEntry.arguments?.getString("sId")
+            if (allowed && sId.isNotEmpty()) {
                 val name = navBackStackEntry.arguments?.getString("name").orEmpty()
-                sId?.let { if (isImmersive()) io.github.thake.soundnest.feature.spokenword.ui.immersive.ImmersiveShowScreen(navHostController, showId = it, showName = name) else ShowScreen(navHostController, showId = it, showName = name) }
+                if (isImmersive()) io.github.thake.soundnest.feature.spokenword.ui.immersive.ImmersiveShowScreen(navHostController, showId = sId, showName = name) else ShowScreen(navHostController, showId = sId, showName = name)
             }
         }
 

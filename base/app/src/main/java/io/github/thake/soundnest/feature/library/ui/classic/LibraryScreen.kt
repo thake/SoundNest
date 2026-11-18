@@ -144,11 +144,11 @@ fun LibraryScreen(navController: NavController) {
     var searchQuery by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
     // The filter chips under the title; the chosen one is kept while the screen is open.
     var chip by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(io.github.thake.soundnest.feature.library.settings.LibraryChip.ALL) }
-    androidx.compose.runtime.LaunchedEffect(policy.spokenWord.allowPodcasts, policy.spokenWord.allowAudiobooks) {
+    androidx.compose.runtime.LaunchedEffect(policy.spokenWord.allowPodcasts, policy.spokenWord.allowAnyAudiobooks) {
         if (!policy.spokenWord.allowPodcasts && chip == io.github.thake.soundnest.feature.library.settings.LibraryChip.PODCASTS) {
             chip = io.github.thake.soundnest.feature.library.settings.LibraryChip.ALL
         }
-        if (!policy.spokenWord.allowAudiobooks && chip == io.github.thake.soundnest.feature.library.settings.LibraryChip.AUDIOBOOKS) {
+        if (!policy.spokenWord.allowAnyAudiobooks && chip == io.github.thake.soundnest.feature.library.settings.LibraryChip.AUDIOBOOKS) {
             chip = io.github.thake.soundnest.feature.library.settings.LibraryChip.ALL
         }
     }
@@ -207,7 +207,7 @@ fun LibraryScreen(navController: NavController) {
         LibraryChipRow(
             chosen = chip,
             allowPodcasts = policy.spokenWord.allowPodcasts,
-            allowAudiobooks = policy.spokenWord.allowAudiobooks,
+            allowAudiobooks = policy.spokenWord.allowAnyAudiobooks,
         ) { chip = io.github.thake.soundnest.feature.library.settings.LibraryChips.toggle(chip, it) }
 
         // Grid/list switch, like the icon at the top-right of Spotify's library.

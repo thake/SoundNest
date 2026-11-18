@@ -348,7 +348,7 @@ object ParentalFilterEngine {
         policy: ParentalPolicy,
         isConnected: Boolean? = null,
     ): Boolean {
-        if (!policy.spokenWord.allowAudiobooks) return false
+        if (!policy.spokenWord.allowAudible) return false
         val connected = isConnected ?: AudibleCredentialStore.isConnectedOrLoaded()
         if (!connected) return false
         val asin = ParentalPolicyStore.normalizeAudibleAsin(idOrUri)
@@ -572,7 +572,7 @@ object ParentalFilterEngine {
     fun filterRecentSections(sections: List<RecentSection>, policy: ParentalPolicy): List<RecentSection> =
         sections.mapNotNull { section ->
             val filteredGroups = section.groups.mapNotNull { group ->
-                if (!group.music && !policy.spokenWord.allowPodcasts && !policy.spokenWord.allowAudiobooks) return@mapNotNull null
+                if (!group.music && !policy.spokenWord.allowPodcasts && !policy.spokenWord.allowAnyAudiobooks) return@mapNotNull null
                 if (!isRecentItemAllowed(group.context, policy)) return@mapNotNull null
                 val contextUri = canonicalUri(group.context.uri)
                 val allowedPlays = group.plays.filter { play ->

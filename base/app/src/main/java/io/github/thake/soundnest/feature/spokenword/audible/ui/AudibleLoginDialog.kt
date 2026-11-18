@@ -2,6 +2,7 @@
 package io.github.thake.soundnest.feature.spokenword.audible.ui
 
 import android.annotation.SuppressLint
+import android.graphics.Bitmap
 import android.view.ViewGroup
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -28,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -65,8 +67,10 @@ fun AudibleLoginDialog(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val pkceSession = remember(marketplace) { AudibleAuth.createPkceSession(marketplace) }
+    var attempt by remember { mutableIntStateOf(0) }
+    val pkceSession = remember(marketplace, attempt) { AudibleAuth.createPkceSession(marketplace) }
     val signInUrl = remember(pkceSession) { AudibleAuth.buildSignInUrl(pkceSession) }
+    var redirectHandled by remember(attempt) { mutableStateOf(false) }
 
     var registering by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -140,7 +144,10 @@ fun AudibleLoginDialog(
                             Text("Sign-in did not complete", color = AppText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                             Text(errorMessage.orEmpty(), color = AppMuted, fontSize = 13.sp)
                             Button(
-                                onClick = { errorMessage = null },
+                                onClick = {
+                                    errorMessage = null
+                                    attempt++
+                                },
                                 colors = ButtonDefaults.buttonColors(containerColor = AppAccent, contentColor = Color.Black),
                             ) {
                                 Text("Try Again", fontWeight = FontWeight.Bold)
@@ -149,6 +156,48 @@ fun AudibleLoginDialog(
                     }
                 }
                 else -> {
+                    val handleRedirect: (WebView, String) -> Boolean = { view, targetUrl ->
+                        if (redirectHandled) {
+                            true
+                        } else {
+                            val res = AudibleAccountCoordinator.interceptRedirectUrl(targetUrl) {
+                                AudibleAccountCoordinator.wipeWebViewSession(view, marketplace)
+                            }
+                            when (res) {
+                                is AudibleAuth.MapLandingResult.NotMapLanding -> false
+                                is AudibleAuth.MapLandingResult.Error -> {
+                                    redirectHandled = true
+                                    view.stopLoading()
+                                    AudibleAccountCoordinator.wipeWebViewSession(view, marketplace)
+                                    errorMessage = res.description ?: "Amazon returned error: ${res.errorCode}"
+                                    true
+                                }
+                                is AudibleAuth.MapLandingResult.Authorized -> {
+                                    redirectHandled = true
+                                    view.stopLoading()
+                                    AudibleAccountCoordinator.wipeWebViewSession(view, marketplace)
+                                    registering = true
+                                    scope.launch {
+                                        runCatching {
+                                            AudibleAccountCoordinator.completeAuthorization(
+                                                context = context,
+                                                session = pkceSession,
+                                                authorizationCode = res.authorizationCode,
+                                            )
+                                        }.onSuccess { books ->
+                                            registering = false
+                                            onConnected(books.size)
+                                        }.onFailure { err ->
+                                            registering = false
+                                            errorMessage = err.message ?: "Audible registration failed."
+                                        }
+                                    }
+                                    true
+                                }
+                            }
+                        }
+                    }
+
                     AndroidView(
                         modifier = Modifier.fillMaxSize(),
                         factory = { ctx ->
@@ -172,35 +221,17 @@ fun AudibleLoginDialog(
                                         view: WebView,
                                         request: WebResourceRequest,
                                     ): Boolean {
-                                        val targetUrl = request.url?.toString().orEmpty()
-                                        val res = AudibleAccountCoordinator.interceptRedirectUrl(targetUrl) {
-                                            AudibleAccountCoordinator.wipeWebViewSession(view, marketplace)
-                                        }
-                                        return when (res) {
-                                            is AudibleAuth.MapLandingResult.NotMapLanding -> false
-                                            is AudibleAuth.MapLandingResult.Error -> {
-                                                errorMessage = res.description ?: "Amazon returned error: ${res.errorCode}"
-                                                true
-                                            }
-                                            is AudibleAuth.MapLandingResult.Authorized -> {
-                                                registering = true
-                                                scope.launch {
-                                                    runCatching {
-                                                        AudibleAccountCoordinator.completeAuthorization(
-                                                            context = context,
-                                                            session = pkceSession,
-                                                            authorizationCode = res.authorizationCode,
-                                                        )
-                                                    }.onSuccess { books ->
-                                                        registering = false
-                                                        onConnected(books.size)
-                                                    }.onFailure { err ->
-                                                        registering = false
-                                                        errorMessage = err.message ?: "Audible registration failed."
-                                                    }
-                                                }
-                                                true
-                                            }
+                                        return handleRedirect(view, request.url?.toString().orEmpty())
+                                    }
+
+                                    override fun onPageStarted(
+                                        view: WebView,
+                                        url: String?,
+                                        favicon: Bitmap?,
+                                    ) {
+                                        super.onPageStarted(view, url, favicon)
+                                        if (url != null) {
+                                            handleRedirect(view, url)
                                         }
                                     }
                                 }

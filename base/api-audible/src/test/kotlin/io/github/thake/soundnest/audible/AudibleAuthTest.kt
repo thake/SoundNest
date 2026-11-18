@@ -42,7 +42,7 @@ class AudibleAuthTest {
         assertTrue("openid.oa2.code_challenge_method=S256" in url)
         assertTrue("openid.oa2.code_challenge=${session.codeChallenge}" in url)
         assertTrue("marketPlaceId=${AudibleMarketplace.DE.marketplaceId}" in url)
-        assertTrue("https%3A%2F%2Fwww.audible.de%2Fap%2Fmaplanding" in url)
+        assertTrue("https%3A%2F%2Fwww.amazon.de%2Fap%2Fmaplanding" in url)
         val expectedClientHex = ("0123456789ABCDEF0123456789ABCDEF#" + AudibleAuth.AUDIBLE_DEVICE_TYPE)
             .encodeToByteArray()
             .joinToString("") { "%02x".format(it) }

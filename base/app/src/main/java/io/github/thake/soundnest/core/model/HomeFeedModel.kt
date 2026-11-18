@@ -43,12 +43,13 @@ data class HomeSection(
 fun List<HomeSection>.withoutPodcastShows(): List<HomeSection> {
     val allowPodcasts = io.github.thake.soundnest.core.catalog.Features.PODCASTS
     val allowAudiobooks = io.github.thake.soundnest.core.catalog.Features.AUDIOBOOKS
-    if (allowPodcasts && allowAudiobooks) return this
+    val allowAudible = io.github.thake.soundnest.core.catalog.Features.AUDIBLE
+    if (allowPodcasts && allowAudiobooks && allowAudible) return this
     return map { s ->
         s.copy(
             items = s.items.filter { item ->
                 if (item !is HomeItem.Show) true
-                else if (io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.isAudibleUri(item.id)) allowAudiobooks
+                else if (io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.isAudibleUri(item.id)) allowAudible
                 else allowPodcasts
             },
         )

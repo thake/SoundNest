@@ -19,6 +19,9 @@ object FeatureGates {
     fun canUseAudiobooks(context: Context? = safeContext()): Boolean =
         context?.let { ParentalPolicyStore.current(it).spokenWord.allowAudiobooks } ?: false
 
+    fun canUseAudible(context: Context? = safeContext()): Boolean =
+        context?.let { ParentalPolicyStore.current(it).spokenWord.allowAudible } ?: false
+
     fun canUseLiveRadio(context: Context? = safeContext()): Boolean =
         context?.let { ParentalPolicyStore.current(it).radio.enabled } ?: false
 

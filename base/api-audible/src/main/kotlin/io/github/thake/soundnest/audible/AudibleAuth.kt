@@ -56,7 +56,7 @@ object AudibleAuth {
 
     fun buildSignInUrl(session: AudiblePkceSession): String {
         val m = session.marketplace
-        val returnTo = "https://www.${m.audibleDomain}/ap/maplanding"
+        val returnTo = "https://www.${m.amazonDomain}/ap/maplanding"
         val assocHandle = "amzn_audible_ios_${m.code}"
         val clientId = "device:${buildClientIdHex(session.deviceSerial)}"
         return "https://www.${m.amazonDomain}/ap/signin".toHttpUrl().newBuilder()

@@ -93,7 +93,8 @@ Headers attached to signed requests:
 2. **Widevine License Exchange**: When ExoPlayer's `DefaultDrmSessionManager` emits a `ProvisionRequest` or `KeyRequest`, `AudibleMediaDrmCallback` Base64-encodes the raw Widevine CDM challenge into `drm_token` on `licenserequest` and unwraps the returned Widevine license bytes back into Android's `MediaDrm` session in memory.
 3. **Single-Stream Chapter Projection**: Because Audible delivers an audiobook as a continuous MPEG-DASH / HLS timeline with byte/millisecond chapter markers, `AudibleChapterProjector` maps continuous player positions onto `audible:chapter:<asin>:<chapterIndex>` rows so `SongPlayer`, `PodcastPlayerScreen`, `ImmersivePodcastPlayer`, `ShowScreen`, `ImmersiveShowScreen`, and Sleep Timer ("End of chapter") operate seamlessly per chapter.
 
-### 5.3 Separate Library Approval vs. Home Pinning
+### 5.3 Separate Library Approval vs. Home Pinning & Independent Toggles
+- `ParentalPolicy.spokenWord.allowAudible: Boolean` (default `false`) — independent master toggle for Audible audiobooks, completely separated from `ParentalPolicy.spokenWord.allowAudiobooks` (Spotify audiobooks). Allows parent-approved Audible playback and library surfaces without exposing Spotify's separately-billed audiobook catalog.
 - `ParentalPolicy.spokenWord.audible.allowedAsins: Set<String>` — books approved in the **Parent Picker** (`AudiblePickerSheet`). Surfaces approved books under Library (`Audiobooks` chip), local Search, and `ShowScreen` / `ImmersiveShowScreen`.
 - `ParentalPolicy.spokenWord.audible.pinnedAsins: Set<String>` — strict subset of `allowedAsins` (revoking approval automatically unpins the book).
 - `ParentalPolicy.home.showPinnedAudibleOnHome: Boolean` (default `true`) — dedicated shelf toggle controlling whether books in `pinnedAsins` appear in the **Parent Picks** shelf on Home.

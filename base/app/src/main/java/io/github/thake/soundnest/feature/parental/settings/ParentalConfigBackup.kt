@@ -54,7 +54,8 @@ object ParentalConfigBackup {
         val validRegexes = payload.policy.blockedRegexPatterns.filter { pattern ->
             pattern.isNotBlank() && runCatching { Regex(pattern, RegexOption.IGNORE_CASE) }.isSuccess
         }.toSet()
-        val sanitizedPolicy = payload.policy.copy(blockedRegexPatterns = validRegexes)
+        val migratedPolicy = ParentalPolicyStore.migrateLegacyAudiblePolicy(rawJson, payload.policy)
+        val sanitizedPolicy = migratedPolicy.copy(blockedRegexPatterns = validRegexes)
 
         RuleLabelStore.mergeAll(context, payload.ruleLabels)
         ParentalPolicyStore.replace(context, sanitizedPolicy)

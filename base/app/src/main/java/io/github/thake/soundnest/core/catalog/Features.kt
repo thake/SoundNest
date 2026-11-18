@@ -5,6 +5,9 @@ object Features {
     /** Podcasts (shows, episodes, Your Episodes, playback speed). */
     val PODCASTS: Boolean get() = io.github.thake.soundnest.feature.parental.settings.FeatureGates.canUsePodcasts()
 
-    /** Audiobooks (Spotify audiobooks and parent-approved Audible audiobooks). */
+    /** Audiobooks (Spotify audiobooks). */
     val AUDIOBOOKS: Boolean get() = io.github.thake.soundnest.feature.parental.settings.FeatureGates.canUseAudiobooks()
+
+    /** Audible audiobooks (parent-approved Audible library). */
+    val AUDIBLE: Boolean get() = io.github.thake.soundnest.feature.parental.settings.FeatureGates.canUseAudible()
 }

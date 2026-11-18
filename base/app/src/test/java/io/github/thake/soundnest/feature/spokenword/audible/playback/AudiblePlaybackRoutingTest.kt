@@ -157,7 +157,9 @@ class AudiblePlaybackRoutingTest {
                 ),
             ),
         )
-        ParentalPolicyStore.update(app) { it.copy(spokenWord = it.spokenWord.copy(allowAudiobooks = true)) }
+        ParentalPolicyStore.update(app) {
+            it.copy(spokenWord = it.spokenWord.copy(allowAudiobooks = false, allowAudible = true))
+        }
         ParentalPolicyStore.setAudibleBookAllowed(app, "B08G9PRS1K", allowed = true, title = "Project Hail Mary", subtitle = "Andy Weir")
     }
 

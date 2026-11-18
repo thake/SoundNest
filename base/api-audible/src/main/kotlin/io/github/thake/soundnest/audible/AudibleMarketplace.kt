@@ -20,7 +20,7 @@ enum class AudibleMarketplace(
     AU("au", "com.au", "AN7EY7DTAW63G", "Australia (audible.com.au)", setOf("AU", "NZ")),
     IT("it", "it", "A2N7FU2W2BU2ZC", "Italy (audible.it)", setOf("IT")),
     ES("es", "es", "ALMIKO4SZCSAR", "Spain (audible.es)", setOf("ES")),
-    JP("jp", "co.jp", "A2XZL8265V446E", "Japan (audible.co.jp)", setOf("JP")),
+    JP("jp", "co.jp", "A1QAP3MOU4173J", "Japan (audible.co.jp)", setOf("JP")),
     IN("in", "in", "AJO3FBRUE6J4S", "India (audible.in)", setOf("IN")),
     BR("br", "com.br", "A10J1VAYUDTYRN", "Brazil (audible.com.br)", setOf("BR"));
 

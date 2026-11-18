@@ -9,6 +9,9 @@ import kotlinx.serialization.Serializable
 data class SpokenWordParentalPolicy(
     val allowPodcasts: Boolean = false,
     val allowAudiobooks: Boolean = false,
+    val allowAudible: Boolean = false,
     val podcasts: PodcastsParentalPolicy = PodcastsParentalPolicy(),
     val audible: AudibleParentalPolicy = AudibleParentalPolicy(),
-)
+) {
+    val allowAnyAudiobooks: Boolean get() = allowAudiobooks || allowAudible
+}

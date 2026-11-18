@@ -195,9 +195,9 @@ fun ImmersiveLibraryScreen(navController: NavController) {
             io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.isLibraryEntryAllowed(it, policy)
         }
     }
-    LaunchedEffect(policy.spokenWord.allowPodcasts, policy.spokenWord.allowAudiobooks) {
+    LaunchedEffect(policy.spokenWord.allowPodcasts, policy.spokenWord.allowAnyAudiobooks) {
         if (!policy.spokenWord.allowPodcasts && kind == LibraryChip.PODCASTS) kind = LibraryChip.ALL
-        if (!policy.spokenWord.allowAudiobooks && kind == LibraryChip.AUDIOBOOKS) kind = LibraryChip.ALL
+        if (!policy.spokenWord.allowAnyAudiobooks && kind == LibraryChip.AUDIOBOOKS) kind = LibraryChip.ALL
     }
     // The shows are only read once the Podcasts chip is chosen.
     LaunchedEffect(kind, policy.spokenWord.allowPodcasts) { if (kind == LibraryChip.PODCASTS && policy.spokenWord.allowPodcasts) vm.loadFollowedShows() }
@@ -478,7 +478,7 @@ private fun LibraryHeader(
             LibraryChipLabels
                 .filter { (k, _) ->
                     (k != LibraryChip.PODCASTS || policy.spokenWord.allowPodcasts) &&
-                        (k != LibraryChip.AUDIOBOOKS || policy.spokenWord.allowAudiobooks)
+                        (k != LibraryChip.AUDIOBOOKS || policy.spokenWord.allowAnyAudiobooks)
                 }
                 .forEach { (k, label) ->
                     ImmersiveChip(stringResource(label), selected = k == kind) { onKind(k) }

@@ -64,11 +64,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import io.github.thake.soundnest.R
 import io.github.thake.soundnest.core.ui.classic.AppAccent
 import io.github.thake.soundnest.core.ui.classic.AppBackground
 import io.github.thake.soundnest.core.ui.classic.AppMuted
@@ -453,8 +455,16 @@ fun ParentSettingsScreen(
                     LibraryParentSettingsRow(policy)
                     PlaybackParentSettingsRow(policy)
                     PodcastParentSettingsRows(policy)
+                    PolicyToggleRow(
+                        title = stringResource(R.string.parent_audible_audiobooks_title),
+                        subtitle = stringResource(R.string.parent_audible_audiobooks_subtitle),
+                        checked = policy.spokenWord.allowAudible,
+                        switchTestTag = "parent_audible_audiobooks_toggle",
+                    ) { v ->
+                        ParentalPolicyStore.update(context) { it.copy(spokenWord = it.spokenWord.copy(allowAudible = v)) }
+                    }
                     AudibleParentControlsCard(
-                        audiobooksEnabled = policy.spokenWord.allowAudiobooks,
+                        audibleEnabled = policy.spokenWord.allowAudible,
                         onOpenPicker = { showAudiblePicker = true },
                     )
                     RadioParentSettingsRow(policy)

@@ -2,7 +2,9 @@
 package io.github.thake.soundnest.audible
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.util.Locale
 
@@ -53,5 +55,22 @@ class AudibleMarketplaceTest {
         assertEquals("amazon.co.uk", AudibleMarketplace.UK.amazonDomain)
         assertEquals("audible.co.uk", AudibleMarketplace.UK.audibleDomain)
         assertEquals("https://api.audible.co.uk", AudibleMarketplace.UK.apiBaseUrl)
+    }
+
+    @Test
+    fun `jp marketplace id aligns with regional registry`() {
+        assertEquals("A1QAP3MOU4173J", AudibleMarketplace.JP.marketplaceId)
+    }
+
+    @Test
+    fun `sign-in return_to targets amazonDomain across marketplaces`() {
+        for (market in AudibleMarketplace.entries) {
+            val session = AudibleAuth.createPkceSession(market)
+            val url = AudibleAuth.buildSignInUrl(session)
+            val expectedReturnTo = "https%3A%2F%2Fwww.${market.amazonDomain}%2Fap%2Fmaplanding"
+            val forbiddenReturnTo = "https%3A%2F%2Fwww.${market.audibleDomain}%2Fap%2Fmaplanding"
+            assertTrue(expectedReturnTo in url, "Expected $expectedReturnTo in $url")
+            assertFalse(forbiddenReturnTo in url, "Forbidden cross-domain return_to $forbiddenReturnTo in $url")
+        }
     }
 }

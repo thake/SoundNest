@@ -114,7 +114,8 @@ class AudibleUiSurfaceTest {
 
         val policy = ParentalPolicy(
             spokenWord = SpokenWordParentalPolicy(
-                allowAudiobooks = true,
+                allowAudiobooks = false,
+                allowAudible = true,
                 audible = AudibleParentalPolicy(
                     allowedAsins = setOf("B08G9PRS1K", "B004V0725Y"),
                     pinnedAsins = setOf("B004V0725Y"),
@@ -125,7 +126,7 @@ class AudibleUiSurfaceTest {
         assertEquals(listOf("audible:B08G9PRS1K", "audible:B004V0725Y"), entries.map { it.spotifyId })
         assertEquals(listOf(false, true), entries.map { it.pinned })
 
-        val disabledPolicy = policy.copy(spokenWord = policy.spokenWord.copy(allowAudiobooks = false))
+        val disabledPolicy = policy.copy(spokenWord = policy.spokenWord.copy(allowAudible = false))
         assertTrue(AudibleCatalogCache.approvedLibraryEntries(app, disabledPolicy).isEmpty())
     }
 
@@ -138,7 +139,8 @@ class AudibleUiSurfaceTest {
             it.copy(
                 spokenWord = SpokenWordParentalPolicy(
                     allowPodcasts = false,
-                    allowAudiobooks = true,
+                    allowAudiobooks = false,
+                    allowAudible = true,
                     audible = AudibleParentalPolicy(
                         allowedAsins = setOf("B08G9PRS1K", "B004V0725Y"),
                         pinnedAsins = setOf("B08G9PRS1K"),
@@ -185,7 +187,8 @@ class AudibleUiSurfaceTest {
 
         val policy = ParentalPolicy(
             spokenWord = SpokenWordParentalPolicy(
-                allowAudiobooks = true,
+                allowAudiobooks = false,
+                allowAudible = true,
                 audible = AudibleParentalPolicy(allowedAsins = setOf("B08G9PRS1K")), // momo NOT approved
             ),
         )
@@ -195,8 +198,8 @@ class AudibleUiSurfaceTest {
         assertEquals(listOf("audible:B08G9PRS1K"), AudibleCatalogCache.matchingShows(app, "Standalone", policy).map { it.id })
         // Unapproved book never appears in search
         assertTrue(AudibleCatalogCache.matchingShows(app, "Momo", policy).isEmpty())
-        // Disabled audiobooks gate never returns Audible matches
-        assertTrue(AudibleCatalogCache.matchingShows(app, "Hail", policy.copy(spokenWord = policy.spokenWord.copy(allowAudiobooks = false))).isEmpty())
+        // Disabled Audible gate never returns Audible matches
+        assertTrue(AudibleCatalogCache.matchingShows(app, "Hail", policy.copy(spokenWord = policy.spokenWord.copy(allowAudible = false))).isEmpty())
     }
 
     @Test
@@ -215,7 +218,8 @@ class AudibleUiSurfaceTest {
             it.copy(
                 spokenWord = SpokenWordParentalPolicy(
                     allowPodcasts = false,
-                    allowAudiobooks = true,
+                    allowAudiobooks = false,
+                    allowAudible = true,
                     audible = AudibleParentalPolicy(allowedAsins = setOf("B08G9PRS1K")),
                 ),
             )
