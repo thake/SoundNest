@@ -2,6 +2,7 @@ package io.github.thake.soundnest.core.catalog
 
 import android.util.AtomicFile
 import android.util.Log
+import io.github.thake.soundnest.feature.appearance.settings.AppLanguage
 import io.github.thake.soundnest.core.model.ContextPageModel
 import io.github.thake.soundnest.core.model.HomeFeedModel
 import io.github.thake.soundnest.core.model.LibraryEntry
@@ -30,6 +31,24 @@ object ScreenCache {
     // flight at logout cannot land after the clear and restore the old account.
     private val io = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
     private val dir: File by lazy { File(Graph.app.filesDir, DIR).also { it.mkdirs() } }
+    private val localeFile get() = File(dir, "locale.stamp")
+
+    fun checkLocale() {
+        val currentTag = runCatching {
+            AppLanguage.effectiveLocale(Graph.app).toLanguageTag()
+        }.getOrDefault("en")
+        val file = localeFile
+        if (file.exists()) {
+            val savedTag = runCatching { file.readText().trim() }.getOrNull()
+            if (savedTag != null && savedTag != currentTag) {
+                Log.i(TAG, "Locale changed from '$savedTag' to '$currentTag'; invalidating disk screen cache")
+                dir.listFiles { f -> f.name.endsWith(".json") || f.name.endsWith(".stamp") }?.forEach { it.delete() }
+                runCatching { file.writeText(currentTag) }
+            }
+        } else {
+            runCatching { file.writeText(currentTag) }
+        }
+    }
 
     val home = Entry("home", HomeFeedModel.serializer())
     val libraryRoot = Entry("library_root", ListSerializer(LibraryEntry.serializer()))
@@ -73,11 +92,13 @@ object ScreenCache {
 
         /** Blocking read: call from a background thread. */
         fun read(): T? = runCatching {
+            checkLocale()
             if (!file.baseFile.exists()) return null
             json.decodeFromString(serializer, file.readFully().decodeToString())
         }.onFailure { Log.w(TAG, "drop unreadable $name: ${it.javaClass.simpleName}"); runCatching { file.delete() } }.getOrNull()
 
         fun write(value: T) {
+            checkLocale()
             io.launch {
                 runCatching {
                     val f = file

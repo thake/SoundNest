@@ -103,7 +103,7 @@ fun AudibleLoginDialog(
                     .padding(horizontal = 8.dp, vertical = 8.dp),
             ) {
                 IconButton(enabled = !registering, onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = AppText)
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close), tint = AppText)
                 }
                 Column(Modifier.weight(1f)) {
                     Text(
@@ -113,7 +113,7 @@ fun AudibleLoginDialog(
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        text = "${marketplace.audibleDomain} · Web cookies wiped after sign-in",
+                        text = stringResource(R.string.audible_cookies_notice, marketplace.audibleDomain),
                         color = AppMuted,
                         fontSize = 12.sp,
                     )
@@ -126,7 +126,7 @@ fun AudibleLoginDialog(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             CircularProgressIndicator(color = AppAccent)
                             Spacer(Modifier.height(12.dp))
-                            Text("Registering SoundNest Audible player & syncing library…", color = AppText, fontSize = 14.sp)
+                            Text(stringResource(R.string.audible_login_registering), color = AppText, fontSize = 14.sp)
                         }
                     }
                 }
@@ -141,7 +141,7 @@ fun AudibleLoginDialog(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            Text("Sign-in did not complete", color = AppText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.audible_login_error), color = AppText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                             Text(errorMessage.orEmpty(), color = AppMuted, fontSize = 13.sp)
                             Button(
                                 onClick = {
@@ -150,7 +150,7 @@ fun AudibleLoginDialog(
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = AppAccent, contentColor = Color.Black),
                             ) {
-                                Text("Try Again", fontWeight = FontWeight.Bold)
+                                Text(stringResource(R.string.audible_login_try_again), fontWeight = FontWeight.Bold)
                             }
                         }
                     }

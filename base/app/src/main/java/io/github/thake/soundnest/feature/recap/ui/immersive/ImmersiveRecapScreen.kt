@@ -194,8 +194,9 @@ private fun ImmersiveWeeklyChart() {
     val w = weeks ?: return
     if (w.all { it.minutes == 0L }) return
     val max = w.maxOf { it.minutes }.coerceAtLeast(1)
-    val pattern = android.text.format.DateFormat.getBestDateTimePattern(java.util.Locale.getDefault(), "dMMM")
-    val format = remember(pattern) { java.text.SimpleDateFormat(pattern, java.util.Locale.getDefault()) }
+    val loc = io.github.thake.soundnest.feature.appearance.settings.AppLanguage.currentLocale()
+    val pattern = android.text.format.DateFormat.getBestDateTimePattern(loc, "dMMM")
+    val format = remember(pattern, loc) { java.text.SimpleDateFormat(pattern, loc) }
     Column(Modifier.padding(horizontal = Immersive.Gutter, vertical = 8.dp).clip(Immersive.Card).background(Immersive.Raised).padding(16.dp)) {
         Text(stringResource(R.string.stats_weekly_minutes), style = Immersive.Headline)
         Text(stringResource(R.string.stats_this_week, w.last().minutes), style = Immersive.Caption, modifier = Modifier.padding(top = 2.dp, bottom = 12.dp))

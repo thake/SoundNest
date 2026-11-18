@@ -150,9 +150,9 @@ fun ParentSettingsScreen(
                 out.write(jsonText.toByteArray(Charsets.UTF_8))
             } ?: error("Could not open file output stream")
         }.onSuccess {
-            Toast.makeText(context, "Parental configuration exported.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.parent_toast_export_success), Toast.LENGTH_SHORT).show()
         }.onFailure { e ->
-            Toast.makeText(context, "Export failed: ${e.message}", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, context.getString(R.string.parent_toast_export_failed, e.message ?: ""), Toast.LENGTH_LONG).show()
         }
     }
 
@@ -167,9 +167,9 @@ fun ParentSettingsScreen(
             ParentalConfigBackup.importJson(context, raw).getOrThrow()
         }.onSuccess {
             networkRefresh++
-            Toast.makeText(context, "Parental configuration imported (PIN preserved).", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.parent_toast_import_success), Toast.LENGTH_SHORT).show()
         }.onFailure { e ->
-            Toast.makeText(context, "Import failed: ${e.message}", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, context.getString(R.string.parent_toast_import_failed, e.message ?: ""), Toast.LENGTH_LONG).show()
         }
     }
 
@@ -187,10 +187,10 @@ fun ParentSettingsScreen(
                 .padding(horizontal = 8.dp, vertical = 8.dp),
         ) {
             IconButton(onClick = { navController.popBackStack() }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = AppText)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back), tint = AppText)
             }
             Text(
-                text = "Parental Controls",
+                text = stringResource(R.string.parent_settings_title),
                 color = AppText,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
@@ -206,7 +206,7 @@ fun ParentSettingsScreen(
                 ) {
                     Icon(Icons.Default.Lock, contentDescription = null, tint = AppAccent, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Lock & Exit", color = AppText, fontSize = 13.sp)
+                    Text(stringResource(R.string.parent_action_lock_exit), color = AppText, fontSize = 13.sp)
                 }
             }
         }
@@ -223,9 +223,9 @@ fun ParentSettingsScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Icon(Icons.Default.Lock, contentDescription = null, tint = AppAccent, modifier = Modifier.size(48.dp))
-                    Text("Parent Mode Locked", color = AppText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.parent_locked_title), color = AppText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "Enter your Parent PIN or password to configure content filters, Home sections, features, speakers, or backups.",
+                        stringResource(R.string.parent_locked_subtitle),
                         color = AppMuted,
                         fontSize = 14.sp,
                     )
@@ -233,7 +233,7 @@ fun ParentSettingsScreen(
                         onClick = { ParentSecurityManager.runProtected(context, AppSurface.PARENT_CONTROLS) {} },
                         colors = accentFilledButtonColors,
                     ) {
-                        Text("Unlock Parent Mode", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.parent_action_unlock), fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -248,15 +248,15 @@ fun ParentSettingsScreen(
         ) {
             // 1. Session & PIN Security
             item(key = "security") {
-                SectionCard("Parent Lock & Session") {
+                SectionCard(stringResource(R.string.parent_section_lock_session)) {
                     ParentSecurityControlsSection()
                 }
             }
 
             // 2. Content Filter Mode & Rules
             item(key = "filter_rules") {
-                SectionCard("Content Filter & Rules") {
-                    Text("Filter Mode", color = AppText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                SectionCard(stringResource(R.string.parent_section_filter_rules)) {
+                    Text(stringResource(R.string.parent_section_filter_mode), color = AppText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         val isOpen = policy.filterMode == FilterMode.FILTERED_OPEN
                         val isStrict = policy.filterMode == FilterMode.STRICT_ALLOWLIST
@@ -265,7 +265,7 @@ fun ParentSettingsScreen(
                             onClick = {
                                 ParentalPolicyStore.update(context) { it.copy(filterMode = FilterMode.FILTERED_OPEN) }
                             },
-                            label = { Text("Filtered Open", fontWeight = if (isOpen) FontWeight.Bold else FontWeight.Normal) },
+                            label = { Text(stringResource(R.string.parent_mode_filtered_open_title), fontWeight = if (isOpen) FontWeight.Bold else FontWeight.Normal) },
                             leadingIcon = if (isOpen) { { Icon(Icons.Default.Check, contentDescription = null) } } else null,
                             colors = selectedChipColors,
                         )
@@ -274,24 +274,24 @@ fun ParentSettingsScreen(
                             onClick = {
                                 ParentalPolicyStore.update(context) { it.copy(filterMode = FilterMode.STRICT_ALLOWLIST) }
                             },
-                            label = { Text("Strict Allowlist", fontWeight = if (isStrict) FontWeight.Bold else FontWeight.Normal) },
+                            label = { Text(stringResource(R.string.parent_mode_strict_allowlist_title), fontWeight = if (isStrict) FontWeight.Bold else FontWeight.Normal) },
                             leadingIcon = if (isStrict) { { Icon(Icons.Default.Check, contentDescription = null) } } else null,
                             colors = selectedChipColors,
                         )
                     }
                     Text(
                         text = if (policy.filterMode == FilterMode.FILTERED_OPEN) {
-                            "Allows general catalog while blocking Spotify Explicit items, blocked artists/albums/tracks, keywords, and regexes."
+                            stringResource(R.string.parent_mode_filtered_open_subtitle)
                         } else {
-                            "Blocks everything unless its track, album, artist, or playlist is explicitly approved. Autoplay & Radio are disabled."
+                            stringResource(R.string.parent_mode_strict_allowlist_subtitle)
                         },
                         color = AppMuted,
                         fontSize = 12.sp,
                     )
 
                     PolicyToggleRow(
-                        title = "Block Explicit Content",
-                        subtitle = "Hide and block playback of tracks and episodes marked Explicit by Spotify",
+                        title = stringResource(R.string.parent_filter_block_explicit_title),
+                        subtitle = stringResource(R.string.parent_filter_block_explicit_subtitle),
                         checked = policy.blockExplicit,
                     ) { checked ->
                         ParentalPolicyStore.update(context) { it.copy(blockExplicit = checked) }
@@ -301,11 +301,11 @@ fun ParentSettingsScreen(
 
                     // Quick Spotify URI / Link rule adder
                     var uriInput by remember { mutableStateOf("") }
-                    Text("Quick Allow / Block by Spotify Link or URI", color = AppText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.parent_quick_allow_block_title), color = AppText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     OutlinedTextField(
                         value = uriInput,
                         onValueChange = { uriInput = it },
-                        label = { Text("Paste spotify:... or open.spotify.com/... link") },
+                        label = { Text(stringResource(R.string.parent_quick_allow_block_placeholder)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -319,13 +319,13 @@ fun ParentSettingsScreen(
                             onClick = {
                                 val applied = applyQuickUriRule(context, uriInput, allow = true)
                                 if (applied) {
-                                    Toast.makeText(context, "Added to Allowlist.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, context.getString(R.string.parent_toast_added_allowlist), Toast.LENGTH_SHORT).show()
                                     uriInput = ""
                                 } else {
-                                    Toast.makeText(context, "Unrecognized Spotify link/URI.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, context.getString(R.string.parent_toast_unrecognized_link), Toast.LENGTH_SHORT).show()
                                 }
                             },
-                        ) { Text("Allow", fontWeight = FontWeight.SemiBold) }
+                        ) { Text(stringResource(R.string.parent_action_allow), fontWeight = FontWeight.SemiBold) }
                         OutlinedButton(
                             enabled = uriInput.isNotBlank(),
                             colors = ButtonDefaults.outlinedButtonColors(
@@ -335,25 +335,26 @@ fun ParentSettingsScreen(
                             onClick = {
                                 val applied = applyQuickUriRule(context, uriInput, allow = false)
                                 if (applied) {
-                                    Toast.makeText(context, "Added to Blocklist.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, context.getString(R.string.parent_toast_added_blocklist), Toast.LENGTH_SHORT).show()
                                     uriInput = ""
                                 } else {
-                                    Toast.makeText(context, "Unrecognized Spotify link/URI.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, context.getString(R.string.parent_toast_unrecognized_link), Toast.LENGTH_SHORT).show()
                                 }
                             },
-                        ) { Text("Block", fontWeight = FontWeight.SemiBold) }
+                        ) { Text(stringResource(R.string.parent_action_block), fontWeight = FontWeight.SemiBold) }
                     }
 
                     Text(
-                        text = "Tip: While Parent Mode is unlocked, you can also block any song, artist, playlist, album, or show directly from Home, Search, Library, or detail pages.",
+                        text = stringResource(R.string.parent_quick_tip),
                         color = AppMuted,
                         fontSize = 12.sp,
                     )
 
                     // Interactive Rule Manager summary cards
                     RuleSummaryCard(
-                        title = "Approved Items",
+                        title = stringResource(R.string.parent_rules_approved_title),
                         summary = buildRuleSummaryText(
+                            context = context,
                             playlists = policy.allowedPlaylistIds.size,
                             albums = policy.allowedAlbumIds.size,
                             artists = policy.allowedArtistIds.size,
@@ -366,8 +367,9 @@ fun ParentSettingsScreen(
                         onClick = { rulesSheetApprovedTab = true },
                     )
                     RuleSummaryCard(
-                        title = "Blocked Items",
+                        title = stringResource(R.string.parent_rules_blocked_title),
                         summary = buildRuleSummaryText(
+                            context = context,
                             playlists = policy.blockedPlaylistIds.size,
                             albums = policy.blockedAlbumIds.size,
                             artists = policy.blockedArtistIds.size,
@@ -383,12 +385,12 @@ fun ParentSettingsScreen(
 
                     // Blocked Keywords
                     var keywordInput by remember { mutableStateOf("") }
-                    Text("Blocked Title / Artist Keywords", color = AppText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.parent_rules_keywords_title), color = AppText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
                             value = keywordInput,
                             onValueChange = { keywordInput = it },
-                            label = { Text("Add blocked word or phrase") },
+                            label = { Text(stringResource(R.string.parent_rules_keywords_placeholder)) },
                             singleLine = true,
                             modifier = Modifier.weight(1f),
                         )
@@ -399,7 +401,7 @@ fun ParentSettingsScreen(
                                 keywordInput = ""
                             },
                             colors = accentFilledButtonColors,
-                        ) { Text("Add") }
+                        ) { Text(stringResource(R.string.parent_rules_keywords_add)) }
                     }
                     if (policy.blockedKeywords.isNotEmpty()) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -411,12 +413,12 @@ fun ParentSettingsScreen(
 
                     // Blocked Regexes
                     var regexInput by remember { mutableStateOf("") }
-                    Text("Advanced Blocked Regex Patterns", color = AppText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.parent_rules_regex_title), color = AppText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
                             value = regexInput,
                             onValueChange = { regexInput = it },
-                            label = { Text("Case-insensitive regex") },
+                            label = { Text(stringResource(R.string.parent_rules_regex_placeholder)) },
                             singleLine = true,
                             modifier = Modifier.weight(1f),
                         )
@@ -425,14 +427,14 @@ fun ParentSettingsScreen(
                             onClick = {
                                 val valid = runCatching { Regex(regexInput.trim(), RegexOption.IGNORE_CASE) }.isSuccess
                                 if (!valid) {
-                                    Toast.makeText(context, "Invalid regular expression.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, context.getString(R.string.parent_rules_regex_error), Toast.LENGTH_SHORT).show()
                                 } else {
                                     ParentalPolicyStore.addBlockedRegex(context, regexInput)
                                     regexInput = ""
                                 }
                             },
                             colors = accentFilledButtonColors,
-                        ) { Text("Add") }
+                        ) { Text(stringResource(R.string.parent_rules_keywords_add)) }
                     }
                     if (policy.blockedRegexPatterns.isNotEmpty()) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -451,7 +453,7 @@ fun ParentSettingsScreen(
 
             // 4. Feature Access Gates (composed from each owning feature!)
             item(key = "feature_gates") {
-                SectionCard("Feature Access & Library Protection") {
+                SectionCard(stringResource(R.string.parent_section_feature_gates)) {
                     LibraryParentSettingsRow(policy)
                     PlaybackParentSettingsRow(policy)
                     PodcastParentSettingsRows(policy)
@@ -485,9 +487,9 @@ fun ParentSettingsScreen(
 
             // 6. Sibling Device JSON Backup & Restore
             item(key = "backup_restore") {
-                SectionCard("Backup & Restore (Sibling Devices)") {
+                SectionCard(stringResource(R.string.parent_backup_section_title)) {
                     Text(
-                        "Export your content rules, Home layout, Trusted Wi-Fi, and speaker nicknames to a JSON file to quickly set up another child's device. Parent PINs are never exported or overwritten.",
+                        stringResource(R.string.parent_backup_section_subtitle),
                         color = AppMuted,
                         fontSize = 12.sp,
                     )
@@ -496,12 +498,12 @@ fun ParentSettingsScreen(
                             onClick = { exportLauncher.launch("soundnest-policy.json") },
                             colors = accentFilledButtonColors,
                         ) {
-                            Text("Export JSON", fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.parent_action_export_json), fontWeight = FontWeight.Bold)
                         }
                         OutlinedButton(
                             onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) },
                         ) {
-                            Text("Import JSON", color = AppText)
+                            Text(stringResource(R.string.parent_action_import_json), color = AppText)
                         }
                     }
                 }
@@ -531,6 +533,7 @@ private data class ManagedRuleEntry(
 )
 
 private fun buildRuleSummaryText(
+    context: Context,
     playlists: Int,
     albums: Int,
     artists: Int,
@@ -539,14 +542,15 @@ private fun buildRuleSummaryText(
     audibleBooks: Int = 0,
 ): String {
     val total = playlists + albums + artists + tracks + shows + audibleBooks
-    if (total == 0) return "None yet · Tap to inspect"
+    if (total == 0) return context.getString(R.string.parent_rules_summary_none)
+    val res = context.resources
     val parts = buildList {
-        if (playlists > 0) add("$playlists playlist${if (playlists == 1) "" else "s"}")
-        if (albums > 0) add("$albums album${if (albums == 1) "" else "s"}")
-        if (artists > 0) add("$artists artist${if (artists == 1) "" else "s"}")
-        if (tracks > 0) add("$tracks song${if (tracks == 1) "" else "s"}")
-        if (shows > 0) add("$shows show${if (shows == 1) "" else "s"}")
-        if (audibleBooks > 0) add("$audibleBooks Audible book${if (audibleBooks == 1) "" else "s"}")
+        if (playlists > 0) add(res.getQuantityString(R.plurals.parent_rules_summary_playlists, playlists, playlists))
+        if (albums > 0) add(res.getQuantityString(R.plurals.parent_rules_summary_albums, albums, albums))
+        if (artists > 0) add(res.getQuantityString(R.plurals.parent_rules_summary_artists, artists, artists))
+        if (tracks > 0) add(res.getQuantityString(R.plurals.parent_rules_summary_songs, tracks, tracks))
+        if (shows > 0) add(res.getQuantityString(R.plurals.parent_rules_summary_shows, shows, shows))
+        if (audibleBooks > 0) add(res.getQuantityString(R.plurals.parent_rules_summary_audible, audibleBooks, audibleBooks))
     }
     return parts.joinToString(" · ")
 }
@@ -573,7 +577,7 @@ private fun RuleSummaryCard(
             Text(title, color = accentColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             Text(summary, color = AppMuted, fontSize = 12.sp)
         }
-        Text("Manage", color = accentColor, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.parent_rules_manage_button), color = accentColor, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.width(4.dp))
         Icon(Icons.Default.ChevronRight, contentDescription = null, tint = accentColor, modifier = Modifier.size(18.dp))
     }
@@ -658,14 +662,14 @@ internal fun ManageContentRulesSheetBody(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(
-                text = "Manage Content Rules",
+                text = stringResource(R.string.parent_manage_rules_title),
                 color = AppText,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f),
             )
             IconButton(onClick = onDismiss) {
-                Icon(Icons.Default.Close, contentDescription = "Close", tint = AppMuted)
+                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close), tint = AppMuted)
             }
         }
 
@@ -679,7 +683,7 @@ internal fun ManageContentRulesSheetBody(
                 } else null,
                 label = {
                     Text(
-                        "Approved (${approvedEntries.size})",
+                        stringResource(R.string.parent_rules_approved_tab_count, approvedEntries.size),
                         fontWeight = if (showApproved) FontWeight.Bold else FontWeight.Normal,
                     )
                 },
@@ -698,7 +702,7 @@ internal fun ManageContentRulesSheetBody(
                 } else null,
                 label = {
                     Text(
-                        "Blocked (${blockedEntries.size})",
+                        stringResource(R.string.parent_rules_blocked_tab_count, blockedEntries.size),
                         fontWeight = if (!showApproved) FontWeight.Bold else FontWeight.Normal,
                     )
                 },
@@ -709,7 +713,7 @@ internal fun ManageContentRulesSheetBody(
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            placeholder = { Text("Search by title, artist, or Spotify ID") },
+            placeholder = { Text(stringResource(R.string.parent_rules_search_placeholder)) },
             singleLine = true,
             modifier = Modifier
                 .fillMaxWidth()
@@ -718,9 +722,9 @@ internal fun ManageContentRulesSheetBody(
 
         if (filteredEntries.isEmpty()) {
             val emptyMessage = when {
-                searchQuery.isNotBlank() -> "No rules match \"${searchQuery.trim()}\"."
-                showApproved -> "No approved items yet. Open the ⋮ menu on any playlist, album, artist, or song while Parent Mode is unlocked to approve it."
-                else -> "No blocked items yet. Open the ⋮ menu on any item while Parent Mode is unlocked to block it."
+                searchQuery.isNotBlank() -> stringResource(R.string.parent_rules_no_match, searchQuery.trim())
+                showApproved -> stringResource(R.string.parent_rules_empty_approved)
+                else -> stringResource(R.string.parent_rules_empty_blocked)
             }
             Text(
                 text = emptyMessage,
@@ -782,7 +786,7 @@ internal fun ManageContentRulesSheetBody(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.DeleteOutline,
-                                contentDescription = "Remove rule",
+                                contentDescription = stringResource(R.string.parent_action_remove_rule),
                                 tint = AppMuted,
                             )
                         }
@@ -908,6 +912,6 @@ internal fun RemovableChip(label: String, onRemove: () -> Unit) {
     ) {
         Text(label, color = AppText, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.width(4.dp))
-        Icon(Icons.Default.Close, contentDescription = "Remove", tint = AppMuted, modifier = Modifier.size(14.dp))
+        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.remove), tint = AppMuted, modifier = Modifier.size(14.dp))
     }
 }

@@ -16,8 +16,8 @@ import io.github.thake.soundnest.feature.parental.ui.PolicyToggleRow
 fun PodcastParentSettingsRows(policy: ParentalPolicy) {
     val context = LocalContext.current
     PolicyToggleRow(
-        title = "Podcasts",
-        subtitle = "Allow podcast shows and episodes (unmoderated spoken-word audio)",
+        title = stringResource(R.string.parent_podcasts_title),
+        subtitle = stringResource(R.string.parent_podcasts_subtitle),
         checked = policy.spokenWord.allowPodcasts,
     ) { v ->
         ParentalPolicyStore.update(context) { it.copy(spokenWord = it.spokenWord.copy(allowPodcasts = v)) }

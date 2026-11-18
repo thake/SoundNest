@@ -55,7 +55,12 @@ object HomeSectionFilter {
             t.contains("fresh new") ||
             t.contains("new music") ||
             t.contains("latest release") ||
-            t.contains("just dropped")
+            t.contains("just dropped") ||
+            t.contains("neuerscheinung") ||
+            t.contains("neue musik") ||
+            t.contains("neu veröffentlich") ||
+            t.contains("frisch veröffentlich") ||
+            t.contains("brandneu")
     }
 
     fun isChartsOrTrendingShelf(section: HomeSection): Boolean {
@@ -69,10 +74,16 @@ object HomeSectionFilter {
             "popular" in words ||
             "viral" in words ||
             "hits" in words ||
+            "angesagt" in words ||
+            "beliebt" in words ||
+            "beliebte" in words ||
+            "meistgehört" in words ||
             t.contains("top 50") ||
             t.contains("top songs") ||
             t.contains("top tracks") ||
-            t.contains("biggest hits")
+            t.contains("top titel") ||
+            t.contains("biggest hits") ||
+            t.contains("angesagt")
     }
 
     fun isMixesOrMadeForYouShelf(section: HomeSection): Boolean {
@@ -86,10 +97,19 @@ object HomeSectionFilter {
             "mixes" in words ||
             "discover" in words ||
             "recommended" in words ||
+            "tagesmix" in words ||
             t.contains("daily mix") ||
             t.contains("discover weekly") ||
             t.contains("uniquely yours") ||
-            t.contains("picked just for you")
+            t.contains("picked just for you") ||
+            t.contains("für dich") ||
+            t.contains("dein mix") ||
+            t.contains("tagesmix") ||
+            t.contains("mix der woche") ||
+            t.contains("entdecken") ||
+            t.contains("empfohlen") ||
+            t.contains("nur für dich") ||
+            t.contains("deine top mixe")
     }
 
     fun isRecentsShelf(section: HomeSection): Boolean {
@@ -100,7 +120,11 @@ object HomeSectionFilter {
             t.contains("jump back in") ||
             t.contains("heavy rotation") ||
             t == "recents" ||
-            t == "recent"
+            t == "recent" ||
+            t.contains("kürzlich gehört") ||
+            t.contains("zuletzt gehört") ||
+            t.contains("wieder reinspringen") ||
+            t.contains("dauerbrenner")
     }
 
     fun isWhatsNewAllowed(policy: ParentalPolicy): Boolean {

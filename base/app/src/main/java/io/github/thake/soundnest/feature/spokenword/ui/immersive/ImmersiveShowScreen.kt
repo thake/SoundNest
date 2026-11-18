@@ -316,7 +316,7 @@ private fun ShowHeader(
                 Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.Star, contentDescription = null, tint = Immersive.TextSecondary, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text(String.format(java.util.Locale.getDefault(), "%.1f", rating), style = Immersive.Subhead)
+                    Text(String.format(io.github.thake.soundnest.feature.appearance.settings.AppLanguage.currentLocale(), "%.1f", rating), style = Immersive.Subhead)
                 }
             }
             if (showFollow) {

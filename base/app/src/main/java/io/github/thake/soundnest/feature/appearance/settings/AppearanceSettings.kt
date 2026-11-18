@@ -9,7 +9,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.core.content.ContextCompat
+import androidx.core.os.ConfigurationCompat
 import androidx.core.os.LocaleListCompat
+import io.github.thake.soundnest.feature.widget.NowPlayingWidget
 import io.github.thake.soundnest.core.di.Graph
 import io.github.thake.soundnest.core.preferences.featurePrefs
 import java.util.Locale
@@ -231,11 +234,64 @@ object AppLanguage {
     fun current(context: Context): String =
         AppCompatDelegate.getApplicationLocales().takeIf { !it.isEmpty }?.get(0)?.toLanguageTag() ?: SYSTEM
 
+    fun localizedContext(context: Context): Context =
+        ContextCompat.getContextForLanguage(context)
+
+    val effectiveLocale: Locale
+        get() = runCatching { effectiveLocale(io.github.thake.soundnest.core.di.Graph.app) }.getOrDefault(Locale.getDefault())
+
+    fun effectiveLocale(context: Context = io.github.thake.soundnest.core.di.Graph.app): Locale {
+        val locales = AppCompatDelegate.getApplicationLocales()
+        if (!locales.isEmpty) {
+            locales.get(0)?.let { return it }
+        }
+        val configLocales = ConfigurationCompat.getLocales(context.resources.configuration)
+        if (!configLocales.isEmpty) {
+            configLocales.get(0)?.let { return it }
+        }
+        return Locale.getDefault()
+    }
+
+    @androidx.compose.runtime.Composable
+    fun currentLocale(): Locale {
+        val config = androidx.compose.ui.platform.LocalConfiguration.current
+        return androidx.compose.runtime.remember(config) {
+            ConfigurationCompat.getLocales(config)[0] ?: Locale.getDefault()
+        }
+    }
+
+    fun acceptLanguageTag(context: Context): String {
+        val locale = effectiveLocale(context)
+        val tag = locale.toLanguageTag()
+        val lang = locale.language.lowercase(Locale.ROOT)
+        return when {
+            lang == "en" -> if (tag.equals("en", ignoreCase = true)) "en;q=0.9" else "$tag,en;q=0.9"
+            tag.equals(lang, ignoreCase = true) -> "$lang,en;q=0.5"
+            else -> "$tag,$lang;q=0.9,en;q=0.5"
+        }
+    }
+
+    fun onLocaleChanged(context: Context) {
+        runCatching { io.github.thake.soundnest.core.catalog.Api.HomeCache.clear() }
+        runCatching { io.github.thake.soundnest.core.catalog.ScreenCache.clear() }
+        if (io.github.thake.soundnest.host.android.SoundNestRuntime.isStarted) {
+            runCatching {
+                val host = io.github.thake.soundnest.host.android.SoundNestRuntime.host
+                host.clearPlayerRoot()
+                host.reload()
+            }
+        }
+        runCatching {
+            NowPlayingWidget.update(context)
+        }
+    }
+
     fun apply(context: Context, tag: String) {
         appearancePrefs(context).edit().putString("app_language", tag).apply()
         AppCompatDelegate.setApplicationLocales(
             if (tag == SYSTEM) LocaleListCompat.getEmptyLocaleList() else LocaleListCompat.forLanguageTags(tag),
         )
+        onLocaleChanged(context)
     }
 
     /** The language's name in itself ("Français", "Deutsch"…). */

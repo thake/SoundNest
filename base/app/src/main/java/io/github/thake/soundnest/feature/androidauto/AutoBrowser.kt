@@ -85,7 +85,8 @@ object AutoBrowser {
      * every other node needs the session, and waits for it instead of returning an empty list,
      * which Android Auto keeps as the folder's content until it unsubscribes (issue #41, cold start).
      */
-    suspend fun children(context: Context, parentId: String): List<MediaItem> {
+    suspend fun children(rawContext: Context, parentId: String): List<MediaItem> {
+        val context = io.github.thake.soundnest.feature.appearance.settings.AppLanguage.localizedContext(rawContext)
         when {
             parentId == ROOT -> return buildList {
                 add(tab(context, "home", R.string.aa_home, "aa_ic_home", STYLE_GRID))

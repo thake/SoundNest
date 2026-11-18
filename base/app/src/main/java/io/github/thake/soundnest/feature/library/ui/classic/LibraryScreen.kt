@@ -619,12 +619,13 @@ fun SumUpLibraryScreen(
                 )
             }
             items(followedArtists) { artist ->
+                val artistLabel = stringResource(R.string.entity_artist)
                 val artistBlock: (() -> Unit)? = if (adminUnlocked && artist.id.isNotBlank()) ({
                     quickBlockTarget = io.github.thake.soundnest.feature.parental.ui.ParentBlockTarget(
                         kind = io.github.thake.soundnest.feature.parental.ui.ParentRuleKind.ARTIST,
                         id = artist.id,
                         title = artist.name,
-                        subtitle = "Artist",
+                        subtitle = artistLabel,
                         coverUri = artist.coverUri,
                     )
                 }) else null
@@ -935,12 +936,13 @@ fun LibraryGridScreen(
                 )
             }
             items(followedArtists) { artist ->
+                val artistLabel = stringResource(R.string.entity_artist)
                 val artistBlock: (() -> Unit)? = if (adminUnlocked && artist.id.isNotBlank()) ({
                     quickBlockTarget = io.github.thake.soundnest.feature.parental.ui.ParentBlockTarget(
                         kind = io.github.thake.soundnest.feature.parental.ui.ParentRuleKind.ARTIST,
                         id = artist.id,
                         title = artist.name,
-                        subtitle = "Artist",
+                        subtitle = artistLabel,
                         coverUri = artist.coverUri,
                     )
                 }) else null

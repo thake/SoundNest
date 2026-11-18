@@ -162,11 +162,13 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel, facet: St
 
     val rawGridSection = remember(feed) { feed.sections.firstOrNull()?.takeIf { it.title.isBlank() } }
     val rawCarousels = remember(feed, rawGridSection) { if (rawGridSection != null) feed.sections.drop(1) else feed.sections }
-    val carousels = remember(rawCarousels, policy, revision) {
+    val parentPicksTitle = stringResource(R.string.parent_picks_shelf_title)
+    val carousels = remember(rawCarousels, policy, revision, parentPicksTitle) {
         io.github.thake.soundnest.feature.parental.filter.HomeSectionFilter.filterSections(
             sections = rawCarousels,
             policy = policy,
             parentPicksCandidates = io.github.thake.soundnest.feature.parental.filter.HomeSectionFilter.cachedLibraryCandidates(),
+            parentPicksTitle = parentPicksTitle,
         )
     }
     val carouselKeys = remember(carousels) { uniqueKeys(carousels.map { it.uri.ifBlank { it.title } }) }
@@ -455,11 +457,11 @@ private fun HomeFeedSection(
             androidx.compose.material3.IconButton(onClick = {
                 val key = io.github.thake.soundnest.feature.parental.filter.HomeSectionFilter.shelfKey(section)
                 io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore.hideHomeShelf(context, key)
-                android.widget.Toast.makeText(context, "Hidden section: ${section.title}", android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(context, context.getString(R.string.home_shelf_hidden_toast, section.title), android.widget.Toast.LENGTH_SHORT).show()
             }) {
                 Icon(
                     androidx.compose.material.icons.Icons.Outlined.VisibilityOff,
-                    contentDescription = "Hide section",
+                    contentDescription = stringResource(R.string.home_shelf_hide_desc),
                     tint = AppMuted,
                     modifier = Modifier.size(20.dp),
                 )

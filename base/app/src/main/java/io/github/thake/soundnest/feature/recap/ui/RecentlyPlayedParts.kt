@@ -55,8 +55,8 @@ internal fun dayLabel(dayMs: Long?): String {
     return when (date) {
         today -> stringResource(R.string.recents_today)
         today.minusDays(1) -> stringResource(R.string.recents_yesterday)
-        // Older days print as the official page does: day and short month, in the phone's language.
-        else -> date.format(DateTimeFormatter.ofPattern("d MMM", Locale.getDefault()))
+        // Older days print as the official page does: day and short month, in the app's language.
+        else -> date.format(DateTimeFormatter.ofPattern("d MMM", io.github.thake.soundnest.feature.appearance.settings.AppLanguage.currentLocale()))
     }
 }
 

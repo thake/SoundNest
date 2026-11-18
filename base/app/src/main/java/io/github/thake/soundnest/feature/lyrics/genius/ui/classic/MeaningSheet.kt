@@ -61,7 +61,7 @@ internal fun rememberShown(original: GeniusMeaning.Meaning, texts: List<String>)
 @Composable
 fun readerLanguage(): String {
     val context = LocalContext.current
-    return remember { LyricsTranslationSettings.getTranslateLang(context).ifBlank { java.util.Locale.getDefault().language.ifBlank { "en" } } }
+    return remember { LyricsTranslationSettings.getTranslateLang(context).ifBlank { io.github.thake.soundnest.feature.appearance.settings.AppLanguage.effectiveLocale.language.ifBlank { "en" } } }
 }
 
 @Composable

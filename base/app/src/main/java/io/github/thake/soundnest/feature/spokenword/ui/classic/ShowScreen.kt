@@ -341,7 +341,7 @@ private fun Header(
                 Icon(Icons.Default.Star, contentDescription = null, tint = AppText.copy(alpha = 0.8f), modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    text = String.format(java.util.Locale.getDefault(), "%.1f", rating),
+                    text = String.format(io.github.thake.soundnest.feature.appearance.settings.AppLanguage.currentLocale(), "%.1f", rating),
                     color = AppText.copy(alpha = 0.8f),
                     fontSize = 13.sp,
                 )

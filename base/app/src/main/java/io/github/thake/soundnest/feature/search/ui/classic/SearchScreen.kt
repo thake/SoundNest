@@ -341,7 +341,7 @@ fun SumUpSearchScreen(
                                 kind = ParentRuleKind.ARTIST,
                                 id = row.artist.id,
                                 title = row.artist.name,
-                                subtitle = "Artist",
+                                subtitle = context.getString(R.string.entity_artist),
                                 coverUri = row.artist.coverUri,
                             )
                         }) else null,

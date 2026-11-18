@@ -84,7 +84,7 @@ interface ClientTokenStore {
 class SpotifyHttp(
     private val http: OkHttpClient,
     private val bridge: Bridge,
-    private val language: String = "en",
+    private val languageProvider: () -> String,
     /**
      * The browser this app presents to Spotify, drawn once per install by the host
      * (`Fingerprint`). Handing every install the same user agent made the whole user base one
@@ -100,6 +100,16 @@ class SpotifyHttp(
     /** Keeps the client token across launches; null: minted once per launch, as before. */
     private val tokenStore: ClientTokenStore? = null,
 ) {
+    val language: String get() = languageProvider()
+
+    constructor(
+        http: OkHttpClient,
+        bridge: Bridge,
+        language: String = "en",
+        browserUserAgent: String? = null,
+        deviceId: String = java.util.UUID.randomUUID().toString(),
+        tokenStore: ClientTokenStore? = null,
+    ) : this(http, bridge, { language }, browserUserAgent, deviceId, tokenStore)
     private data class WebToken(val access: String, val expiresAtMs: Long, val clientId: String, val appVersion: String, val anonymous: Boolean,
                                 val fetchedAtMs: Long = System.currentTimeMillis())
     private data class ClientToken(val value: String, val expiresAtMs: Long, val clientId: String = "")

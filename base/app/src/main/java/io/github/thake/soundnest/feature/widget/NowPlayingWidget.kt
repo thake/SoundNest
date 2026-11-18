@@ -10,6 +10,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.widget.RemoteViews
 import io.github.thake.soundnest.R
+import io.github.thake.soundnest.feature.appearance.settings.AppLanguage
 import io.github.thake.soundnest.core.playback.SongPlayer
 import io.github.thake.soundnest.host.android.R as HostR
 import kotlinx.coroutines.CoroutineScope
@@ -51,6 +52,13 @@ class NowPlayingWidget : AppWidgetProvider() {
         private val http by lazy { OkHttpClient.Builder().callTimeout(10, TimeUnit.SECONDS).build() }
 
         /** The track on screen changed (or its play state): redraw the widgets, if any. */
+        fun update(context: Context) {
+            val app = context.applicationContext
+            val manager = AppWidgetManager.getInstance(app)
+            val ids = manager.getAppWidgetIds(ComponentName(app, NowPlayingWidget::class.java))
+            if (ids.isNotEmpty()) render(app, manager, ids)
+        }
+
         fun show(context: Context, title: String, artist: String, coverUrl: String?, playing: Boolean) {
             val next = Shown(title, artist, coverUrl, playing)
             if (next == shown) return
@@ -76,8 +84,9 @@ class NowPlayingWidget : AppWidgetProvider() {
 
         private fun render(context: Context, manager: AppWidgetManager, ids: IntArray) {
             val s = shown
+            val locContext = AppLanguage.localizedContext(context)
             val views = RemoteViews(context.packageName, R.layout.widget_now_playing).apply {
-                setTextViewText(R.id.widget_title, s.title.ifBlank { context.getString(R.string.app_name) })
+                setTextViewText(R.id.widget_title, s.title.ifBlank { locContext.getString(R.string.app_name) })
                 setTextViewText(R.id.widget_artist, s.artist)
                 val bmp = cover.takeIf { coverUrl == s.coverUrl }
                 if (bmp != null) setImageViewBitmap(R.id.widget_cover, bmp) else setImageViewResource(R.id.widget_cover, R.mipmap.ic_launcher)

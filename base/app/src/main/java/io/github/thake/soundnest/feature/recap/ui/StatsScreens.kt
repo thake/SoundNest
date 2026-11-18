@@ -181,8 +181,9 @@ internal fun WeeklyMinutesChart(modifier: Modifier = Modifier) {
     val w = weeks ?: return
     if (w.all { it.minutes == 0L }) return
     val max = w.maxOf { it.minutes }.coerceAtLeast(1)
-    val pattern = android.text.format.DateFormat.getBestDateTimePattern(java.util.Locale.getDefault(), "dMMM")
-    val format = remember(pattern) { java.text.SimpleDateFormat(pattern, java.util.Locale.getDefault()) }
+    val loc = io.github.thake.soundnest.feature.appearance.settings.AppLanguage.currentLocale()
+    val pattern = android.text.format.DateFormat.getBestDateTimePattern(loc, "dMMM")
+    val format = remember(pattern, loc) { java.text.SimpleDateFormat(pattern, loc) }
     Column(modifier.padding(16.dp, 8.dp)) {
         Text(stringResource(R.string.stats_weekly_minutes), color = AppText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Text(stringResource(R.string.stats_this_week, w.last().minutes), color = StatsSubtle, fontSize = 13.sp,

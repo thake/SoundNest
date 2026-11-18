@@ -82,8 +82,15 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
      * Until the page has said which identity it presents, the relay presents the one the WebView
      * was given ([Fingerprint]) and the phone's languages, so even the first requests agree with it.
      */
-    private val fallbackLanguage: String by lazy {
-        Fingerprint.acceptLanguage(android.os.LocaleList.getDefault().toLanguageTags().split(','))
+    private val fallbackLanguage: String get() {
+        val ctx = HostLocale.localizedContext(view.context)
+        val locales = ctx?.let { androidx.core.os.ConfigurationCompat.getLocales(it.resources.configuration) }
+        val tags = if (locales != null && !locales.isEmpty) {
+            (0 until locales.size()).mapNotNull { locales.get(it)?.toLanguageTag() }
+        } else {
+            android.os.LocaleList.getDefault().toLanguageTags().split(',')
+        }
+        return Fingerprint.acceptLanguage(tags)
     }
 
     /** The page's identity, for the audio proxy: the user agent and language it presents itself. */

@@ -205,8 +205,8 @@ private fun SettingsRoot(navController: NavController, open: (SettingsPage) -> U
         immersiveGroup("parental") {
             row {
                 ImmersiveGroupRow(
-                    title = "Parental Controls",
-                    detail = if (unlocked) "Parent Mode active · Tap to edit rules" else "Filters, Home layout, speakers & PIN",
+                    title = stringResource(R.string.parent_settings_title),
+                    detail = if (unlocked) stringResource(R.string.parent_pin_active_hint) else stringResource(R.string.parent_pin_manage_rules_hint),
                     detailColor = if (unlocked) Immersive.Accent else Immersive.TextSecondary,
                     icon = Icons.Rounded.Lock,
                     chevron = true,

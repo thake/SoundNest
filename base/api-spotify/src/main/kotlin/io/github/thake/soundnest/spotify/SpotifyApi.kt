@@ -32,7 +32,7 @@ class SpotifyApi(
     host: BridgeHost,
     private val scope: CoroutineScope,
     http: OkHttpClient = OkHttpClient(),
-    language: String = "en",
+    languageProvider: () -> String,
     val ops: GqlOps = GqlOps.bundled(),
     /** The client's device id, kept across launches by the host (see SpotifyHttp.deviceId). */
     deviceId: String? = null,
@@ -41,8 +41,19 @@ class SpotifyApi(
     /** Keeps the client token across launches (see [io.github.thake.soundnest.spotify.gql.ClientTokenStore]). */
     tokenStore: io.github.thake.soundnest.spotify.gql.ClientTokenStore? = null,
 ) : SoundNestApi {
+    constructor(
+        host: BridgeHost,
+        scope: CoroutineScope,
+        http: OkHttpClient = OkHttpClient(),
+        language: String = "en",
+        ops: GqlOps = GqlOps.bundled(),
+        deviceId: String? = null,
+        userAgent: String? = null,
+        tokenStore: io.github.thake.soundnest.spotify.gql.ClientTokenStore? = null,
+    ) : this(host, scope, http, { language }, ops, deviceId, userAgent, tokenStore)
+
     val bridge = Bridge(host, scope)
-    val http = SpotifyHttp(http, bridge, language, userAgent, deviceId ?: java.util.UUID.randomUUID().toString(), tokenStore)
+    val http = SpotifyHttp(http, bridge, languageProvider, userAgent, deviceId ?: java.util.UUID.randomUUID().toString(), tokenStore)
     @Volatile private var currentOps: GqlOps = ops
     /** The operation table in use; [updateOps] swaps it when Spotify ships a new build. */
     val opsInUse: GqlOps get() = currentOps

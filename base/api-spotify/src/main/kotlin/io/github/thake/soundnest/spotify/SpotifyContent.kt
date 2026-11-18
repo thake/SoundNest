@@ -122,8 +122,11 @@ class SpotifyCatalog(private val gql: Gql, private val http: io.github.thake.sou
         track(gql.query("getTrack", vars("uri" to uri, "includeVideoAssociationItems" to false)).entity("data.trackUnion", "getTrack"))
             ?: throw GqlException("getTrack", "bad track")
 
+    private fun currentLocale(): String =
+        http?.language?.split(',', ';')?.firstOrNull()?.trim() ?: ""
+
     private suspend fun albumUnion(uri: Uri, offset: Int, limit: Int) =
-        gql.query("getAlbum", vars("uri" to uri, "locale" to "", "offset" to offset, "limit" to limit)).entity("data.albumUnion", "getAlbum")
+        gql.query("getAlbum", vars("uri" to uri, "locale" to currentLocale(), "offset" to offset, "limit" to limit)).entity("data.albumUnion", "getAlbum")
 
     override suspend fun album(uri: Uri): Album =
         album(albumUnion(uri, 0, 1)) ?: throw GqlException("getAlbum", "bad album")
@@ -139,7 +142,7 @@ class SpotifyCatalog(private val gql: Gql, private val http: io.github.thake.sou
     }
 
     private suspend fun artistUnion(uri: Uri) =
-        gql.query("queryArtistOverview", vars("uri" to uri, "locale" to "", "preReleaseV2" to false)).entity("data.artistUnion", "queryArtistOverview")
+        gql.query("queryArtistOverview", vars("uri" to uri, "locale" to currentLocale(), "preReleaseV2" to false)).entity("data.artistUnion", "queryArtistOverview")
 
     override suspend fun artist(uri: Uri): Artist {
         val a = artistUnion(uri)

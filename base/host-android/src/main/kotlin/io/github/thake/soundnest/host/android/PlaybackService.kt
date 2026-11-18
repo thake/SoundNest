@@ -4,8 +4,10 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ApplicationInfo
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
@@ -150,6 +152,18 @@ class PlaybackService : MediaBrowserServiceCompat() {
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount
     }
 
+    private fun locString(resId: Int, vararg args: Any): String =
+        HostLocale.localizedContext(this)?.getString(resId, *args) ?: getString(resId, *args)
+
+    private val localeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_LOCALE_CHANGED) {
+                createChannel()
+                current?.let { show(it) }
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         instance = this
@@ -167,6 +181,8 @@ class PlaybackService : MediaBrowserServiceCompat() {
         }
         sessionToken = session.sessionToken
         createChannel()
+        val filter = IntentFilter(Intent.ACTION_LOCALE_CHANGED)
+        androidx.core.content.ContextCompat.registerReceiver(this, localeReceiver, filter, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
         // The session is new: what it was given is what [update] compares with from now on.
         published = current
         publishedAt = android.os.SystemClock.elapsedRealtime()
@@ -200,6 +216,7 @@ class PlaybackService : MediaBrowserServiceCompat() {
                 ?.keyCode == android.view.KeyEvent.KEYCODE_MEDIA_STOP
 
     override fun onDestroy() {
+        runCatching { unregisterReceiver(localeReceiver) }
         instance = null
         releaseLocks()
         session.release()
@@ -368,9 +385,9 @@ class PlaybackService : MediaBrowserServiceCompat() {
             .setActions(if (info.episode) ACTIONS or SKIP_ACTIONS else ACTIONS)
             // Like on the left of previous / play / next, shuffle on the right: five buttons, so
             // play / pause sits in the middle (lock screen, Samsung Now Bar, Android 13+ shade).
-            .addCustomAction(ACTION_LIKE, getString(if (info.liked) R.string.msp_unlike else R.string.msp_like),
+            .addCustomAction(ACTION_LIKE, locString(if (info.liked) R.string.msp_unlike else R.string.msp_like),
                 if (info.liked) R.drawable.msp_ic_liked else R.drawable.msp_ic_like)
-            .addCustomAction(ACTION_SHUFFLE, getString(if (info.shuffle) R.string.msp_shuffle_off else R.string.msp_shuffle_on),
+            .addCustomAction(ACTION_SHUFFLE, locString(if (info.shuffle) R.string.msp_shuffle_off else R.string.msp_shuffle_on),
                 if (info.shuffle) R.drawable.msp_ic_shuffle_on else R.drawable.msp_ic_shuffle)
             .setState(state, info.positionMs, if (info.playing && !info.buffering) 1f else 0f)
             .setActiveQueueItemId(QueueSync.activeRow(queue, activeQueueId, info.title, info.artist))
@@ -617,13 +634,13 @@ class PlaybackService : MediaBrowserServiceCompat() {
             .setOnlyAlertOnce(true)
             .setOngoing(playing)
             .addAction(if (episode) R.drawable.msp_ic_replay_15 else R.drawable.msp_ic_previous,
-                getString(if (episode) R.string.msp_back_15 else R.string.msp_previous),
+                locString(if (episode) R.string.msp_back_15 else R.string.msp_previous),
                 MediaButtonReceiver.buildMediaButtonPendingIntent(this,
                     if (episode) PlaybackStateCompat.ACTION_REWIND else PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS))
-            .addAction(if (playing) R.drawable.msp_ic_pause else R.drawable.msp_ic_play, getString(if (playing) R.string.msp_pause else R.string.msp_play),
+            .addAction(if (playing) R.drawable.msp_ic_pause else R.drawable.msp_ic_play, locString(if (playing) R.string.msp_pause else R.string.msp_play),
                 MediaButtonReceiver.buildMediaButtonPendingIntent(this, PlaybackStateCompat.ACTION_PLAY_PAUSE))
             .addAction(if (episode) R.drawable.msp_ic_forward_15 else R.drawable.msp_ic_next,
-                getString(if (episode) R.string.msp_forward_15 else R.string.msp_next),
+                locString(if (episode) R.string.msp_forward_15 else R.string.msp_next),
                 MediaButtonReceiver.buildMediaButtonPendingIntent(this,
                     if (episode) PlaybackStateCompat.ACTION_FAST_FORWARD else PlaybackStateCompat.ACTION_SKIP_TO_NEXT))
             .setStyle(MediaStyle().setMediaSession(session.sessionToken).setShowActionsInCompactView(0, 1, 2))
@@ -636,12 +653,10 @@ class PlaybackService : MediaBrowserServiceCompat() {
     }
 
     private fun createChannel() {
-        val manager = getSystemService(NotificationManager::class.java)
-        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
-            manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, getString(R.string.msp_channel_playback), NotificationManager.IMPORTANCE_LOW).apply {
-                setShowBadge(false)
-            })
-        }
+        val manager = getSystemService(NotificationManager::class.java) ?: return
+        manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, locString(R.string.msp_channel_playback), NotificationManager.IMPORTANCE_LOW).apply {
+            setShowBadge(false)
+        })
     }
 
     /** Playback on a Connect device: the volume keys drive that device instead of the phone. */

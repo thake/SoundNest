@@ -50,8 +50,12 @@ import kotlinx.serialization.json.contentOrNull
  * ViewModels use; every call maps the API's models to the UI's ones.
  */
 class Api constructor(
-    private val context: android.content.Context = Graph.app,
+    context: android.content.Context = Graph.app,
 ) {
+    private val rawContext: android.content.Context = context
+    private val context: android.content.Context
+        get() = io.github.thake.soundnest.feature.appearance.settings.AppLanguage.localizedContext(rawContext)
+
     private val api: SoundNestApi get() = SoundNestRuntime.api
 
     private fun stableId(key: String): Int = key.hashCode() and 0x7fffffff
@@ -909,13 +913,18 @@ class Api constructor(
         if (iso.isNullOrBlank()) return ""
         return runCatching {
             val d = java.time.LocalDate.parse(iso.take(10))
-            d.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.getDefault()))
+            val loc = io.github.thake.soundnest.feature.appearance.settings.AppLanguage.effectiveLocale(rawContext)
+            d.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", loc))
         }.getOrDefault(iso.take(4))
     }
 
     private fun durationLabel(totalMs: Long): String {
         val min = totalMs / 60000
-        return if (min >= 60) "${min / 60} h ${min % 60} min" else "$min min"
+        return if (min >= 60) {
+            context.getString(R.string.duration_hours_minutes, min / 60, min % 60)
+        } else {
+            context.getString(R.string.duration_minutes, min)
+        }
     }
 
     /** Album id for a name (+ artist) when the caller only knows the name. */

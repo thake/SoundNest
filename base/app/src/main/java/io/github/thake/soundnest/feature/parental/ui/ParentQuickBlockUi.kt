@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 package io.github.thake.soundnest.feature.parental.ui
 
+import androidx.compose.ui.res.stringResource
+
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -109,6 +111,15 @@ fun rememberAdminUnlocked(): Boolean {
 
 object ParentBlockActions {
 
+    fun kindNoun(context: Context, kind: ParentRuleKind): String = when (kind) {
+        ParentRuleKind.TRACK -> context.getString(R.string.parent_noun_song)
+        ParentRuleKind.EPISODE -> context.getString(R.string.parent_noun_episode)
+        ParentRuleKind.ARTIST -> context.getString(R.string.parent_noun_artist)
+        ParentRuleKind.PLAYLIST -> context.getString(R.string.parent_noun_playlist)
+        ParentRuleKind.ALBUM -> context.getString(R.string.parent_noun_album)
+        ParentRuleKind.SHOW -> context.getString(R.string.parent_noun_podcast_show)
+    }
+
     fun kindNoun(kind: ParentRuleKind): String = when (kind) {
         ParentRuleKind.TRACK -> "Song"
         ParentRuleKind.EPISODE -> "Episode"
@@ -128,6 +139,13 @@ object ParentBlockActions {
             ParentRuleKind.ALBUM -> norm in policy.blockedAlbumIds
             ParentRuleKind.SHOW -> norm in policy.spokenWord.podcasts.blockedShowIds
         }
+    }
+
+    fun actionLabel(context: Context, target: ParentBlockTarget, blocked: Boolean, includeTitle: Boolean = false): String {
+        val noun = kindNoun(context, target.kind)
+        val suffix = if (includeTitle && target.title.isNotBlank()) " (${target.title})" else ""
+        return if (blocked) context.getString(R.string.parent_action_unblock_item, "$noun$suffix")
+        else context.getString(R.string.parent_action_block_item, "$noun$suffix")
     }
 
     fun actionLabel(target: ParentBlockTarget, blocked: Boolean, includeTitle: Boolean = false): String {
@@ -167,8 +185,8 @@ object ParentBlockActions {
         }
         runCatching { SongPlayer.enforceParentalPolicyNow() }
         if (showToast) {
-            val label = target.title.ifBlank { kindNoun(target.kind) }
-            Toast.makeText(context, "Blocked ${kindNoun(target.kind).lowercase()}: $label", Toast.LENGTH_SHORT).show()
+            val label = target.title.ifBlank { kindNoun(context, target.kind) }
+            Toast.makeText(context, context.getString(R.string.parent_toast_blocked, kindNoun(context, target.kind).lowercase(), label), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -184,8 +202,8 @@ object ParentBlockActions {
         }
         runCatching { SongPlayer.enforceParentalPolicyNow() }
         if (showToast) {
-            val label = target.title.ifBlank { kindNoun(target.kind) }
-            Toast.makeText(context, "Unblocked ${kindNoun(target.kind).lowercase()}: $label", Toast.LENGTH_SHORT).show()
+            val label = target.title.ifBlank { kindNoun(context, target.kind) }
+            Toast.makeText(context, context.getString(R.string.parent_toast_unblocked, kindNoun(context, target.kind).lowercase(), label), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -385,12 +403,12 @@ fun ParentInlineBlockPill(
     val context = LocalContext.current
     val policy = rememberParentalPolicy()
     val blocked = ParentBlockActions.isBlocked(target, policy)
-    val noun = ParentBlockActions.kindNoun(target.kind)
+    val noun = ParentBlockActions.kindNoun(context, target.kind)
 
     val bg = if (blocked) ParentBlockRed else ParentBlockFill
     val border = if (blocked) ParentBlockRed else ParentBlockBorder
     val fg = if (blocked) Color.Black else ParentBlockSoftText
-    val label = if (blocked) "Blocked · Tap to Unblock" else "Block $noun"
+    val label = if (blocked) stringResource(R.string.parent_quick_blocked_tap_unblock) else stringResource(R.string.parent_quick_block_noun, noun)
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -441,7 +459,7 @@ fun ParentQuickBlockSheet(
         return
     }
     val roundCover = target.kind == ParentRuleKind.ARTIST
-    val headerSubtitle = target.subtitle.ifBlank { ParentBlockActions.kindNoun(target.kind) }
+    val headerSubtitle = target.subtitle.ifBlank { ParentBlockActions.kindNoun(context, target.kind) }
 
     if (isImmersive()) {
         ImmersiveSheet(
@@ -460,7 +478,7 @@ fun ParentQuickBlockSheet(
                 val includeName = index > 0 || allTargets.size > 1
                 ImmersiveSheetRow(
                     icon = if (blocked) Icons.Rounded.CheckCircle else Icons.Rounded.Block,
-                    label = ParentBlockActions.actionLabel(item, blocked, includeTitle = includeName),
+                    label = ParentBlockActions.actionLabel(context, item, blocked, includeTitle = includeName),
                     tint = ParentBlockRed,
                     modifier = Modifier.testTag("parent_sheet_block_${item.kind.name.lowercase()}"),
                 ) {
@@ -546,7 +564,7 @@ fun ParentQuickBlockSheet(
                         }
                         Spacer(Modifier.width(16.dp))
                         Text(
-                            text = ParentBlockActions.actionLabel(item, blocked, includeTitle = includeName),
+                            text = ParentBlockActions.actionLabel(context, item, blocked, includeTitle = includeName),
                             color = ParentBlockRed,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold,

@@ -669,13 +669,14 @@ internal fun LibraryList(
             if (artists.isNotEmpty()) {
                 item(key = "library:artists-header") { SectionHeader(stringResource(R.string.song_dna_search_chip_followed_artists)) }
                 itemsIndexed(artists, key = { _, a -> "artist:${a.id.ifBlank { a.name }}" }) { _, artist ->
+                    val artistLabel = stringResource(R.string.entity_artist)
                     val artistBlock: (() -> Unit)? = if (adminUnlocked && artist.id.isNotBlank()) ({
                         onQuickBlock(
                             io.github.thake.soundnest.feature.parental.ui.ParentBlockTarget(
                                 kind = io.github.thake.soundnest.feature.parental.ui.ParentRuleKind.ARTIST,
                                 id = artist.id,
                                 title = artist.name,
-                                subtitle = "Artist",
+                                subtitle = artistLabel,
                                 coverUri = artist.coverUri,
                             ),
                         )
@@ -940,13 +941,14 @@ private fun LibraryGrid(
                 Box(Modifier.immersiveBleed(Immersive.Gutter)) { SectionHeader(stringResource(R.string.song_dna_search_chip_followed_artists)) }
             }
             itemsIndexed(artists, key = { _, a -> "artist:${a.id.ifBlank { a.name }}" }) { _, artist ->
+                val artistLabel = stringResource(R.string.entity_artist)
                 val artistBlock: (() -> Unit)? = if (adminUnlocked && artist.id.isNotBlank()) ({
                     onQuickBlock(
                         io.github.thake.soundnest.feature.parental.ui.ParentBlockTarget(
                             kind = io.github.thake.soundnest.feature.parental.ui.ParentRuleKind.ARTIST,
                             id = artist.id,
                             title = artist.name,
-                            subtitle = "Artist",
+                            subtitle = artistLabel,
                             coverUri = artist.coverUri,
                         ),
                     )

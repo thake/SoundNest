@@ -8,13 +8,14 @@ import androidx.compose.ui.res.stringResource
 import io.github.thake.soundnest.R
 import io.github.thake.soundnest.feature.equalizer.dsp.EqBands
 import io.github.thake.soundnest.feature.equalizer.settings.EqPreset
+import io.github.thake.soundnest.feature.appearance.settings.AppLanguage
 import java.text.NumberFormat
 import java.util.Locale
 
 /** "+3", "0", "-1.5": a gain as both looks show it. */
-internal fun dbText(db: Float): String {
+internal fun dbText(db: Float, locale: Locale = AppLanguage.effectiveLocale): String {
     val v = Math.round(db * 2) / 2f
-    val s = if (v == Math.floor(v.toDouble()).toFloat()) v.toInt().toString() else String.format(Locale.getDefault(), "%.1f", v)
+    val s = if (v == Math.floor(v.toDouble()).toFloat()) v.toInt().toString() else String.format(locale, "%.1f", v)
     return if (v > 0) "+$s" else s
 }
 
@@ -22,8 +23,8 @@ internal fun dbText(db: Float): String {
 internal fun widthStep(width: Float): Float = Math.round(width * 20) / 20f
 
 /** "160 %", "160%": the spatial width as a percentage, in the phone's language. */
-internal fun widthText(width: Float): String =
-    NumberFormat.getPercentInstance(Locale.getDefault()).format(widthStep(width).toDouble())
+internal fun widthText(width: Float, locale: Locale = AppLanguage.effectiveLocale): String =
+    NumberFormat.getPercentInstance(locale).format(widthStep(width).toDouble())
 
 /** "1×", "1,25×" in the phone's language. */
 internal fun speedText(speed: Float): String = speedLabel(speed.toDouble()) + "×"

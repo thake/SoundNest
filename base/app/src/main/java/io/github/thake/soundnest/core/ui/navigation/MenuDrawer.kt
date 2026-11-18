@@ -486,8 +486,8 @@ fun MenuDrawerSheet(
                     MenuGroupCard(palette = palette) {
                         MenuGroupRow(
                             icon = Icons.Rounded.Security,
-                            title = "Parental Controls",
-                            detail = "Content filters, Home sections, features, speakers & backup",
+                            title = stringResource(R.string.parent_settings_title),
+                            detail = stringResource(R.string.menu_parental_controls_detail),
                             palette = palette,
                             locked = !adminUnlocked,
                             emphasizeIcon = true,

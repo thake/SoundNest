@@ -8,7 +8,7 @@ import android.os.Bundle
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
-import androidx.activity.ComponentActivity
+import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit
  * Spotify's account pages (plan, privacy, apps, devices) in a browser that shares the
  * app's sign-in: WebViews on the same profile (the active account's) share cookies, so no second login.
  */
-class AccountBrowser : ComponentActivity() {
+class AccountBrowser : AppCompatActivity() {
     private lateinit var web: WebView
 
     @SuppressLint("SetJavaScriptEnabled")

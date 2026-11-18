@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 package io.github.thake.soundnest.feature.speakers.settings
 
+import io.github.thake.soundnest.R
+
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -27,6 +29,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -101,7 +104,7 @@ fun SpeakersParentSettingsSection(
         value = runCatching { SongPlayer.devices() }.getOrDefault(emptyList())
     }
 
-    SectionCard("Trusted Home Network & Speakers") {
+    SectionCard(stringResource(R.string.parent_speakers_trusted_title)) {
         val statusBg = when {
             !requireWifi -> tone(0xFF2C2C2C)
             isTrustedNow -> AppAccent.copy(alpha = 0.16f)
@@ -113,18 +116,18 @@ fun SpeakersParentSettingsSection(
             else -> Color(0xFFFFB74D)
         }
         val statusTitle = when {
-            !requireWifi -> "Network boundary disabled — speakers allowed everywhere"
-            isTrustedNow -> "✓ Trusted Home LAN active — speakers enabled"
-            !currentSnap.onWifi -> "Not connected to Wi-Fi — remote speakers hidden"
-            else -> "Untrusted Wi-Fi — remote speakers hidden"
+            !requireWifi -> stringResource(R.string.parent_speakers_untrusted_notice)
+            isTrustedNow -> stringResource(R.string.parent_speakers_trusted_active)
+            !currentSnap.onWifi -> stringResource(R.string.parent_speakers_not_wifi)
+            else -> stringResource(R.string.parent_speakers_untrusted_wifi)
         }
         val statusDetail = when {
             currentSnap.onWifi && !currentSnap.lanNetworkLabel.isNullOrBlank() ->
-                "Current connection: ${currentSnap.lanNetworkLabel} (zero location permissions)"
+                stringResource(R.string.parent_speakers_current_connection, currentSnap.lanNetworkLabel)
             currentSnap.onWifi ->
-                "Connected to Wi-Fi · Zero location permissions used"
+                stringResource(R.string.parent_speakers_wifi_zero_location)
             else ->
-                "Connect to your Home Wi-Fi to trust its router & speaker fingerprint."
+                stringResource(R.string.parent_speakers_connect_home_hint)
         }
         Column(
             verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -139,8 +142,8 @@ fun SpeakersParentSettingsSection(
         }
 
         PolicyToggleRow(
-            title = "Require Trusted Home Network",
-            subtitle = "Hide cloud Spotify Connect & Alexa speakers and block LAN speaker setup when away from Home Wi-Fi",
+            title = stringResource(R.string.parent_speakers_require_title),
+            subtitle = stringResource(R.string.parent_speakers_require_subtitle),
             checked = requireWifi,
         ) { v ->
             TrustedNetworkGate.setRequireTrustedNetwork(context, v)
@@ -154,19 +157,19 @@ fun SpeakersParentSettingsSection(
                 localRefresh++
                 Toast.makeText(
                     context,
-                    if (ok) "Current Home LAN & visible speakers trusted." else "Connect to your Home Wi-Fi first.",
+                    context.getString(if (ok) R.string.parent_speakers_trusted_toast else R.string.parent_speakers_connect_first_toast),
                     Toast.LENGTH_SHORT,
                 ).show()
             },
             colors = accentFilledButtonColors,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("Trust Current Home LAN & Visible Speakers", fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.parent_speakers_trust_button), fontWeight = FontWeight.Bold)
         }
 
         if (lanFingerprints.isNotEmpty() || ssids.isNotEmpty()) {
             Text(
-                "Trusted Networks & Speaker Fingerprints",
+                stringResource(R.string.parent_speakers_fingerprints_header),
                 color = AppMuted,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -190,7 +193,7 @@ fun SpeakersParentSettingsSection(
         }
 
         HorizontalDivider(color = tone(0xFF3A3A3A))
-        Text("Speaker Visibility Mode", color = AppText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.parent_speakers_mode_header), color = AppText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val allExceptHiddenSelected = visibilityMode == SpeakerVisibilityMode.ALLOW_ALL_EXCEPT_HIDDEN
             FilterChip(
@@ -203,7 +206,7 @@ fun SpeakersParentSettingsSection(
                 leadingIcon = if (allExceptHiddenSelected) {
                     { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
                 } else null,
-                label = { Text("All Except Hidden", fontWeight = if (allExceptHiddenSelected) FontWeight.Bold else FontWeight.Normal) },
+                label = { Text(stringResource(R.string.parent_speakers_mode_all_except_hidden), fontWeight = if (allExceptHiddenSelected) FontWeight.Bold else FontWeight.Normal) },
             )
             val onlyAllowedSelected = visibilityMode == SpeakerVisibilityMode.ONLY_ALLOWED
             FilterChip(
@@ -216,7 +219,7 @@ fun SpeakersParentSettingsSection(
                 leadingIcon = if (onlyAllowedSelected) {
                     { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
                 } else null,
-                label = { Text("Only Allowed", fontWeight = if (onlyAllowedSelected) FontWeight.Bold else FontWeight.Normal) },
+                label = { Text(stringResource(R.string.parent_speakers_mode_only_allowed), fontWeight = if (onlyAllowedSelected) FontWeight.Bold else FontWeight.Normal) },
             )
         }
 
@@ -241,7 +244,7 @@ fun SpeakersParentSettingsSection(
 
         if (knownSpeakers.isEmpty()) {
             Text(
-                "Open the Connect device sheet while on Home Wi-Fi to discover speakers you can rename, hide, or allow.",
+                stringResource(R.string.parent_speakers_empty_hint),
                 color = AppMuted,
                 fontSize = 12.sp,
             )
@@ -251,9 +254,9 @@ fun SpeakersParentSettingsSection(
                 val isAllowed = id in allowedIds
                 val speakerUsable = if (visibilityMode == SpeakerVisibilityMode.ONLY_ALLOWED) isAllowed else !isHidden
                 val statusLabel = if (visibilityMode == SpeakerVisibilityMode.ONLY_ALLOWED) {
-                    if (speakerUsable) "Allowed" else "Blocked"
+                    if (speakerUsable) stringResource(R.string.parent_speakers_status_allowed) else stringResource(R.string.parent_speakers_status_blocked)
                 } else {
-                    if (speakerUsable) "Visible" else "Hidden"
+                    if (speakerUsable) stringResource(R.string.parent_speakers_status_visible) else stringResource(R.string.parent_speakers_status_hidden)
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -267,7 +270,7 @@ fun SpeakersParentSettingsSection(
                         editingSpeakerId = id
                         editingSpeakerName = customNames[id].orEmpty()
                     }) {
-                        Icon(Icons.Default.Edit, contentDescription = "Rename speaker", tint = AppMuted, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.parent_speakers_rename_action), tint = AppMuted, modifier = Modifier.size(18.dp))
                     }
                     Text(
                         text = statusLabel,
@@ -296,12 +299,12 @@ fun SpeakersParentSettingsSection(
         AlertDialog(
             onDismissRequest = { editingSpeakerId = null },
             containerColor = tone(0xFF282828),
-            title = { Text("Custom Speaker Nickname", color = AppText, fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.parent_speaker_nickname_title), color = AppText, fontWeight = FontWeight.Bold) },
             text = {
                 OutlinedTextField(
                     value = editingSpeakerName,
                     onValueChange = { editingSpeakerName = it },
-                    label = { Text("Nickname (e.g. Emma's Bedroom)") },
+                    label = { Text(stringResource(R.string.parent_speaker_nickname_hint)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -318,12 +321,12 @@ fun SpeakersParentSettingsSection(
                         localRefresh++
                     },
                 ) {
-                    Text("Save", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.parent_pin_save), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { editingSpeakerId = null }) {
-                    Text("Cancel", color = AppMuted)
+                    Text(stringResource(R.string.cancel), color = AppMuted)
                 }
             },
         )

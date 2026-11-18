@@ -35,7 +35,14 @@ class NativeTokens(private val http: SpotifyHttp) : TokenSource {
          */
         suspend fun config(http: SpotifyHttp): EngineConfig {
             val f = SoundNestRuntime.host.fingerprint
-            val language = Fingerprint.acceptLanguage(android.os.LocaleList.getDefault().toLanguageTags().split(','))
+            val ctx = HostLocale.localizedContext(SoundNestRuntime.appContext)
+            val locales = ctx?.let { androidx.core.os.ConfigurationCompat.getLocales(it.resources.configuration) }
+            val tags = if (locales != null && !locales.isEmpty) {
+                (0 until locales.size()).mapNotNull { locales.get(it)?.toLanguageTag() }
+            } else {
+                android.os.LocaleList.getDefault().toLanguageTags().split(',')
+            }
+            val language = Fingerprint.acceptLanguage(tags)
             return EngineConfig(
                 appVersion = http.credentials().appVersion,
                 browserName = "Chrome",

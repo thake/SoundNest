@@ -190,11 +190,11 @@ fun shareEpisode(context: Context, song: SongsModel) {
 }
 
 /** "24 juil." from Spotify's ISO date; "" when the date is missing. */
-fun episodeDateLabel(iso: String): String {
+fun episodeDateLabel(iso: String, locale: java.util.Locale = io.github.thake.soundnest.feature.appearance.settings.AppLanguage.effectiveLocale): String {
     if (iso.isBlank()) return ""
     return runCatching {
         val date = java.time.LocalDate.parse(iso.take(10))
-        date.format(java.time.format.DateTimeFormatter.ofPattern("d MMM", java.util.Locale.getDefault()))
+        date.format(java.time.format.DateTimeFormatter.ofPattern("d MMM", locale))
     }.getOrDefault("")
 }
 
@@ -213,10 +213,10 @@ fun episodeClock(ms: Long): String {
     else String.format(java.util.Locale.US, "%d:%02d", m, s)
 }
 
-/** "1", "1,2", "1,5"… as the speed sheet shows them, in the phone's language. */
-fun speedLabel(speed: Double): String =
+/** "1", "1,2", "1,5"… as the speed sheet shows them, in the app's language. */
+fun speedLabel(speed: Double, locale: java.util.Locale = io.github.thake.soundnest.feature.appearance.settings.AppLanguage.effectiveLocale): String =
     if (speed == Math.floor(speed)) speed.toInt().toString()
-    else String.format(java.util.Locale.getDefault(), "%.2f", speed).trimEnd('0').trimEnd('.')
+    else String.format(locale, "%.2f", speed).trimEnd('0').trimEnd('.')
 
 /** The stock app's speed sheet: the current value, its scale, then the presets. */
 @OptIn(ExperimentalMaterial3Api::class)

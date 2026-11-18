@@ -124,8 +124,9 @@ object NewReleaseNotifier : PolicySyncedSetting {
         if (Build.VERSION.SDK_INT >= 33 &&
             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        val locContext = io.github.thake.soundnest.feature.appearance.settings.AppLanguage.localizedContext(context)
         if (manager.getNotificationChannel(CHANNEL) == null)
-            manager.createNotificationChannel(NotificationChannel(CHANNEL, context.getString(R.string.notify_releases_channel), NotificationManager.IMPORTANCE_DEFAULT))
+            manager.createNotificationChannel(NotificationChannel(CHANNEL, locContext.getString(R.string.notify_releases_channel), NotificationManager.IMPORTANCE_DEFAULT))
         val compat = NotificationManagerCompat.from(context)
         releases.forEach { a ->
             val id = a.uri.substringAfterLast(':')
@@ -135,7 +136,7 @@ object NewReleaseNotifier : PolicySyncedSetting {
             val artist = a.artists.joinToString { it.name }
             val n = NotificationCompat.Builder(context, CHANNEL)
                 .setSmallIcon(R.drawable.msp_ic_notification)
-                .setContentTitle(context.getString(R.string.notify_release_title, artist))
+                .setContentTitle(locContext.getString(R.string.notify_release_title, artist))
                 .setContentText(a.name)
                 .setContentIntent(tap).setAutoCancel(true).setGroup(GROUP)
                 .build()

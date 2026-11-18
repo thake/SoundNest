@@ -1,5 +1,7 @@
 package io.github.thake.soundnest.feature.spokenword.ui
 
+import io.github.thake.soundnest.R
+
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshots.SnapshotStateMap
@@ -90,7 +92,7 @@ class ShowViewModel constructor(
                         pol.spokenWord.allowPodcasts
                     }
                     if (!gateOpen || !io.github.thake.soundnest.feature.parental.filter.ParentalFilterEngine.isShowAllowed(loaded.show, pol)) {
-                        _page.value = Response.Error("Blocked by Parental Controls")
+                        _page.value = Response.Error(Graph.app.getString(R.string.blocked_by_parental_controls))
                         showKey = null
                         return@collect
                     }

@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 package io.github.thake.soundnest.feature.spokenword.audible.data
 
+import io.github.thake.soundnest.R
+
 import io.github.thake.soundnest.feature.spokenword.audible.settings.AudibleCredentialStore
 
 import io.github.thake.soundnest.audible.*
@@ -63,7 +65,7 @@ object AudibleShowPageLoader {
             ?: return Result.failure(IllegalArgumentException("Invalid Audible showId: $showId"))
         val asin = ParentalPolicyStore.normalizeAudibleAsin(rawAsin)
         if (asin.isEmpty() || !AudibleCredentialStore.isConnected(context) || !ParentalFilterEngine.isAudibleBookAllowed(asin, policy)) {
-            return Result.failure(IllegalStateException("Blocked by Parental Controls"))
+            return Result.failure(IllegalStateException(context.getString(R.string.blocked_by_parental_controls)))
         }
         val book = AudibleCatalogCache.book(context, asin)
             ?: return Result.failure(IllegalStateException("Approved Audible book not found in local catalog: $asin"))
@@ -102,7 +104,7 @@ object AudibleShowPageLoader {
             }
             SongsModel(
                 id = ("uri:$chapterUri").hashCode() and 0x7fffffff,
-                title = ch.title.ifBlank { "Chapter ${ch.index + 1}" },
+                title = ch.title.ifBlank { context.getString(R.string.audible_chapter_number, ch.index + 1) },
                 album = book.title,
                 singer = authorLabel,
                 coverUri = book.coverUrl,

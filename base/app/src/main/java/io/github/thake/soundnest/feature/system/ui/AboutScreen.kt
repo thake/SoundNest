@@ -135,7 +135,7 @@ fun AboutScreen(navController: NavController) {
                         }
                         Spacer(Modifier.height(14.dp))
                         Text(
-                            text = "Parent-controlled Spotify player for children and teens (compatible with Spotify Free and Premium).",
+                            text = stringResource(R.string.about_app_description),
                             color = mutedColor,
                             fontSize = 14.sp,
                             lineHeight = 20.sp,
@@ -156,7 +156,7 @@ fun AboutScreen(navController: NavController) {
                     Column {
                         AboutInfoRow(
                             icon = Icons.Rounded.Code,
-                            title = "Source Code (GPL-3.0)",
+                            title = stringResource(R.string.about_source_code_title),
                             detail = "github.com/thake/soundnest",
                             textColor = textColor,
                             mutedColor = mutedColor,
@@ -165,8 +165,8 @@ fun AboutScreen(navController: NavController) {
                         HorizontalDivider(color = dividerColor, modifier = Modifier.padding(start = 68.dp, end = 16.dp))
                         AboutInfoRow(
                             icon = Icons.Rounded.FavoriteBorder,
-                            title = "Upstream Attribution",
-                            detail = "Forked from Orpheon / Myspoti (github.com/kota-zo/Orpheon), BitChord, and Spotui under the GNU General Public License v3.0.",
+                            title = stringResource(R.string.about_attribution_title),
+                            detail = stringResource(R.string.about_upstream_attribution_detail),
                             textColor = textColor,
                             mutedColor = mutedColor,
                             accentColor = accentColor,
@@ -174,7 +174,7 @@ fun AboutScreen(navController: NavController) {
                         HorizontalDivider(color = dividerColor, modifier = Modifier.padding(start = 68.dp, end = 16.dp))
                         AboutInfoRow(
                             icon = Icons.Rounded.VerifiedUser,
-                            title = "Open Source & Independent",
+                            title = stringResource(R.string.about_open_source_title),
                             detail = stringResource(R.string.about_free),
                             textColor = textColor,
                             mutedColor = mutedColor,

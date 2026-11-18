@@ -19,7 +19,7 @@ import java.util.Locale
  */
 object SoundNestRuntime {
     lateinit var host: WebPlayerHost
-    private var appContext: Context? = null
+    internal var appContext: Context? = null
     lateinit var spotify: SpotifyApi
         private set
     /**
@@ -74,8 +74,16 @@ object SoundNestRuntime {
         val updater = io.github.thake.soundnest.spotify.gql.GqlOpsUpdater(apiHttp, java.io.File(context.filesDir, "spotify/gql-ops.json"))
         host = WebPlayerHost(context)
         AudioModeWatch.install(context.applicationContext)
-        spotify = SpotifyApi(host, scope, http = apiHttp, language = Locale.getDefault().language, ops = updater.load(), deviceId = clientDeviceId(context, host.accounts.list.value.active), userAgent = host.userAgent,
-            tokenStore = clientTokens(context))
+        spotify = SpotifyApi(
+            host = host,
+            scope = scope,
+            http = apiHttp,
+            languageProvider = { HostLocale.acceptLanguage(appContext) },
+            ops = updater.load(),
+            deviceId = clientDeviceId(context, host.accounts.list.value.active),
+            userAgent = host.userAgent,
+            tokenStore = clientTokens(context),
+        )
         spotify.bridge.logger = { line -> Logbook.log(line) }
         // Each call to the page and its answer (up to a few thousand characters): dev builds only.
         spotify.bridge.verbose = context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0

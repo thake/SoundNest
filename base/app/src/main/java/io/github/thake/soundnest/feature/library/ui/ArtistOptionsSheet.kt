@@ -111,7 +111,7 @@ fun ArtistOptionsSheet(artistId: String, artistName: String, artistImage: String
                     kind = io.github.thake.soundnest.feature.parental.ui.ParentRuleKind.ARTIST,
                     id = artistId,
                     title = artistName,
-                    subtitle = "Artist",
+                    subtitle = stringResource(R.string.entity_artist),
                     coverUri = artistImage,
                 )
                 val blocked = io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.isBlocked(target, policy)

@@ -304,7 +304,7 @@ private fun ArtistOverviewContent(
         item {
             overview.monthlyListeners?.let {
                 val compact = android.icu.text.CompactDecimalFormat
-                    .getInstance(java.util.Locale.getDefault(), android.icu.text.CompactDecimalFormat.CompactStyle.SHORT)
+                    .getInstance(io.github.thake.soundnest.feature.appearance.settings.AppLanguage.currentLocale(), android.icu.text.CompactDecimalFormat.CompactStyle.SHORT)
                     .format(it)
                 Text(
                     text = stringResource(R.string.monthly_listeners_text, compact),
@@ -319,12 +319,13 @@ private fun ArtistOverviewContent(
         if (onSpotify) item { io.github.thake.soundnest.feature.recap.ui.ArtistTopBadge(overview.id) }
 
         if (onSpotify) item(key = "parent-block-artist") {
-            val artistTarget = remember(overview.id, displayName, overview.avatarImage, overview.headerImage) {
+            val artistLabel = stringResource(R.string.entity_artist)
+            val artistTarget = remember(overview.id, displayName, overview.avatarImage, overview.headerImage, artistLabel) {
                 io.github.thake.soundnest.feature.parental.ui.ParentBlockTarget(
                     io.github.thake.soundnest.feature.parental.ui.ParentRuleKind.ARTIST,
                     overview.id,
                     displayName,
-                    "Artist",
+                    artistLabel,
                     overview.avatarImage.ifBlank { overview.headerImage },
                 )
             }

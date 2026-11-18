@@ -151,7 +151,7 @@ fun AudiblePickerSheetBody(
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    text = "Check a book to allow it in Your Library · Tap the pin icon to feature it on Home",
+                    text = stringResource(R.string.audible_picker_hint),
                     color = AppMuted,
                     fontSize = 12.sp,
                 )
@@ -168,17 +168,17 @@ fun AudiblePickerSheetBody(
                         }
                         syncing = false
                         res.onSuccess { count ->
-                            Toast.makeText(context, "Synced $count Audible audiobooks.", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.audible_sync_success, count), Toast.LENGTH_SHORT).show()
                         }.onFailure { err ->
-                            Toast.makeText(context, "Sync failed: ${err.message}", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, context.getString(R.string.audible_sync_failed, err.message ?: ""), Toast.LENGTH_LONG).show()
                         }
                     }
                 },
             ) {
-                Icon(Icons.Default.Refresh, contentDescription = "Sync Library", tint = AppAccent)
+                Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.audible_sync_library_button), tint = AppAccent)
             }
             IconButton(onClick = onDismiss) {
-                Icon(Icons.Default.Close, contentDescription = "Close", tint = AppMuted)
+                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close), tint = AppMuted)
             }
         }
 
@@ -190,7 +190,7 @@ fun AudiblePickerSheetBody(
                 leadingIcon = if (filter == AudiblePickerFilter.ALL) {
                     { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
                 } else null,
-                label = { Text("All (${allBooks.size})") },
+                label = { Text(stringResource(R.string.audible_picker_tab_all, allBooks.size)) },
                 modifier = Modifier.testTag("audible_picker_filter_all"),
             )
             FilterChip(
@@ -200,7 +200,7 @@ fun AudiblePickerSheetBody(
                 leadingIcon = if (filter == AudiblePickerFilter.APPROVED) {
                     { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
                 } else null,
-                label = { Text("Approved (${allowedSet.size})") },
+                label = { Text(stringResource(R.string.audible_picker_tab_approved, allowedSet.size)) },
                 modifier = Modifier.testTag("audible_picker_filter_approved"),
             )
             FilterChip(
@@ -210,7 +210,7 @@ fun AudiblePickerSheetBody(
                 leadingIcon = if (filter == AudiblePickerFilter.PINNED) {
                     { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
                 } else null,
-                label = { Text("Pinned (${pinnedSet.size})") },
+                label = { Text(stringResource(R.string.audible_picker_tab_pinned, pinnedSet.size)) },
                 modifier = Modifier.testTag("audible_picker_filter_pinned"),
             )
         }
@@ -227,10 +227,10 @@ fun AudiblePickerSheetBody(
 
         if (filteredBooks.isEmpty()) {
             val emptyCopy = when {
-                allBooks.isEmpty() -> "No Audible audiobooks cached yet. Tap Sync to fetch your owned library."
-                searchQuery.isNotBlank() -> "No audiobooks match \"${searchQuery.trim()}\"."
-                filter == AudiblePickerFilter.APPROVED -> "No Audible audiobooks approved yet."
-                else -> "No Audible audiobooks pinned to Home yet."
+                allBooks.isEmpty() -> stringResource(R.string.audible_picker_empty_none)
+                searchQuery.isNotBlank() -> stringResource(R.string.audible_picker_empty_search, searchQuery.trim())
+                filter == AudiblePickerFilter.APPROVED -> stringResource(R.string.audible_picker_empty_approved)
+                else -> stringResource(R.string.audible_picker_empty_pinned)
             }
             Text(
                 text = emptyCopy,
@@ -379,7 +379,7 @@ private fun AudibleBookPickerRow(
         ) {
             Icon(
                 imageVector = if (isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
-                contentDescription = if (isPinned) "Unpin from Home" else "Pin to Home",
+                contentDescription = if (isPinned) stringResource(R.string.audible_unpin_from_home) else stringResource(R.string.audible_pin_to_home),
                 tint = when {
                     !isAllowed -> AppMuted.copy(alpha = 0.3f)
                     isPinned -> AppAccent

@@ -508,6 +508,7 @@ private fun LazyListScope.searchResults(
     section("artists", sectioned, title(R.string.assisted_curation_search_filter_artists), artists.size) { range ->
         items(range.count(), key = { "artist:${artists[range.first + it].id}:${range.first + it}" }) { n ->
             val artist = artists[range.first + n]
+            val artistLabel = stringResource(R.string.entity_artist)
             ImmersiveListRow(
                 title = artist.name,
                 subtitle = stringResource(R.string.artist_subtitle),
@@ -520,7 +521,7 @@ private fun LazyListScope.searchResults(
                             kind = io.github.thake.soundnest.feature.parental.ui.ParentRuleKind.ARTIST,
                             id = artist.id,
                             title = artist.name,
-                            subtitle = "Artist",
+                            subtitle = artistLabel,
                             coverUri = artist.coverUri,
                         ),
                     )

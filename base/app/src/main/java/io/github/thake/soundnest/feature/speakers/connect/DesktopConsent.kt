@@ -11,6 +11,7 @@ import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
+import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -120,7 +121,7 @@ fun DesktopConsentHost() {
 }
 
 /** The page asked by [DesktopConsent.ask]; it closes once that page is answered or dropped. */
-class DesktopConsentActivity : ComponentActivity() {
+class DesktopConsentActivity : AppCompatActivity() {
     private var asked: DesktopConsent.Open? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {

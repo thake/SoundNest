@@ -4,7 +4,9 @@ package io.github.thake.soundnest.feature.speakers.jam.settings
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.sp
+import io.github.thake.soundnest.R
 import io.github.thake.soundnest.core.ui.classic.AppMuted
 import io.github.thake.soundnest.feature.parental.settings.ParentalPolicy
 import io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore
@@ -17,8 +19,8 @@ import io.github.thake.soundnest.feature.parental.ui.PolicyToggleRow
 fun JamParentSettingsRow(policy: ParentalPolicy) {
     val context = LocalContext.current
     PolicyToggleRow(
-        title = "Spotify Jam",
-        subtitle = "Allow starting or joining shared Spotify Jam listening sessions",
+        title = stringResource(R.string.parent_jam_title),
+        subtitle = stringResource(R.string.parent_jam_subtitle),
         checked = policy.speakers.jam.enabled,
     ) { enabled ->
         ParentalPolicyStore.update(context) {
@@ -31,7 +33,7 @@ fun JamParentSettingsRow(policy: ParentalPolicy) {
     }
     if (policy.speakers.jam.enabled && policy.speakers.requireTrustedNetwork) {
         Text(
-            text = "Note: Spotify Jam also respects your Trusted Home Wi-Fi boundary when Require Trusted Home Network is enabled.",
+            text = stringResource(R.string.parent_jam_trusted_wifi_note),
             color = AppMuted,
             fontSize = 11.sp,
         )

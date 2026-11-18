@@ -255,7 +255,7 @@ internal fun whatsNewDate(item: WhatsNewItem): String {
     return when (date) {
         today -> stringResource(R.string.recents_today)
         today.minusDays(1) -> stringResource(R.string.recents_yesterday)
-        else -> date.format(DateTimeFormatter.ofPattern(if (date.year == today.year) "d MMM" else "d MMM yyyy", Locale.getDefault()))
+        else -> date.format(DateTimeFormatter.ofPattern(if (date.year == today.year) "d MMM" else "d MMM yyyy", io.github.thake.soundnest.feature.appearance.settings.AppLanguage.currentLocale()))
     }
 }
 

@@ -516,7 +516,7 @@ fun LyricsScreen(
     val playing = io.github.thake.soundnest.core.di.Graph.currentSongState.playingState.value
     val position = rememberPosition(playing)
     KeepScreenOnForLyrics(playing && lyrics != null)
-    val targetLanguage = LyricsTranslationSettings.getTranslateLang(context).ifBlank { Locale.getDefault().language.ifBlank { "en" } }
+    val targetLanguage = LyricsTranslationSettings.getTranslateLang(context).ifBlank { io.github.thake.soundnest.feature.appearance.settings.AppLanguage.effectiveLocale.language.ifBlank { "en" } }
     var menu by remember { mutableStateOf(false) }
     var sourcesOpen by remember { mutableStateOf(false) }
     // Lines picked to share: a long press on a line, or "Share lyrics" in the menu, starts it.

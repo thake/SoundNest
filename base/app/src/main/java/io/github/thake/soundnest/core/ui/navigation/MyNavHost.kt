@@ -1,5 +1,7 @@
 package io.github.thake.soundnest.core.ui.navigation
 
+import io.github.thake.soundnest.R
+
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.animateFloat
@@ -339,7 +341,7 @@ private val tabRoutes = setOf(Routes.Home.route, Routes.Search.route, Routes.Lib
 private val sheetRoutes = setOf(Routes.Player.route, Routes.Queue.route)
 
 private fun blockAndPop(context: android.content.Context, navHostController: NavHostController) {
-    android.widget.Toast.makeText(context, "Blocked by Parental Controls", android.widget.Toast.LENGTH_SHORT).show()
+    android.widget.Toast.makeText(context, context.getString(R.string.blocked_by_parental_controls), android.widget.Toast.LENGTH_SHORT).show()
     navHostController.popBackStack()
 }
 

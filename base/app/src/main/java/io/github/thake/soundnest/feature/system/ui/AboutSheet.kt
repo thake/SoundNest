@@ -56,18 +56,18 @@ fun AboutSheet(onDismiss: () -> Unit) {
                 }
             }
             Text(
-                "Parent-controlled Spotify player for children and teens (compatible with Spotify Free and Premium).",
+                stringResource(R.string.about_app_description),
                 color = AppMuted,
                 fontSize = 13.sp,
                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 8.dp),
             )
             StaticAboutRow(
-                title = "Source Code (GPL-3.0)",
+                title = stringResource(R.string.about_source_code_title),
                 detail = "github.com/thake/soundnest",
             )
             StaticAboutRow(
-                title = "Upstream Attribution",
-                detail = "Forked from Orpheon / Myspoti (github.com/kota-zo/Orpheon), BitChord, and Spotui under the GNU General Public License v3.0.",
+                title = stringResource(R.string.about_attribution_title),
+                detail = stringResource(R.string.about_upstream_attribution_detail),
             )
         }
     }

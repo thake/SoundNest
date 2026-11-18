@@ -598,6 +598,11 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
      */
     private fun playerRoot(): String = roots.getString(ROOT_KEY, null)?.takeIf { PLAYER_ROOT.matches(it) } ?: PLAYER_URL
 
+    /** Clears cached player root redirect (e.g. /intl-de/) on locale switch so WebPlayer refreshes cleanly. */
+    fun clearPlayerRoot() {
+        roots.edit().remove(ROOT_KEY).apply()
+    }
+
     /** The player's own URL, not the page's current one: the bridge parks the page on an empty route. */
     fun reload() = main.post {
         // A page whose player never started is not helped by loading it again in the same renderer.

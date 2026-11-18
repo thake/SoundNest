@@ -3,6 +3,8 @@ package io.github.thake.soundnest.feature.localfiles.settings
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import io.github.thake.soundnest.R
 import io.github.thake.soundnest.feature.parental.settings.ParentalPolicy
 import io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore
 import io.github.thake.soundnest.feature.parental.ui.PolicyToggleRow
@@ -14,8 +16,8 @@ import io.github.thake.soundnest.feature.parental.ui.PolicyToggleRow
 fun LocalFilesParentSettingsRow(policy: ParentalPolicy) {
     val context = LocalContext.current
     PolicyToggleRow(
-        title = "Local Audio Files",
-        subtitle = "Allow scanning and playing audio files stored on this device",
+        title = stringResource(R.string.parent_local_files_title),
+        subtitle = stringResource(R.string.parent_local_files_subtitle),
         checked = policy.localFiles.enabled,
     ) { enabled ->
         ParentalPolicyStore.update(context) { it.copy(localFiles = it.localFiles.copy(enabled = enabled)) }

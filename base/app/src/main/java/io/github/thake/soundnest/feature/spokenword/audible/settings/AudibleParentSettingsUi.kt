@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 package io.github.thake.soundnest.feature.spokenword.audible.settings
 
+import io.github.thake.soundnest.feature.appearance.settings.AppLanguage
+
 import io.github.thake.soundnest.feature.spokenword.audible.ui.AudibleLoginDialog
 
 import android.content.Context
@@ -77,7 +79,7 @@ object AudibleAccountCoordinator {
     internal const val EPHEMERAL_WEBVIEW_PROFILE = "audible_ephemeral_login"
     private val defaultHttp by lazy { OkHttpClient() }
 
-    fun initialMarketplace(locale: Locale = Locale.getDefault()): AudibleMarketplace =
+    fun initialMarketplace(locale: Locale = AppLanguage.effectiveLocale): AudibleMarketplace =
         AudibleMarketplace.defaultForLocale(locale)
 
     /**
@@ -217,7 +219,7 @@ object AudibleAccountCoordinator {
 fun AudibleParentControlsCard(
     audibleEnabled: Boolean = true,
     audiobooksEnabled: Boolean = audibleEnabled,
-    defaultLocale: Locale = Locale.getDefault(),
+    defaultLocale: Locale = AppLanguage.effectiveLocale,
     onOpenPicker: () -> Unit,
     onStartSignIn: ((AudibleMarketplace) -> Unit)? = null,
     onSyncLibraryOverride: (suspend () -> Result<Int>)? = null,
@@ -303,13 +305,13 @@ fun AudibleParentControlsCard(
                 ) {
                     Column(Modifier.weight(1f)) {
                         val originLabel = if (selectedMarketplace == autoDetectedMarketplace) {
-                            "${stringResource(R.string.audible_marketplace_label)} · Auto-detected"
+                            "${stringResource(R.string.audible_marketplace_label)} · ${stringResource(R.string.audible_marketplace_autodetected)}"
                         } else {
-                            "${stringResource(R.string.audible_marketplace_label)} · Manual override"
+                            "${stringResource(R.string.audible_marketplace_label)} · ${stringResource(R.string.audible_marketplace_manual)}"
                         }
                         Text(originLabel, color = AppMuted, fontSize = 11.sp)
                         Text(
-                            text = selectedMarketplace.displayName,
+                            text = selectedMarketplace.localizedName(context),
                             color = AppText,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -328,7 +330,7 @@ fun AudibleParentControlsCard(
                             text = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = market.displayName,
+                                        text = market.localizedName(context),
                                         color = if (market == selectedMarketplace) AppAccent else AppText,
                                         fontWeight = if (market == selectedMarketplace) FontWeight.Bold else FontWeight.Normal,
                                         modifier = Modifier.weight(1f),
@@ -377,7 +379,7 @@ fun AudibleParentControlsCard(
                 val headerText = if (!connected.customerName.isNullOrBlank()) {
                     "✓ Connected: ${connected.customerName} (${connected.marketplace.audibleDomain})"
                 } else {
-                    "✓ Connected to ${connected.marketplace.displayName}"
+                    context.getString(R.string.audible_connected_to, connected.marketplace.localizedName(context))
                 }
                 Text(
                     text = headerText,
@@ -388,7 +390,7 @@ fun AudibleParentControlsCard(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = "${syncedBooks.size} in library · $approvedCount approved · $pinnedCount pinned to Home",
+                    text = stringResource(R.string.audible_status_summary, syncedBooks.size, approvedCount, pinnedCount),
                     color = AppText,
                     fontSize = 12.sp,
                 )
@@ -424,9 +426,9 @@ fun AudibleParentControlsCard(
                             }
                             busy = false
                             res.onSuccess { count ->
-                                Toast.makeText(context, "Synced $count Audible audiobooks.", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, context.getString(R.string.audible_sync_success, count), Toast.LENGTH_SHORT).show()
                             }.onFailure { err ->
-                                Toast.makeText(context, "Audible sync failed: ${err.message}", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, context.getString(R.string.audible_sync_failed, err.message ?: ""), Toast.LENGTH_LONG).show()
                             }
                         }
                     },

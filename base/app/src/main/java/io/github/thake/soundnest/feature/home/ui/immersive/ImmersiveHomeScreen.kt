@@ -141,11 +141,13 @@ fun ImmersiveHomeScreen(navController: NavController) {
         val all = feed?.sections.orEmpty()
         if (rawGridSection != null) all.drop(1) else all
     }
-    val carousels = remember(rawCarousels, policy, revision) {
+    val parentPicksTitle = stringResource(R.string.parent_picks_shelf_title)
+    val carousels = remember(rawCarousels, policy, revision, parentPicksTitle) {
         io.github.thake.soundnest.feature.parental.filter.HomeSectionFilter.filterSections(
             sections = rawCarousels,
             policy = policy,
             parentPicksCandidates = io.github.thake.soundnest.feature.parental.filter.HomeSectionFilter.cachedLibraryCandidates(),
+            parentPicksTitle = parentPicksTitle,
         )
     }
     // Liked Songs leads the shortcuts when Spotify's grid does not carry it.
@@ -316,11 +318,11 @@ private fun HideShelfButton(section: HomeSection) {
     androidx.compose.material3.IconButton(onClick = {
         val key = io.github.thake.soundnest.feature.parental.filter.HomeSectionFilter.shelfKey(section)
         io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore.hideHomeShelf(context, key)
-        android.widget.Toast.makeText(context, "Hidden section: ${section.title}", android.widget.Toast.LENGTH_SHORT).show()
+        android.widget.Toast.makeText(context, context.getString(R.string.home_shelf_hidden_toast, section.title), android.widget.Toast.LENGTH_SHORT).show()
     }) {
         androidx.compose.material3.Icon(
             androidx.compose.material.icons.Icons.Rounded.VisibilityOff,
-            contentDescription = "Hide section",
+            contentDescription = stringResource(R.string.home_shelf_hide_desc),
             tint = Immersive.TextSecondary,
             modifier = Modifier.size(20.dp),
         )

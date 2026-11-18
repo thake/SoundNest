@@ -220,7 +220,7 @@ fun ImmersiveSongOptionsSheet(
             val lyricsState = lyricsVm.state.collectAsState().value
             val lyrics = lyricsState as? io.github.thake.soundnest.feature.lyrics.ui.LyricsViewModel.State.Loaded
             val target = LyricsTranslationSettings.getTranslateLang(context)
-                .ifBlank { java.util.Locale.getDefault().language.ifBlank { "en" } }
+                .ifBlank { io.github.thake.soundnest.feature.appearance.settings.AppLanguage.effectiveLocale.language.ifBlank { "en" } }
             val sameLanguage = lyrics?.sourceLanguage?.substringBefore('-')
                 ?.equals(target.substringBefore('-'), ignoreCase = true) == true
             // Picks lines of the lyrics shown to send as text (a long press on a line does the same).

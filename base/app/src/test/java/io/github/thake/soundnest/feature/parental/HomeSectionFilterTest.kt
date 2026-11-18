@@ -211,6 +211,44 @@ class HomeSectionFilterTest {
     }
 
     @Test
+    fun `German Spotify shelf titles match category filters properly`() {
+        val chartsDe = HomeSection("Angesagt", listOf(samplePlaylist("c1", "Top 50")))
+        val mixesDe = HomeSection("Für dich erstellt", listOf(samplePlaylist("m1", "Dein Mix der Woche")))
+        val releasesDe = HomeSection("Neuerscheinungen für dich", listOf(sampleAlbum("n1", "Neues Album")))
+        val recentsDe = HomeSection("Kürzlich gehört", listOf(sampleAlbum("r1", "Gestern")))
+        val genericDe = HomeSection("Akkustik der 90er", listOf(samplePlaylist("g1", "Unplugged")))
+        val allDe = listOf(chartsDe, mixesDe, releasesDe, recentsDe, genericDe)
+
+        val noMixes = HomeSectionFilter.filterSections(
+            allDe,
+            ParentalPolicy(home = HomeParentalPolicy(showMixesAndMadeForYou = false)),
+        )
+        assertFalse(noMixes.any { it.title == "Für dich erstellt" })
+        assertTrue(noMixes.any { it.title == "Angesagt" })
+
+        val noReleases = HomeSectionFilter.filterSections(
+            allDe,
+            ParentalPolicy(home = HomeParentalPolicy(showNewReleases = false)),
+        )
+        assertFalse(noReleases.any { it.title == "Neuerscheinungen für dich" })
+        assertTrue(noReleases.any { it.title == "Für dich erstellt" })
+
+        val noRecents = HomeSectionFilter.filterSections(
+            allDe,
+            ParentalPolicy(home = HomeParentalPolicy(showRecents = false)),
+        )
+        assertFalse(noRecents.any { it.title == "Kürzlich gehört" })
+        assertTrue(noRecents.any { it.title == "Akkustik der 90er" })
+
+        val noCharts = HomeSectionFilter.filterSections(
+            allDe,
+            ParentalPolicy(home = HomeParentalPolicy(showChartsAndTrending = false)),
+        )
+        assertFalse(noCharts.any { it.title == "Angesagt" })
+        assertTrue(noCharts.any { it.title == "Akkustik der 90er" })
+    }
+
+    @Test
     fun `isWhatsNewAllowed requires bell enabled, new releases enabled, and minimalHomeMode off`() {
         assertTrue(HomeSectionFilter.isWhatsNewAllowed(ParentalPolicy()))
         assertFalse(

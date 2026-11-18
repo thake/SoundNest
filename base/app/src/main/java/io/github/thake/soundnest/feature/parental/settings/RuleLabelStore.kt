@@ -41,6 +41,21 @@ object RuleLabelStore {
         return if (normKind.isEmpty() || normId.isEmpty()) "" else "$normKind:$normId"
     }
 
+    fun kindResId(kind: String): Int = when (kind.trim().lowercase()) {
+        "playlist" -> io.github.thake.soundnest.R.string.rule_kind_playlist
+        "album" -> io.github.thake.soundnest.R.string.rule_kind_album
+        "artist" -> io.github.thake.soundnest.R.string.rule_kind_artist
+        "track" -> io.github.thake.soundnest.R.string.rule_kind_track
+        "show" -> io.github.thake.soundnest.R.string.rule_kind_show
+        "audible" -> io.github.thake.soundnest.R.string.rule_kind_audible
+        else -> 0
+    }
+
+    fun kindDisplayName(context: Context, kind: String): String {
+        val res = kindResId(kind)
+        return if (res != 0) context.getString(res) else kind.replaceFirstChar { it.uppercase() }
+    }
+
     fun kindDisplayName(kind: String): String = when (kind.trim().lowercase()) {
         "playlist" -> "Playlist"
         "album" -> "Album"
@@ -112,7 +127,7 @@ object RuleLabelStore {
         }
 
         return RuleLabel(
-            title = "${kindDisplayName(normKind)} · $normId",
+            title = "${kindDisplayName(context, normKind)} · $normId",
             subtitle = if (normKind == "audible") "audible:book:$normId" else "spotify:$normKind:$normId",
         )
     }

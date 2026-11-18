@@ -1,6 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 package io.github.thake.soundnest.feature.parental.ui
 
+import io.github.thake.soundnest.R
+import androidx.compose.ui.res.stringResource
+
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -139,14 +142,13 @@ fun ParentPinSetupScreen(
             modifier = Modifier.padding(top = 8.dp),
         )
         Text(
-            text = "Set Up Parent PIN or Password",
+            text = stringResource(R.string.parent_pin_setup_title),
             color = AppText,
             fontSize = 26.sp,
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = "SoundNest requires a Parent PIN or password (4+ characters) before handing this phone to your child. " +
-                "Content filters, Home page sections, Home Wi-Fi speakers, and account changes stay locked behind it.",
+            text = stringResource(R.string.parent_pin_setup_description),
             color = AppMuted,
             fontSize = 14.sp,
         )
@@ -157,7 +159,7 @@ fun ParentPinSetupScreen(
                 pin = sanitizeSecretInput(next)
                 errorMessage = null
             },
-            label = { Text("Parent PIN or password (4+ chars)") },
+            label = { Text(stringResource(R.string.parent_pin_input_hint)) },
             singleLine = true,
             visualTransformation = transformation,
             keyboardOptions = SecretKeyboardOptions,
@@ -165,7 +167,7 @@ fun ParentPinSetupScreen(
                 IconButton(onClick = { showSecret = !showSecret }) {
                     Icon(
                         imageVector = if (showSecret) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                        contentDescription = if (showSecret) "Hide PIN or password" else "Show PIN or password",
+                        contentDescription = if (showSecret) stringResource(R.string.parent_pin_hide_toggle) else stringResource(R.string.parent_pin_show_toggle),
                         tint = AppMuted,
                     )
                 }
@@ -181,7 +183,7 @@ fun ParentPinSetupScreen(
                 confirmPin = sanitizeSecretInput(next)
                 errorMessage = null
             },
-            label = { Text("Confirm PIN or password") },
+            label = { Text(stringResource(R.string.parent_pin_confirm_hint)) },
             singleLine = true,
             visualTransformation = transformation,
             keyboardOptions = SecretKeyboardOptions,
@@ -198,7 +200,7 @@ fun ParentPinSetupScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = "Initial Filtering Mode",
+                text = stringResource(R.string.parent_pin_setup_mode_title),
                 color = AppText,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -207,7 +209,7 @@ fun ParentPinSetupScreen(
                 FilterChip(
                     selected = initialFilterMode == FilterMode.FILTERED_OPEN,
                     onClick = { initialFilterMode = FilterMode.FILTERED_OPEN },
-                    label = { Text("Filtered Open", fontWeight = if (initialFilterMode == FilterMode.FILTERED_OPEN) FontWeight.Bold else FontWeight.Normal) },
+                    label = { Text(stringResource(R.string.parent_mode_filtered_open_title), fontWeight = if (initialFilterMode == FilterMode.FILTERED_OPEN) FontWeight.Bold else FontWeight.Normal) },
                     leadingIcon = if (initialFilterMode == FilterMode.FILTERED_OPEN) {
                         { Icon(Icons.Default.Check, contentDescription = null) }
                     } else null,
@@ -217,7 +219,7 @@ fun ParentPinSetupScreen(
                 FilterChip(
                     selected = initialFilterMode == FilterMode.STRICT_ALLOWLIST,
                     onClick = { initialFilterMode = FilterMode.STRICT_ALLOWLIST },
-                    label = { Text("Strict Allowlist", fontWeight = if (initialFilterMode == FilterMode.STRICT_ALLOWLIST) FontWeight.Bold else FontWeight.Normal) },
+                    label = { Text(stringResource(R.string.parent_mode_strict_allowlist_title), fontWeight = if (initialFilterMode == FilterMode.STRICT_ALLOWLIST) FontWeight.Bold else FontWeight.Normal) },
                     leadingIcon = if (initialFilterMode == FilterMode.STRICT_ALLOWLIST) {
                         { Icon(Icons.Default.Check, contentDescription = null) }
                     } else null,
@@ -227,9 +229,9 @@ fun ParentPinSetupScreen(
             }
             Text(
                 text = if (initialFilterMode == FilterMode.FILTERED_OPEN) {
-                    "Recommended for ages 9–16: open music catalog with explicit songs, podcasts, and blocked keywords hidden."
+                    stringResource(R.string.parent_pin_setup_mode_open_desc)
                 } else {
-                    "Recommended for younger kids: hides unapproved shelves and plays only playlists, albums, artists, and tracks you approve."
+                    stringResource(R.string.parent_pin_setup_mode_strict_desc)
                 },
                 color = AppMuted,
                 fontSize = 12.sp,
@@ -245,8 +247,8 @@ fun ParentPinSetupScreen(
                     .padding(vertical = 4.dp),
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Allow Fingerprint / Face Unlock", color = AppText, fontSize = 15.sp)
-                    Text("Quickly unlock Parent Mode for 5 minutes", color = AppMuted, fontSize = 12.sp)
+                    Text(stringResource(R.string.parent_pin_biometric_toggle_title), color = AppText, fontSize = 15.sp)
+                    Text(stringResource(R.string.parent_pin_biometric_toggle_subtitle), color = AppMuted, fontSize = 12.sp)
                 }
                 Switch(checked = enableBiometric, onCheckedChange = { enableBiometric = it })
             }
@@ -261,8 +263,8 @@ fun ParentPinSetupScreen(
                     .padding(vertical = 4.dp),
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Trust Current Wi-Fi as Home Network", color = AppText, fontSize = 15.sp)
-                    Text("Fingerprints this Home LAN & speakers (zero location permissions)", color = AppMuted, fontSize = 12.sp)
+                    Text(stringResource(R.string.parent_pin_trust_wifi_toggle_title), color = AppText, fontSize = 15.sp)
+                    Text(stringResource(R.string.parent_pin_trust_wifi_toggle_subtitle), color = AppMuted, fontSize = 12.sp)
                 }
                 Switch(checked = trustCurrentWifi, onCheckedChange = { trustCurrentWifi = it })
             }
@@ -278,9 +280,9 @@ fun ParentPinSetupScreen(
             onClick = {
                 when {
                     !ParentSecurityManager.isValidPinFormat(pin) ->
-                        errorMessage = "Enter a PIN or password with at least 4 characters."
+                        errorMessage = context.getString(R.string.parent_pin_error_min_length)
                     pin != confirmPin ->
-                        errorMessage = "Entries do not match."
+                        errorMessage = context.getString(R.string.parent_pin_error_mismatch)
                     else -> {
                         when (ParentSecurityManager.setupInitialPin(context, pin)) {
                             PinSetupResult.Success, PinSetupResult.AlreadyConfigured -> {
@@ -299,7 +301,7 @@ fun ParentPinSetupScreen(
                                 onPinConfigured()
                             }
                             PinSetupResult.InvalidFormat ->
-                                errorMessage = "Enter a PIN or password with at least 4 characters."
+                                errorMessage = context.getString(R.string.parent_pin_error_min_length)
                         }
                     }
                 }
@@ -311,14 +313,14 @@ fun ParentPinSetupScreen(
                 .height(50.dp)
                 .testTag("parent_setup_save"),
         ) {
-            Text("Save & Continue", fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.parent_pin_action_save_continue), fontWeight = FontWeight.Bold)
         }
 
         TextButton(
             onClick = onSwitchOrLogout,
             modifier = Modifier.align(Alignment.CenterHorizontally),
         ) {
-            Text("Sign out / Use a different Spotify account", color = AppMuted)
+            Text(stringResource(R.string.parent_pin_action_switch_account), color = AppMuted)
         }
     }
 }
@@ -356,12 +358,12 @@ fun ParentPinPromptHost() {
         onDismissRequest = { ParentSecurityManager.dismissPrompt() },
         containerColor = tone(0xFF282828),
         title = {
-            Text("Parent PIN / Password Required", color = AppText, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.parent_pin_dialog_title), color = AppText, fontWeight = FontWeight.Bold)
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    text = surfaceDescription(req.surface),
+                    text = surfaceDescription(context, req.surface),
                     color = AppMuted,
                     fontSize = 13.sp,
                 )
@@ -372,7 +374,7 @@ fun ParentPinPromptHost() {
                         errorText = null
                     },
                     enabled = lockoutMs <= 0L,
-                    label = { Text("Parent PIN or password") },
+                    label = { Text(stringResource(R.string.parent_pin_dialog_input_hint)) },
                     singleLine = true,
                     visualTransformation = if (showSecret) VisualTransformation.None else PasswordVisualTransformation(),
                     keyboardOptions = SecretKeyboardOptions,
@@ -380,7 +382,7 @@ fun ParentPinPromptHost() {
                         IconButton(onClick = { showSecret = !showSecret }) {
                             Icon(
                                 imageVector = if (showSecret) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                contentDescription = if (showSecret) "Hide PIN or password" else "Show PIN or password",
+                                contentDescription = if (showSecret) stringResource(R.string.parent_pin_hide_toggle) else stringResource(R.string.parent_pin_show_toggle),
                                 tint = AppMuted,
                             )
                         }
@@ -392,7 +394,7 @@ fun ParentPinPromptHost() {
                 if (lockoutMs > 0L) {
                     val secs = ((lockoutMs + 999L) / 1000L).coerceAtLeast(1L)
                     Text(
-                        text = "Too many wrong attempts. Try again in ${secs}s.",
+                        text = stringResource(R.string.parent_pin_lockout_seconds, secs),
                         color = Color(0xFFFF6B6B),
                         fontSize = 13.sp,
                     )
@@ -407,11 +409,11 @@ fun ParentPinPromptHost() {
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Icon(Icons.Default.Fingerprint, contentDescription = null, tint = AppAccent)
-                        Text("  Unlock with Biometrics", color = AppText)
+                        Text(stringResource(R.string.parent_pin_action_biometric), color = AppText)
                     }
                 }
                 Text(
-                    text = if (showForgotHelp) "Hide recovery instructions ▲" else "Forgot PIN or password?",
+                    text = if (showForgotHelp) stringResource(R.string.parent_pin_hide_recovery) else stringResource(R.string.parent_pin_forgot_button),
                     color = AppMuted,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
@@ -422,9 +424,7 @@ fun ParentPinPromptHost() {
                 )
                 if (showForgotHelp) {
                     Text(
-                        text = "For child safety, SoundNest has no remote PIN reset. Use Biometric Unlock if enabled, " +
-                            "or clear SoundNest's app storage in Android Settings (protected by Google Family Link on supervised devices), " +
-                            "sign in again, set a new PIN, and import your soundnest-policy.json backup.",
+                        text = stringResource(R.string.parent_pin_recovery_instructions),
                         color = AppMuted,
                         fontSize = 12.sp,
                         modifier = Modifier
@@ -452,28 +452,28 @@ fun ParentPinPromptHost() {
                         }
                         is PinVerifyResult.InvalidPin -> {
                             pin = ""
-                            errorText = "Incorrect PIN or password (${res.remainingBeforeCooldown} tries before cooldown)."
+                            errorText = context.getString(R.string.parent_pin_error_tries, res.remainingBeforeCooldown)
                         }
                         PinVerifyResult.NotConfigured -> ParentSecurityManager.dismissPrompt()
                     }
                 },
             ) {
-                Text("Unlock", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.parent_pin_action_unlock_button), fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             TextButton(onClick = { ParentSecurityManager.dismissPrompt() }) {
-                Text("Cancel", color = AppMuted)
+                Text(stringResource(R.string.cancel), color = AppMuted)
             }
         },
     )
 }
 
-private fun surfaceDescription(surface: AppSurface): String = when (surface) {
-    AppSurface.PARENT_CONTROLS -> "Enter your Parent PIN or password to open Parental Controls (unlocked for 5 minutes)."
-    AppSurface.ACCOUNTS_AND_LOGOUT -> "Enter your Parent PIN or password to manage Spotify accounts or sign out."
-    AppSurface.ARTIST_BANS -> "Enter your Parent PIN or password to change artist bans."
-    AppSurface.DIAGNOSTIC_EXPORT -> "Enter your Parent PIN or password to export diagnostic logs."
+private fun surfaceDescription(context: Context, surface: AppSurface): String = when (surface) {
+    AppSurface.PARENT_CONTROLS -> context.getString(R.string.parent_pin_surface_parent_controls)
+    AppSurface.ACCOUNTS_AND_LOGOUT -> context.getString(R.string.parent_pin_surface_accounts)
+    AppSurface.ARTIST_BANS -> context.getString(R.string.parent_pin_surface_artist_bans)
+    AppSurface.DIAGNOSTIC_EXPORT -> context.getString(R.string.parent_pin_surface_diagnostic)
     AppSurface.KID_APPEARANCE, AppSurface.KID_AUDIO, AppSurface.KID_SLEEP_TIMER, AppSurface.KID_HIDDEN_SONGS -> ""
 }
 
@@ -484,14 +484,14 @@ private fun Context.findActivity(): Activity? =
 
 private fun launchSystemBiometric(context: Context, onError: (String) -> Unit) {
     val activity = context.findActivity() ?: run {
-        onError("Biometric prompt requires an active window.")
+        onError(context.getString(R.string.parent_pin_biometric_window_error))
         return
     }
     runCatching {
         val prompt = BiometricPrompt.Builder(activity)
-            .setTitle("Unlock Parent Mode")
-            .setSubtitle("Authenticate to unlock Parental Controls for 5 minutes")
-            .setNegativeButton("Use PIN / Password", activity.mainExecutor) { _, _ -> }
+            .setTitle(context.getString(R.string.parent_action_unlock))
+            .setSubtitle(context.getString(R.string.parent_pin_biometric_prompt_subtitle))
+            .setNegativeButton(context.getString(R.string.parent_pin_biometric_use_pin), activity.mainExecutor) { _, _ -> }
             .build()
         prompt.authenticate(
             CancellationSignal(),
@@ -532,28 +532,28 @@ fun ParentSecurityControlsSection(onOpenParentSettings: (() -> Unit)? = null) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.weight(1f).padding(end = 8.dp)) {
                 Text(
-                    text = if (unlocked) "Parent Mode Active (5-min auto-lock)" else "Parent Mode Locked",
+                    text = if (unlocked) stringResource(R.string.menu_parent_mode_active) else stringResource(R.string.parent_locked_title),
                     color = if (unlocked) AppAccent else AppText,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = if (unlocked) "Tap Lock Now before handing the phone back to your child."
-                    else "Tap Unlock to edit filters, Home sections, speakers, or accounts.",
+                    text = if (unlocked) stringResource(R.string.parent_pin_session_unlocked_hint)
+                    else stringResource(R.string.parent_pin_session_locked_hint),
                     color = AppMuted,
                     fontSize = 12.sp,
                 )
             }
             if (unlocked) {
                 OutlinedButton(onClick = { ParentSecurityManager.lockNow(context) }) {
-                    Text("Lock Now", color = AppText)
+                    Text(stringResource(R.string.parent_pin_lock_now), color = AppText)
                 }
             } else {
                 Button(
                     onClick = { ParentSecurityManager.runProtected(context, AppSurface.PARENT_CONTROLS) {} },
                     colors = ButtonDefaults.buttonColors(containerColor = AppAccent, contentColor = Color.Black),
                 ) {
-                    Text("Unlock")
+                    Text(stringResource(R.string.parent_pin_unlock))
                 }
             }
         }
@@ -568,7 +568,7 @@ fun ParentSecurityControlsSection(onOpenParentSettings: (() -> Unit)? = null) {
                 colors = ButtonDefaults.buttonColors(containerColor = AppAccent, contentColor = Color.Black),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Open Parental Controls Dashboard", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.parent_pin_dashboard_open), fontWeight = FontWeight.Bold)
             }
         }
 
@@ -576,8 +576,8 @@ fun ParentSecurityControlsSection(onOpenParentSettings: (() -> Unit)? = null) {
             if (biometricSupported) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.weight(1f)) {
-                        Text("Biometric Unlock", color = AppText, fontSize = 15.sp)
-                        Text("Allow fingerprint or face unlock for Parent Mode", color = AppMuted, fontSize = 12.sp)
+                        Text(stringResource(R.string.parent_pin_biometric_title), color = AppText, fontSize = 15.sp)
+                        Text(stringResource(R.string.parent_pin_biometric_subtitle), color = AppMuted, fontSize = 12.sp)
                     }
                     Switch(
                         checked = biometricEnabled,
@@ -594,7 +594,7 @@ fun ParentSecurityControlsSection(onOpenParentSettings: (() -> Unit)? = null) {
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Change Parent PIN / Password", color = AppText, fontSize = 13.sp, maxLines = 1)
+                Text(stringResource(R.string.parent_pin_change_button), color = AppText, fontSize = 13.sp, maxLines = 1)
             }
         }
     }
@@ -618,13 +618,13 @@ internal fun ChangeParentPinDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = tone(0xFF282828),
-        title = { Text("Change Parent PIN / Password", color = AppText, fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(R.string.parent_pin_change_title), color = AppText, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
                     value = currentPin,
                     onValueChange = { currentPin = sanitizeSecretInput(it); errorText = null },
-                    label = { Text("Current PIN or password") },
+                    label = { Text(stringResource(R.string.parent_pin_current_label)) },
                     singleLine = true,
                     visualTransformation = transformation,
                     keyboardOptions = SecretKeyboardOptions,
@@ -632,7 +632,7 @@ internal fun ChangeParentPinDialog(onDismiss: () -> Unit) {
                         IconButton(onClick = { showSecrets = !showSecrets }) {
                             Icon(
                                 imageVector = if (showSecrets) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                contentDescription = if (showSecrets) "Hide PIN or password" else "Show PIN or password",
+                                contentDescription = if (showSecrets) stringResource(R.string.parent_pin_hide_toggle) else stringResource(R.string.parent_pin_show_toggle),
                                 tint = AppMuted,
                             )
                         }
@@ -641,7 +641,7 @@ internal fun ChangeParentPinDialog(onDismiss: () -> Unit) {
                 OutlinedTextField(
                     value = newPin,
                     onValueChange = { newPin = sanitizeSecretInput(it); errorText = null },
-                    label = { Text("New PIN or password (4+ chars)") },
+                    label = { Text(stringResource(R.string.parent_pin_new_label)) },
                     singleLine = true,
                     visualTransformation = transformation,
                     keyboardOptions = SecretKeyboardOptions,
@@ -649,7 +649,7 @@ internal fun ChangeParentPinDialog(onDismiss: () -> Unit) {
                 OutlinedTextField(
                     value = confirmPin,
                     onValueChange = { confirmPin = sanitizeSecretInput(it); errorText = null },
-                    label = { Text("Confirm new PIN or password") },
+                    label = { Text(stringResource(R.string.parent_pin_confirm_label)) },
                     singleLine = true,
                     visualTransformation = transformation,
                     keyboardOptions = SecretKeyboardOptions,
@@ -668,22 +668,22 @@ internal fun ChangeParentPinDialog(onDismiss: () -> Unit) {
                 ),
                 onClick = {
                     if (newPin != confirmPin) {
-                        errorText = "New entries do not match."
+                        errorText = context.getString(R.string.parent_pin_error_mismatch)
                         return@TextButton
                     }
                     when (ParentSecurityManager.changePin(context, currentPin, newPin)) {
                         PinChangeResult.Success -> onDismiss()
-                        PinChangeResult.InvalidCurrentPin -> errorText = "Current PIN or password is incorrect."
-                        PinChangeResult.InvalidNewPinFormat -> errorText = "New PIN or password must be at least 4 characters."
-                        PinChangeResult.LockedOut -> errorText = "Too many wrong attempts; please wait."
+                        PinChangeResult.InvalidCurrentPin -> errorText = context.getString(R.string.parent_pin_error_incorrect)
+                        PinChangeResult.InvalidNewPinFormat -> errorText = context.getString(R.string.parent_pin_error_too_short)
+                        PinChangeResult.LockedOut -> errorText = context.getString(R.string.parent_pin_error_cooldown)
                     }
                 },
             ) {
-                Text("Save", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.parent_pin_save), fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = AppMuted) }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = AppMuted) }
         },
     )
 }
@@ -718,13 +718,13 @@ fun CompactParentalControlsRow(onOpenParentSettings: () -> Unit) {
         )
         Column(Modifier.weight(1f)) {
             Text(
-                text = "Parental Controls",
+                text = stringResource(R.string.parent_settings_title),
                 color = AppText,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = if (unlocked) "Parent Mode active · Tap to edit rules" else "Filters, Home layout, speakers & PIN",
+                text = if (unlocked) stringResource(R.string.parent_pin_active_hint) else stringResource(R.string.parent_pin_manage_rules_hint),
                 color = if (unlocked) AppAccent else AppMuted,
                 fontSize = 12.sp,
             )
@@ -734,7 +734,7 @@ fun CompactParentalControlsRow(onOpenParentSettings: () -> Unit) {
                 onClick = { ParentSecurityManager.lockNow(context) },
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
             ) {
-                Text("Lock", color = AppAccent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text(stringResource(R.string.parent_pin_lock), color = AppAccent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
         }
         Icon(
@@ -807,14 +807,14 @@ fun ParentAdminSessionBanner(
                     modifier = Modifier.height(15.dp),
                 )
                 Text(
-                    text = "Parent Mode unlocked · $timerText",
+                    text = stringResource(R.string.parent_pin_session_unlocked, timerText),
                     color = Color.White,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
             Text(
-                text = "Lock",
+                text = stringResource(R.string.parent_pin_lock),
                 color = Color.Black,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,

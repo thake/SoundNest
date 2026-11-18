@@ -36,24 +36,24 @@ fun HomeParentSettingsSection(policy: ParentalPolicy) {
     val context = LocalContext.current
     val home = policy.home
     val audible = policy.spokenWord.audible
-    SectionCard("Front Page (Home) Sections") {
+    SectionCard(stringResource(R.string.parent_section_home)) {
         PolicyToggleRow(
-            title = "Minimal Home Mode",
-            subtitle = "Hide all algorithmic Spotify carousels; show only Shortcuts & Parent Picks",
+            title = stringResource(R.string.parent_home_minimal_title),
+            subtitle = stringResource(R.string.parent_home_minimal_subtitle),
             checked = home.minimalHomeMode,
         ) { v ->
             ParentalPolicyStore.update(context) { it.copy(home = it.home.copy(minimalHomeMode = v)) }
         }
         PolicyToggleRow(
-            title = "Show Shortcuts Grid",
-            subtitle = "Two-column quick-access tiles at the top of Home (including Liked Songs)",
+            title = stringResource(R.string.parent_home_shortcuts_title),
+            subtitle = stringResource(R.string.parent_home_shortcuts_subtitle),
             checked = home.showShortcutsGrid,
         ) { v ->
             ParentalPolicyStore.update(context) { it.copy(home = it.home.copy(showShortcutsGrid = v)) }
         }
         PolicyToggleRow(
-            title = "Show Parent Picks Shelf",
-            subtitle = "Pin a dedicated shelf of parent-approved playlists, albums, and artists",
+            title = stringResource(R.string.parent_home_picks_title),
+            subtitle = stringResource(R.string.parent_home_picks_subtitle),
             checked = home.showParentPicks,
         ) { v ->
             ParentalPolicyStore.update(context) { it.copy(home = it.home.copy(showParentPicks = v)) }
@@ -74,59 +74,59 @@ fun HomeParentSettingsSection(policy: ParentalPolicy) {
             }
         }
         PolicyToggleRow(
-            title = "Show What's New Bell & Notifications",
-            subtitle = "Bell icon on Home and background release notifications",
+            title = stringResource(R.string.parent_home_bell_title),
+            subtitle = stringResource(R.string.parent_home_bell_subtitle),
             checked = home.showWhatsNewBell,
             enabled = !home.minimalHomeMode && home.showNewReleases,
         ) { v ->
             ParentalPolicyStore.update(context) { it.copy(home = it.home.copy(showWhatsNewBell = v)) }
         }
         PolicyToggleRow(
-            title = "Show Filter Chips",
-            subtitle = "All / Music / Podcasts / Audiobooks chips at the top of Home",
+            title = stringResource(R.string.parent_home_chips_title),
+            subtitle = stringResource(R.string.parent_home_chips_subtitle),
             checked = home.showFilterChips,
             enabled = !home.minimalHomeMode,
         ) { v ->
             ParentalPolicyStore.update(context) { it.copy(home = it.home.copy(showFilterChips = v)) }
         }
         PolicyToggleRow(
-            title = "Show Spotify AI DJ",
-            subtitle = "Allow Spotify's AI DJ card on Home (off by default)",
+            title = stringResource(R.string.parent_home_dj_title),
+            subtitle = stringResource(R.string.parent_home_dj_subtitle),
             checked = home.showDjCard,
         ) { v ->
             ParentalPolicyStore.update(context) { it.copy(home = it.home.copy(showDjCard = v)) }
         }
 
         HorizontalDivider(color = tone(0xFF3A3A3A))
-        Text("Category Carousels", color = AppText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.parent_home_category_carousels), color = AppText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
 
         PolicyToggleRow(
-            title = "Charts, Trending & Popular",
-            subtitle = "Top 50, Viral Hits, Trending now, Popular albums",
+            title = stringResource(R.string.parent_home_charts_title),
+            subtitle = stringResource(R.string.parent_home_charts_subtitle),
             checked = home.showChartsAndTrending,
             enabled = !home.minimalHomeMode,
         ) { v ->
             ParentalPolicyStore.update(context) { it.copy(home = it.home.copy(showChartsAndTrending = v)) }
         }
         PolicyToggleRow(
-            title = "Mixes, Made For You & Discover",
-            subtitle = "Daily Mixes, Discover Weekly, Recommended for today",
+            title = stringResource(R.string.parent_home_mixes_title),
+            subtitle = stringResource(R.string.parent_home_mixes_subtitle),
             checked = home.showMixesAndMadeForYou,
             enabled = !home.minimalHomeMode,
         ) { v ->
             ParentalPolicyStore.update(context) { it.copy(home = it.home.copy(showMixesAndMadeForYou = v)) }
         }
         PolicyToggleRow(
-            title = "New Releases",
-            subtitle = "New releases for you, Release Radar, Fresh new music",
+            title = stringResource(R.string.parent_home_releases_title),
+            subtitle = stringResource(R.string.parent_home_releases_subtitle),
             checked = home.showNewReleases,
             enabled = !home.minimalHomeMode,
         ) { v ->
             ParentalPolicyStore.update(context) { it.copy(home = it.home.copy(showNewReleases = v)) }
         }
         PolicyToggleRow(
-            title = "Recently Played & Jump Back In",
-            subtitle = "Recently played and Heavy rotation carousels",
+            title = stringResource(R.string.parent_home_recents_title),
+            subtitle = stringResource(R.string.parent_home_recents_subtitle),
             checked = home.showRecents,
             enabled = !home.minimalHomeMode,
         ) { v ->
@@ -137,7 +137,7 @@ fun HomeParentSettingsSection(policy: ParentalPolicy) {
             HorizontalDivider(color = tone(0xFF3A3A3A))
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "Individually Hidden Shelves (${home.hiddenShelfKeys.size})",
+                    stringResource(R.string.parent_home_hidden_shelves_count, home.hiddenShelfKeys.size),
                     color = AppText,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -148,7 +148,7 @@ fun HomeParentSettingsSection(policy: ParentalPolicy) {
                         it.copy(home = it.home.copy(hiddenShelfKeys = emptySet()))
                     }
                 }) {
-                    Text("Restore All", color = AppAccent)
+                    Text(stringResource(R.string.parent_home_restore_all), color = AppAccent)
                 }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

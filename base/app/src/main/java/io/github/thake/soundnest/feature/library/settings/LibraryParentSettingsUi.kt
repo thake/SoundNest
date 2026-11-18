@@ -3,6 +3,8 @@ package io.github.thake.soundnest.feature.library.settings
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import io.github.thake.soundnest.R
 import io.github.thake.soundnest.feature.parental.settings.ParentalPolicy
 import io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore
 import io.github.thake.soundnest.feature.parental.ui.PolicyToggleRow
@@ -14,8 +16,8 @@ import io.github.thake.soundnest.feature.parental.ui.PolicyToggleRow
 fun LibraryParentSettingsRow(policy: ParentalPolicy) {
     val context = LocalContext.current
     PolicyToggleRow(
-        title = "Read-Only Spotify Library",
-        subtitle = "Prevent unliking songs or deleting/editing Spotify playlists (local device playlists remain usable)",
+        title = stringResource(R.string.parent_library_readonly_title),
+        subtitle = stringResource(R.string.parent_library_readonly_subtitle),
         checked = policy.library.readOnlySpotifyLibrary,
     ) { readOnly ->
         ParentalPolicyStore.update(context) {
