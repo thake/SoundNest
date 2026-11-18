@@ -10,7 +10,6 @@ import android.webkit.CookieManager
 import android.webkit.WebView
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -253,20 +252,12 @@ fun AudibleParentControlsCard(
 
     val palette = rememberM3SettingsPalette()
     val accentButtonColors = m3FilledButtonColors(palette)
-    val cardShape = RoundedCornerShape(16.dp)
     val subCardShape = RoundedCornerShape(12.dp)
 
     Column(
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .clip(cardShape)
-            .background(palette.innerCardBg)
-            .then(
-                if (palette.border != null) Modifier.border(1.dp, palette.border, cardShape)
-                else Modifier,
-            )
-            .padding(14.dp)
             .testTag("audible_parent_card"),
     ) {
         Text(
@@ -301,7 +292,7 @@ fun AudibleParentControlsCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(subCardShape)
-                        .background(palette.cardBg)
+                        .background(palette.innerCardBg)
                         .clickable { dropdownExpanded = true }
                         .padding(horizontal = 12.dp, vertical = 10.dp)
                         .testTag("audible_marketplace_selector"),

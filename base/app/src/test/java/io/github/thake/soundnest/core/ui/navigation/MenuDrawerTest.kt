@@ -222,17 +222,20 @@ class MenuDrawerTest {
         // Disallowed What's New, Local Files, Live Radio, and Equalizer must be filtered out of Explore & Audio.
         assertEquals(0, rule.onAllNodesWithText("What's New").fetchSemanticsNodes().size)
         assertEquals(0, rule.onAllNodesWithText("Local Files").fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithText("Live Radio").fetchSemanticsNodes().size)
         assertEquals(0, rule.onAllNodesWithText("Equalizer").fetchSemanticsNodes().size)
 
-        // Enabling Live Radio (or Local Files) reveals Equalizer in Explore & Audio.
+        // Enabling Live Radio reveals Live Radio in Explore & Audio, while Equalizer stays in Settings only.
         ParentalPolicyStore.update(appContext) { it.copy(radio = RadioParentalPolicy(enabled = true)) }
         rule.waitForIdle()
         rule.onNodeWithTag("menu_drawer_list")
-            .performScrollToNode(hasText("Equalizer"))
-        rule.onNodeWithText("Equalizer").assertIsDisplayed()
+            .performScrollToNode(hasText("Live Radio"))
+        rule.onNodeWithText("Live Radio").assertIsDisplayed()
+        assertEquals(0, rule.onAllNodesWithText("Equalizer").fetchSemanticsNodes().size)
 
         ParentalPolicyStore.update(appContext) { it.copy(radio = RadioParentalPolicy(enabled = false)) }
         rule.waitForIdle()
+        assertEquals(0, rule.onAllNodesWithText("Live Radio").fetchSemanticsNodes().size)
         assertEquals(0, rule.onAllNodesWithText("Equalizer").fetchSemanticsNodes().size)
 
         // Tapping Parental Controls while locked triggers PIN prompt rather than navigating directly.

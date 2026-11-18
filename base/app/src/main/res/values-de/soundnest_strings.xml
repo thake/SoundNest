@@ -984,7 +984,7 @@
     <string name="parent_pin_error_incorrect">Aktuelle PIN oder Passwort ist falsch.</string>
     <string name="parent_pin_error_too_short">Neue PIN oder Passwort muss mindestens 4 Zeichen lang sein.</string>
     <string name="parent_pin_error_cooldown">Zu viele Fehlversuche; bitte warten.</string>
-    <string name="parent_pin_session_unlocked">Elternmodus entsperren · %1$s</string>
+    <string name="parent_pin_session_unlocked">Elternmodus entsperrt · %1$s</string>
     <string name="parent_quick_blocked_tap_unblock">Blockiert · Zum Entsperren tippen</string>
     <string name="parent_quick_block_noun">%1$s blockieren</string>
     <string name="parent_action_block_item">%1$s blockieren</string>
@@ -1139,7 +1139,7 @@
 
     <string name="parent_pin_lockout_seconds">Zu viele Fehlversuche. Versuche es in %1$ds erneut.</string>
     <string name="parent_pin_recovery_instructions">Zur Sicherheit des Kindes gibt es in SoundNest kein Zurücksetzen der PIN aus der Ferne. Verwende die biometrische Entsperrung, falls aktiviert, oder lösche die App-Daten von SoundNest in den Android-Einstellungen (auf beaufsichtigten Geräten durch Google Family Link geschützt), melde Dich erneut an, richte eine neue PIN ein und importiere Dein soundnest-policy.json-Backup.</string>
-    <string name="parent_pin_session_unlocked_hint">Tippe auf Jetzt sperren, bevor Du das Telefon an Dein Kind zurückgibst.</string>
+    <string name="parent_pin_session_unlocked_hint">Tippe auf Sperren, bevor Du das Telefon an Dein Kind zurückgibst.</string>
     <string name="parent_pin_session_locked_hint">Tippe auf Entsperren, um Filter, Startseiten-Bereiche, Lautsprecher oder Konten zu bearbeiten.</string>
 
     <string name="audiobook_playing_from">Wiedergabe aus dem Hörbuch</string>
@@ -1224,7 +1224,7 @@
     <string name="parent_audible_section_access">Zugriff &amp; Startseite</string>
     <string name="parent_audible_section_account">Konto &amp; Bibliothek</string>
     <string name="settings_section_local_radio">Lokale Dateien &amp; Live-Radio</string>
-    <string name="settings_local_radio_row_detail">Equalizer, lokale Audiodateien und Internetradio</string>
+    <string name="settings_local_radio_row_detail">Equalizer und Übergänge für lokale Dateien und Live-Radio</string>
     <string name="parent_nav_local_radio_both">Lokale Dateien &amp; Live-Radio aktiviert</string>
     <string name="parent_nav_local_radio_local_only">Nur lokale Dateien aktiviert</string>
     <string name="parent_nav_local_radio_radio_only">Nur Live-Radio aktiviert</string>

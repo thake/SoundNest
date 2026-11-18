@@ -554,11 +554,7 @@ fun ParentSecurityControlsSection(onOpenParentSettings: (() -> Unit)? = null) {
                     fontSize = 12.sp,
                 )
             }
-            if (unlocked) {
-                OutlinedButton(onClick = { ParentSecurityManager.lockNow(context) }) {
-                    Text(stringResource(R.string.parent_pin_lock_now), color = palette.text, fontFamily = palette.fontFamily)
-                }
-            } else {
+            if (!unlocked) {
                 Button(
                     onClick = { ParentSecurityManager.runProtected(context, AppSurface.PARENT_CONTROLS) {} },
                     colors = buttonColors,

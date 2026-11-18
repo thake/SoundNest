@@ -45,7 +45,7 @@ class SettingsSearchTest {
         assertEquals("Accounts", immersivePlace(io.github.thake.soundnest.R.string.accounts_title))
         assertEquals("Storage", immersivePlace(io.github.thake.soundnest.R.string.settings_storage_clear_cache))
         assertEquals("Library", immersivePlace(io.github.thake.soundnest.R.string.hidden_songs_title))
-        assertEquals("LocalAndRadio", immersivePlace(io.github.thake.soundnest.R.string.live_radio_settings_title))
+        assertEquals("LocalAndRadio", immersivePlace(io.github.thake.soundnest.R.string.settings_section_local_radio))
         assertEquals("LocalAndRadio", immersivePlace(io.github.thake.soundnest.R.string.equalizer_title))
         assertEquals("StreamingWifi", immersivePlace(io.github.thake.soundnest.R.string.quality_streaming_wifi_title))
         assertEquals("StreamingCell", immersivePlace(io.github.thake.soundnest.R.string.quality_streaming_cell_title))
@@ -53,7 +53,7 @@ class SettingsSearchTest {
         assertEquals("0", classicPlace(io.github.thake.soundnest.R.string.parent_settings_title))
         assertEquals("5", classicPlace(io.github.thake.soundnest.R.string.accounts_title))
         assertEquals("2", classicPlace(io.github.thake.soundnest.R.string.settings_storage_clear_cache))
-        assertEquals("7", classicPlace(io.github.thake.soundnest.R.string.live_radio_settings_title))
+        assertEquals("7", classicPlace(io.github.thake.soundnest.R.string.settings_section_local_radio))
     }
 
     @Test fun filterForPolicyHidesRowsDisabledByParentalPolicy() {
@@ -64,8 +64,8 @@ class SettingsSearchTest {
         assertTrue(io.github.thake.soundnest.R.string.parent_settings_title in defaultTitles)
         assertTrue(io.github.thake.soundnest.R.string.settings_autoplay_title in defaultTitles)
         assertTrue(io.github.thake.soundnest.R.string.lyrics_word_sync_title in defaultTitles)
-        assertFalse(io.github.thake.soundnest.R.string.settings_local_files_shown in defaultTitles)
-        assertFalse(io.github.thake.soundnest.R.string.live_radio_settings_title in defaultTitles)
+        assertFalse(io.github.thake.soundnest.R.string.settings_section_local_radio in defaultTitles)
+        assertFalse(io.github.thake.soundnest.R.string.settings_transitions_title in defaultTitles)
         assertFalse(io.github.thake.soundnest.R.string.equalizer_title in defaultTitles)
         assertFalse(io.github.thake.soundnest.R.string.settings_genius_title in defaultTitles)
         assertFalse(io.github.thake.soundnest.R.string.lyrics_extra_title in defaultTitles)
@@ -84,16 +84,17 @@ class SettingsSearchTest {
         assertFalse(io.github.thake.soundnest.R.string.settings_automix_podcasts in podcastsWithoutLocalTitles)
         assertTrue(io.github.thake.soundnest.R.string.settings_headset_skip_title in podcastsWithoutLocalTitles)
 
-        // Live Radio alone also enables Equalizer in Settings Search.
+        // Live Radio alone enables Local Files & Live Radio + Equalizer (but not Transitions) in Settings Search.
         val radioOnlyTitles = SettingsSearch.filterForPolicy(
             SettingsSearch.classic,
             defaultPolicy.copy(radio = RadioParentalPolicy(enabled = true)),
         ).map { it.title }.toSet()
         assertTrue(io.github.thake.soundnest.R.string.equalizer_title in radioOnlyTitles)
-        assertTrue(io.github.thake.soundnest.R.string.live_radio_settings_title in radioOnlyTitles)
+        assertTrue(io.github.thake.soundnest.R.string.settings_section_local_radio in radioOnlyTitles)
+        assertFalse(io.github.thake.soundnest.R.string.settings_transitions_title in radioOnlyTitles)
 
         // Strict Allowlist + Lyrics disabled hides Autoplay, New release notify, and all Lyrics rows,
-        // while LocalFiles + Podcasts enable AutoMix and spoken-word rows.
+        // while LocalFiles + Podcasts enable Local Files & Live Radio, Transitions, Equalizer, AutoMix and spoken-word rows.
         val strictNoLyrics = defaultPolicy.copy(
             filterMode = io.github.thake.soundnest.feature.parental.settings.FilterMode.STRICT_ALLOWLIST,
             lyrics = LyricsParentalPolicy(enabled = false),
@@ -106,7 +107,8 @@ class SettingsSearchTest {
         assertFalse(io.github.thake.soundnest.R.string.settings_release_notify in strictTitles)
         assertFalse(io.github.thake.soundnest.R.string.settings_section_lyrics in strictTitles)
         assertFalse(io.github.thake.soundnest.R.string.lyrics_word_sync_title in strictTitles)
-        assertTrue(io.github.thake.soundnest.R.string.settings_local_files_shown in strictTitles)
+        assertTrue(io.github.thake.soundnest.R.string.settings_section_local_radio in strictTitles)
+        assertTrue(io.github.thake.soundnest.R.string.settings_transitions_title in strictTitles)
         assertTrue(io.github.thake.soundnest.R.string.equalizer_title in strictTitles)
         assertTrue(io.github.thake.soundnest.R.string.settings_automix_segue in strictTitles)
         assertTrue(io.github.thake.soundnest.R.string.settings_automix_harmonic in strictTitles)

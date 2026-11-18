@@ -42,8 +42,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -286,7 +284,7 @@ fun PlayerScreen(navController: NavController) {
         // The window's height (the inner constraints below shadow `maxHeight`) and the status
         // bar's, to size the page item itself: a LazyColumn item cannot ask for "parent minus x".
         val pageHeight = maxHeight
-        val statusTop = androidx.compose.foundation.layout.WindowInsets.Companion.statusBars.asPaddingValues().calculateTopPadding()
+        val statusTop = io.github.thake.soundnest.core.ui.look.effectiveStatusBarTopPadding()
         // The strip the lyrics card peeks into under the buttons is kept whether the song has lyrics
         // or not, an ad plays or the words are still loading: the controls never move with them
         // (reported: the controls sometimes at the bottom, on songs without lyrics; the page grew by

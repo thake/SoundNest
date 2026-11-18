@@ -65,6 +65,7 @@ object PlaybackSettingsUi {
             detail = R.string.settings_transitions_detail_soundnest,
             classicPlace = "transitions",
             immersivePage = "Crossfade",
+            isVisible = { it.localFiles.enabled },
         ),
         SettingsEntry(
             title = R.string.settings_autoplay_title,

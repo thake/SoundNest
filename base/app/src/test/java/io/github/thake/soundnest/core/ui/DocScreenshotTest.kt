@@ -23,10 +23,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
@@ -34,6 +37,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -199,6 +203,7 @@ import io.github.thake.soundnest.core.ui.immersive.shell.ImmersiveBottomChrome
 import io.github.thake.soundnest.core.ui.immersive.shell.LocalImmersiveChrome
 import io.github.thake.soundnest.core.ui.immersive.shell.rememberImmersiveChromeState
 import io.github.thake.soundnest.core.ui.look.LocalLook
+import io.github.thake.soundnest.core.ui.look.LocalTopStatusBarConsumed
 import io.github.thake.soundnest.feature.appearance.ui.LookOffer
 import io.github.thake.soundnest.feature.appearance.ui.LookStep
 import io.github.thake.soundnest.core.ui.classic.MainBottomNavigation
@@ -728,7 +733,7 @@ class DocScreenshotTest {
         add("Parental Controls & Security", "parental/08-dashboard-feature-gates.png", "Dashboard: Spotify Features & Library", "Spotify access controls for read-only library protection, autoplay, podcasts, audiobooks, Jam, and lyrics.", Look.CLASSIC, parentAdminPrep) {
             ParentSettingsScreen(navController = rememberNavController(), initialPage = ParentSettingsPage.Spotify)
         }
-        add("Parental Controls & Security", "parental/08b-dashboard-local-radio.png", "Dashboard: Local Files & Live Radio", "Source gates, visibility toggles, Equalizer, and AutoMix transition settings for local audio and Live Radio.", Look.CLASSIC, prepare = { app ->
+        add("Parental Controls & Security", "parental/08b-dashboard-local-radio.png", "Dashboard: Local Files & Live Radio", "Source gates for local audio files and Live Internet Radio.", Look.CLASSIC, prepare = { app ->
             parentAdminPrep(app)
             ParentalPolicyStore.update(app) {
                 it.copy(
@@ -2318,27 +2323,45 @@ class DocScreenshotTest {
     private fun ClassicShell(route: String, capped: Boolean, page: @Composable (NavHostController) -> Unit) {
         val nav = rememberNavController()
         val large = windowSize().large
+        val ctx = LocalContext.current
+        val tick by ParentSecurityManager.sessionTick.collectAsState()
+        val showParentBanner = androidx.compose.runtime.remember(tick) {
+            ParentSecurityManager.adminRemainingMs(ctx) > 0L
+        }
         val routes = listOf(Routes.Home.route, Routes.Search.route, Routes.Library.route, Routes.Category.route, Routes.NewReleases.route, "detail")
         Column(Modifier.fillMaxSize()) {
-            ParentAdminSessionBanner(onOpenParentSettings = {})
-            Box(Modifier.weight(1f).fillMaxSize()) {
-                Row(Modifier.fillMaxSize()) {
-                    if (windowSize().navigationRail) MainNavigationRail(nav)
-                    Scaffold(modifier = Modifier.weight(1f), bottomBar = { MainBottomNavigation(nav) }) { _ ->
-                        NavHost(nav, startDestination = if (route in routes) route else "detail") {
-                            routes.forEach { r ->
-                                composable(r) {
-                                    CompositionLocalProvider(LocalViewModelStoreOwner provides hostActivity) {
-                                        Box(Modifier.fillMaxSize().background(Color(0xFF121212))) {
-                                            Box(
-                                                Modifier.fillMaxHeight().then(
-                                                    if (large && capped) {
-                                                        Modifier.fillMaxWidth().wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = WindowSize.MaxPageWidth)
-                                                    } else {
-                                                        Modifier.fillMaxWidth()
-                                                    },
-                                                ),
-                                            ) { page(nav) }
+            if (showParentBanner) {
+                ParentAdminSessionBanner(onOpenParentSettings = {})
+            }
+            CompositionLocalProvider(LocalTopStatusBarConsumed provides showParentBanner) {
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxSize()
+                        .then(if (showParentBanner) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier),
+                ) {
+                    Row(Modifier.fillMaxSize()) {
+                        if (windowSize().navigationRail) MainNavigationRail(nav)
+                        Scaffold(
+                            modifier = Modifier.weight(1f),
+                            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+                            bottomBar = { MainBottomNavigation(nav) },
+                        ) { _ ->
+                            NavHost(nav, startDestination = if (route in routes) route else "detail") {
+                                routes.forEach { r ->
+                                    composable(r) {
+                                        CompositionLocalProvider(LocalViewModelStoreOwner provides hostActivity) {
+                                            Box(Modifier.fillMaxSize().background(Color(0xFF121212))) {
+                                                Box(
+                                                    Modifier.fillMaxHeight().then(
+                                                        if (large && capped) {
+                                                            Modifier.fillMaxWidth().wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = WindowSize.MaxPageWidth)
+                                                        } else {
+                                                            Modifier.fillMaxWidth()
+                                                        },
+                                                    ),
+                                                ) { page(nav) }
+                                            }
                                         }
                                     }
                                 }
@@ -2355,35 +2378,49 @@ class DocScreenshotTest {
         val nav = rememberNavController()
         val large = windowSize().large
         val chrome = rememberImmersiveChromeState()
+        val ctx = LocalContext.current
+        val tick by ParentSecurityManager.sessionTick.collectAsState()
+        val showParentBanner = androidx.compose.runtime.remember(tick) {
+            ParentSecurityManager.adminRemainingMs(ctx) > 0L
+        }
         val routes = listOf(Routes.Home.route, Routes.Search.route, Routes.Library.route, Routes.Category.route, Routes.NewReleases.route, Routes.Queue.route, "detail")
         CompositionLocalProvider(LocalImmersiveChrome provides chrome) {
             Column(Modifier.fillMaxSize()) {
-                ParentAdminSessionBanner(onOpenParentSettings = {})
-                Box(Modifier.weight(1f).fillMaxSize()) {
-                    NavHost(nav, startDestination = if (route in routes) route else "detail") {
-                        routes.forEach { r ->
-                            composable(r) {
-                                CompositionLocalProvider(LocalViewModelStoreOwner provides hostActivity) {
-                                    Box(Modifier.fillMaxSize().background(Color.Black)) {
-                                        Box(
-                                            Modifier.fillMaxHeight().then(
-                                                if (large && capped) {
-                                                    Modifier.fillMaxWidth().wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = WindowSize.MaxPageWidth)
-                                                } else {
-                                                    Modifier.fillMaxWidth()
-                                                },
-                                            ),
-                                        ) { page(nav) }
+                if (showParentBanner) {
+                    ParentAdminSessionBanner(onOpenParentSettings = {})
+                }
+                CompositionLocalProvider(LocalTopStatusBarConsumed provides showParentBanner) {
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .fillMaxSize()
+                            .then(if (showParentBanner) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier),
+                    ) {
+                        NavHost(nav, startDestination = if (route in routes) route else "detail") {
+                            routes.forEach { r ->
+                                composable(r) {
+                                    CompositionLocalProvider(LocalViewModelStoreOwner provides hostActivity) {
+                                        Box(Modifier.fillMaxSize().background(Color.Black)) {
+                                            Box(
+                                                Modifier.fillMaxHeight().then(
+                                                    if (large && capped) {
+                                                        Modifier.fillMaxWidth().wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = WindowSize.MaxPageWidth)
+                                                    } else {
+                                                        Modifier.fillMaxWidth()
+                                                    },
+                                                ),
+                                            ) { page(nav) }
+                                        }
                                     }
                                 }
                             }
                         }
+                        ImmersiveBottomChrome(
+                            nav,
+                            miniPlayer = { m -> ImmersiveMiniPlayer(m) },
+                            modifier = Modifier.align(Alignment.BottomCenter),
+                        )
                     }
-                    ImmersiveBottomChrome(
-                        nav,
-                        miniPlayer = { m -> ImmersiveMiniPlayer(m) },
-                        modifier = Modifier.align(Alignment.BottomCenter),
-                    )
                 }
             }
         }

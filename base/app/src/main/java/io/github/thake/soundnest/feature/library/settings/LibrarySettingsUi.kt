@@ -11,20 +11,16 @@ import io.github.thake.soundnest.core.ui.settings.M3SettingsScaffold
 import io.github.thake.soundnest.core.ui.settings.m3SettingsSection
 import io.github.thake.soundnest.feature.home.whatsnew.settings.ReleaseNotifySettingsUi
 import io.github.thake.soundnest.feature.library.hiddensongs.settings.HiddenSongsSettingsUi
-import io.github.thake.soundnest.feature.localfiles.settings.LocalFilesSettingsUi
 import io.github.thake.soundnest.feature.parental.filter.HomeSectionFilter
 import io.github.thake.soundnest.feature.parental.settings.rememberParentalPolicy
-import io.github.thake.soundnest.feature.radio.settings.RadioSettingsUi
 
 /**
- * Unified Material Design 3 Library settings page composing `home.whatsnew`, `localfiles`,
- * `radio`, and `library.hiddensongs` rows + Settings Search entries.
+ * Unified Material Design 3 Library settings page composing `home.whatsnew`
+ * and `library.hiddensongs` rows + Settings Search entries.
  */
 object LibrarySettingsUi {
     val settingsEntries: List<SettingsEntry> = listOf(
         *ReleaseNotifySettingsUi.settingsEntries.toTypedArray(),
-        *RadioSettingsUi.settingsEntries.toTypedArray(),
-        *LocalFilesSettingsUi.settingsEntries.toTypedArray(),
         *HiddenSongsSettingsUi.settingsEntries.toTypedArray(),
         SettingsEntry(
             title = R.string.settings_section_library,

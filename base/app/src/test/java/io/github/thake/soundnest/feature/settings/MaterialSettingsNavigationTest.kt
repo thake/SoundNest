@@ -30,12 +30,31 @@ import io.github.thake.soundnest.feature.accounts.ui.AccountsScreen
 import io.github.thake.soundnest.feature.appearance.settings.Look
 import io.github.thake.soundnest.feature.equalizer.ui.classic.EqualizerScreen
 import io.github.thake.soundnest.feature.equalizer.ui.immersive.ImmersiveEqualizerScreen
+import io.github.thake.soundnest.feature.localfiles.settings.LocalFilesParentalPolicy
 import io.github.thake.soundnest.feature.parental.security.ParentSecurityManager
 import io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore
 import io.github.thake.soundnest.feature.parental.ui.ParentSettingsScreen
 import io.github.thake.soundnest.feature.radio.settings.RadioParentalPolicy
+import io.github.thake.soundnest.core.ui.look.LocalTopStatusBarConsumed
+import io.github.thake.soundnest.core.ui.look.effectiveStatusBarTopPadding
 import io.github.thake.soundnest.feature.settings.ui.classic.SettingsScreen
 import io.github.thake.soundnest.feature.settings.ui.immersive.ImmersiveSettingsScreen
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.Text
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import org.junit.Assert.assertEquals
 import io.github.thake.soundnest.host.android.AccountStore
 import io.github.thake.soundnest.host.android.SoundNestRuntime
 import io.github.thake.soundnest.host.android.WebPlayerHost
@@ -170,10 +189,23 @@ class MaterialSettingsNavigationTest {
 
     private fun verifyParentHubAndSubpages(look: Look) {
         ParentSecurityManager.setupInitialPin(app, "1234")
+        ParentalPolicyStore.update(app) {
+            it.copy(
+                localFiles = LocalFilesParentalPolicy(enabled = true),
+                radio = RadioParentalPolicy(enabled = true),
+            )
+        }
         setContentInLook(look) {
             ParentSettingsScreen(navController = rememberNavController())
         }
         rule.waitForIdle()
+
+        // Unified "Lock" button in Classic; "Lock Now" and "Lock & Exit" must not appear anywhere.
+        assertEquals(0, rule.onAllNodesWithText(app.getString(R.string.parent_pin_lock_now)).fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithText(app.getString(R.string.parent_action_lock_exit)).fetchSemanticsNodes().size)
+        if (look == Look.CLASSIC) {
+            rule.onNodeWithText(app.getString(R.string.parent_pin_lock)).assertIsDisplayed()
+        }
 
         val hubTags = listOf(
             "parent_nav_filter_rules",
@@ -227,6 +259,10 @@ class MaterialSettingsNavigationTest {
         rule.waitForIdle()
         rule.onNodeWithTag("parent_settings_list").performScrollToNode(hasText(app.getString(R.string.parent_local_files_title)))
         rule.onNodeWithText(app.getString(R.string.parent_local_files_title)).assertIsDisplayed()
+        rule.onNodeWithText(app.getString(R.string.parent_radio_title)).assertIsDisplayed()
+        assertEquals(0, rule.onAllNodesWithText(app.getString(R.string.settings_local_files_shown)).fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithText(app.getString(R.string.equalizer_title)).fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithText(app.getString(R.string.settings_transitions_title)).fetchSemanticsNodes().size)
     }
 
     @Test
@@ -248,9 +284,13 @@ class MaterialSettingsNavigationTest {
             }
         }
         rule.waitForIdle()
-        org.junit.Assert.assertEquals(
+        assertEquals(
             0,
             rule.onAllNodes(hasTestTag("settings_nav_local_radio")).fetchSemanticsNodes().size,
+        )
+        assertEquals(
+            0,
+            rule.onAllNodesWithText(app.getString(R.string.settings_transitions_title)).fetchSemanticsNodes().size,
         )
 
         ParentalPolicyStore.update(app) { it.copy(radio = RadioParentalPolicy(enabled = true)) }
@@ -262,6 +302,56 @@ class MaterialSettingsNavigationTest {
 
         rule.onNode(hasScrollToNodeAction()).performScrollToNode(hasText(app.getString(R.string.equalizer_title)))
         rule.onNodeWithText(app.getString(R.string.equalizer_title)).assertIsDisplayed()
+        assertEquals(0, rule.onAllNodesWithText(app.getString(R.string.settings_local_files_shown)).fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithText(app.getString(R.string.settings_transitions_title)).fetchSemanticsNodes().size)
+
+        ParentalPolicyStore.update(app) { it.copy(localFiles = LocalFilesParentalPolicy(enabled = true)) }
+        rule.waitForIdle()
+        rule.onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag("local_radio_transitions_nav"))
+        rule.onNodeWithTag("local_radio_transitions_nav").assertIsDisplayed()
+    }
+
+    @Test
+    fun statusBarConsumptionSuppressesDoubleTopPaddingBelowBanner() {
+        var childTopConsumed = -1f
+        var effectiveConsumed: Dp? = null
+        var effectiveUnconsumed: Dp? = null
+
+        rule.setContent {
+            SpotuiTheme {
+                Column(Modifier.fillMaxSize()) {
+                    effectiveUnconsumed = effectiveStatusBarTopPadding()
+                    CompositionLocalProvider(LocalTopStatusBarConsumed provides true) {
+                        effectiveConsumed = effectiveStatusBarTopPadding()
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .fillMaxSize()
+                                .consumeWindowInsets(WindowInsets(top = 120)),
+                        ) {
+                            Box(
+                                Modifier
+                                    .statusBarsPadding()
+                                    .onGloballyPositioned { childTopConsumed = it.boundsInRoot().top },
+                            ) {
+                                Text("Content")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        rule.runOnUiThread {
+            val insets = WindowInsetsCompat.Builder()
+                .setInsets(WindowInsetsCompat.Type.statusBars(), Insets.of(0, 120, 0, 0))
+                .build()
+            ViewCompat.dispatchApplyWindowInsets(rule.activity.window.decorView, insets)
+        }
+        rule.waitForIdle()
+
+        assertEquals(0.dp, effectiveConsumed)
+        assertEquals(0f, childTopConsumed)
+        org.junit.Assert.assertTrue((effectiveUnconsumed ?: 0.dp) >= 0.dp)
     }
 
     @Test

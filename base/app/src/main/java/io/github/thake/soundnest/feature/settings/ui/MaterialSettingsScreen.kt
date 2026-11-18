@@ -73,14 +73,12 @@ import io.github.thake.soundnest.feature.appearance.settings.Look
 import io.github.thake.soundnest.feature.appearance.settings.LookPref
 import io.github.thake.soundnest.feature.equalizer.settings.EqualizerSettingsUi
 import io.github.thake.soundnest.feature.library.settings.LibrarySettingsUi
-import io.github.thake.soundnest.feature.localfiles.settings.LocalFilesSettingsUi
 import io.github.thake.soundnest.feature.lyrics.settings.LyricsSettingsUi
 import io.github.thake.soundnest.feature.parental.security.AppSurface
 import io.github.thake.soundnest.feature.parental.security.ParentSecurityManager
 import io.github.thake.soundnest.feature.parental.settings.rememberParentalPolicy
 import io.github.thake.soundnest.feature.player.settings.CrossfadePref
 import io.github.thake.soundnest.feature.player.settings.PlaybackSettingsUi
-import io.github.thake.soundnest.feature.radio.settings.RadioSettingsUi
 import io.github.thake.soundnest.feature.settings.SettingsSearch
 import io.github.thake.soundnest.feature.settings.ui.immersive.SettingsPage
 import io.github.thake.soundnest.feature.system.settings.SystemSettingsUi
@@ -150,7 +148,6 @@ private fun SettingsRootHub(
     val policy = rememberParentalPolicy()
     val secTick by ParentSecurityManager.sessionTick.collectAsState()
     val unlocked = remember(secTick) { ParentSecurityManager.isAdminUnlocked(ctx) }
-    val crossfade = CrossfadePref.seconds
     val look = LookPref.look
     val switchDetail = switchAccountDetail()
     var query by rememberSaveable { mutableStateOf<String?>(null) }
@@ -280,16 +277,6 @@ private fun SettingsRootHub(
                     detail = stringResource(R.string.settings_playback_row_detail),
                     palette = palette,
                     onClick = { open(SettingsPage.Playback) },
-                )
-            }
-            row {
-                M3SettingsNavRow(
-                    icon = Icons.Rounded.GraphicEq,
-                    title = stringResource(R.string.settings_transitions_title),
-                    detail = stringResource(R.string.settings_transitions_detail_soundnest),
-                    value = PlaybackSettingsUi.transitionValue(crossfade),
-                    palette = palette,
-                    onClick = { open(SettingsPage.Crossfade) },
                 )
             }
         }
@@ -475,14 +462,6 @@ private fun M3LocalAndRadioSettingsPage(
         onBack = back,
     ) { palette ->
         m3SettingsSection(
-            key = "local_radio:visibility",
-            palette = palette,
-            header = ctx.getString(R.string.local_radio_section_visibility),
-        ) {
-            with(LocalFilesSettingsUi) { m3LibraryRow(ctx, policy, palette) }
-            with(RadioSettingsUi) { m3LibraryRow(ctx, policy, palette) }
-        }
-        m3SettingsSection(
             key = "local_radio:audio",
             palette = palette,
             header = ctx.getString(R.string.local_radio_section_audio),
@@ -499,6 +478,7 @@ private fun M3LocalAndRadioSettingsPage(
                         detail = stringResource(R.string.settings_transitions_detail_soundnest),
                         value = PlaybackSettingsUi.transitionValue(CrossfadePref.seconds),
                         palette = palette,
+                        testTag = "local_radio_transitions_nav",
                         onClick = openTransitions,
                     )
                 }

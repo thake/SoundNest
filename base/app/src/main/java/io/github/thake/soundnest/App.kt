@@ -2,16 +2,17 @@ package io.github.thake.soundnest
 
 import android.annotation.SuppressLint
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.github.thake.soundnest.core.ui.classic.MainBottomNavigation
@@ -100,36 +101,58 @@ fun App() {
         val rail = io.github.thake.soundnest.core.ui.look.windowSize().navigationRail
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = navBackStackEntry?.destination?.route
+        val ctx = androidx.compose.ui.platform.LocalContext.current
+        val sessionTick by io.github.thake.soundnest.feature.parental.security.ParentSecurityManager.sessionTick.collectAsState()
+        val adminUnlocked = androidx.compose.runtime.remember(sessionTick) {
+            io.github.thake.soundnest.feature.parental.security.ParentSecurityManager.adminRemainingMs(ctx) > 0L
+        }
+        val showParentBanner = currentRoute != io.github.thake.soundnest.core.ui.navigation.Routes.ParentSettings.route && adminUnlocked
         androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
             io.github.thake.soundnest.core.ui.navigation.MenuNavigationDrawer(
                 navController = navController,
                 drawerState = menuDrawerState,
             ) {
                 androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
-                    if (currentRoute != io.github.thake.soundnest.core.ui.navigation.Routes.ParentSettings.route) {
+                    if (showParentBanner) {
                         io.github.thake.soundnest.feature.parental.ui.ParentAdminSessionBanner(
                             onOpenParentSettings = {
                                 navController.navigateSingleTop(io.github.thake.soundnest.core.ui.navigation.Routes.ParentSettings.route)
                             },
                         )
                     }
-                    androidx.compose.foundation.layout.Box(Modifier.weight(1f).fillMaxSize()) {
-                        androidx.compose.foundation.layout.Row(Modifier.fillMaxSize()) {
-                            if (rail && !immersive) io.github.thake.soundnest.core.ui.classic.MainNavigationRail(navController)
-                            Scaffold(
-                                modifier = Modifier.weight(1f),
-                                bottomBar = {
-                                    if (!immersive) MainBottomNavigation(navController)
+                    CompositionLocalProvider(
+                        io.github.thake.soundnest.core.ui.look.LocalTopStatusBarConsumed provides showParentBanner,
+                    ) {
+                        androidx.compose.foundation.layout.Box(
+                            Modifier
+                                .weight(1f)
+                                .fillMaxSize()
+                                .then(
+                                    if (showParentBanner) {
+                                        Modifier.consumeWindowInsets(WindowInsets.statusBars)
+                                    } else {
+                                        Modifier
+                                    },
+                                ),
+                        ) {
+                            androidx.compose.foundation.layout.Row(Modifier.fillMaxSize()) {
+                                if (rail && !immersive) io.github.thake.soundnest.core.ui.classic.MainNavigationRail(navController)
+                                Scaffold(
+                                    modifier = Modifier.weight(1f),
+                                    contentWindowInsets = WindowInsets(0, 0, 0, 0),
+                                    bottomBar = {
+                                        if (!immersive) MainBottomNavigation(navController)
+                                    },
+                                ) {
+                                    MyNavHost(
+                                        navHostController = navController,
+                                        modifier = if (immersive) Modifier.background(io.github.thake.soundnest.core.ui.immersive.Immersive.Page) else Modifier,
+                                    )
                                 }
-                            ) {
-                                MyNavHost(
-                                    navHostController = navController,
-                                    modifier = if (immersive) Modifier.background(io.github.thake.soundnest.core.ui.immersive.Immersive.Page) else Modifier,
-                                )
                             }
+                            if (immersive) ImmersiveShell(navController)
+                            else io.github.thake.soundnest.core.ui.navigation.PlayerOverlay(navController)
                         }
-                        if (immersive) ImmersiveShell(navController)
-                        else io.github.thake.soundnest.core.ui.navigation.PlayerOverlay(navController)
                     }
                 }
             }

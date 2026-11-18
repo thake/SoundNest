@@ -1148,7 +1148,7 @@
 
     <string name="parent_pin_lockout_seconds">Too many wrong attempts. Try again in %1$ds.</string>
     <string name="parent_pin_recovery_instructions">For child safety, SoundNest has no remote PIN reset. Use Biometric Unlock if enabled, or clear SoundNest\'s app storage in Android Settings (protected by Google Family Link on supervised devices), sign in again, set a new PIN, and import your soundnest-policy.json backup.</string>
-    <string name="parent_pin_session_unlocked_hint">Tap Lock Now before handing the phone back to your child.</string>
+    <string name="parent_pin_session_unlocked_hint">Tap Lock before handing the phone back to your child.</string>
     <string name="parent_pin_session_locked_hint">Tap Unlock to edit filters, Home sections, speakers, or accounts.</string>
 
     <string name="audiobook_playing_from">Playing from the audiobook</string>
@@ -1233,7 +1233,7 @@
     <string name="parent_audible_section_access" tools:ignore="MissingTranslation">Access &amp; Home</string>
     <string name="parent_audible_section_account" tools:ignore="MissingTranslation">Account &amp; Library</string>
     <string name="settings_section_local_radio" tools:ignore="MissingTranslation">Local Files &amp; Live Radio</string>
-    <string name="settings_local_radio_row_detail" tools:ignore="MissingTranslation">Equalizer, local audio files and internet radio</string>
+    <string name="settings_local_radio_row_detail" tools:ignore="MissingTranslation">Equalizer and transitions for local files and Live Radio</string>
     <string name="parent_nav_local_radio_both" tools:ignore="MissingTranslation">Local files &amp; Live Radio enabled</string>
     <string name="parent_nav_local_radio_local_only" tools:ignore="MissingTranslation">Local files enabled</string>
     <string name="parent_nav_local_radio_radio_only" tools:ignore="MissingTranslation">Live Radio enabled</string>

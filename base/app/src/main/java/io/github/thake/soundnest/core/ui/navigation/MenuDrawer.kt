@@ -35,7 +35,6 @@ import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Folder
-import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Group
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Info
@@ -92,7 +91,6 @@ import io.github.thake.soundnest.feature.parental.security.AppSurface
 import io.github.thake.soundnest.feature.parental.filter.HomeSectionFilter
 import io.github.thake.soundnest.feature.parental.security.ParentSecurityManager
 import io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore
-import io.github.thake.soundnest.feature.equalizer.settings.EqualizerSettings
 import io.github.thake.soundnest.feature.radio.settings.RadioSettings
 import io.github.thake.soundnest.spotify.AccountPlan
 import io.github.thake.soundnest.feature.accounts.ui.ProfileAvatar
@@ -391,10 +389,9 @@ fun MenuDrawerSheet(
 
             // 4. Explore & Audio Section
             val showWhatsNew = HomeSectionFilter.isWhatsNewAllowed(policy)
-            val showEqualizer = EqualizerSettings.isAvailable(policy)
             val showLocalFiles = policy.localFiles.enabled && LocalFilesSettings.shown
             val showLiveRadio = policy.radio.enabled && RadioSettings.on
-            if (showWhatsNew || showEqualizer || showLocalFiles || showLiveRadio) {
+            if (showWhatsNew || showLocalFiles || showLiveRadio) {
                 item(key = "menu:explore-audio") {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         MenuSectionLabel(stringResource(R.string.menu_section_explore), palette)
@@ -407,17 +404,6 @@ fun MenuDrawerSheet(
                                     detail = stringResource(R.string.whats_new_subtitle),
                                     palette = palette,
                                     onClick = { openRoute(Routes.WhatsNew.route) },
-                                )
-                                hasPrevious = true
-                            }
-                            if (showEqualizer) {
-                                if (hasPrevious) MenuRowDivider(palette)
-                                MenuGroupRow(
-                                    icon = Icons.Rounded.GraphicEq,
-                                    title = stringResource(R.string.equalizer_title),
-                                    detail = stringResource(R.string.equalizer_settings_detail_soundnest),
-                                    palette = palette,
-                                    onClick = { openRoute(Routes.Equalizer.route) },
                                 )
                                 hasPrevious = true
                             }

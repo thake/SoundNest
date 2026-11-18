@@ -15,13 +15,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
@@ -39,6 +36,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import io.github.thake.soundnest.core.ui.immersive.motion.ImmersiveMotion
+import io.github.thake.soundnest.core.ui.look.effectiveStatusBarTopPadding
 import io.github.thake.soundnest.core.ui.look.rememberReduceMotion
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -108,7 +106,7 @@ private fun rememberBarControlSize(): Dp {
  */
 @Composable
 fun immersiveTopBarHeight(): Dp =
-    WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + ImmersiveTopBarContentHeight
+    effectiveStatusBarTopPadding() + ImmersiveTopBarContentHeight
 
 /**
  * Where page content should start: clear of the bar, plus [ImmersiveTopBarContentGap]. Use it as
@@ -441,7 +439,7 @@ internal fun ImmersiveTopGlass(visible: () -> Float, modifier: Modifier, hazeSta
  */
 @Composable
 fun immersiveHeaderContentPadding(): Dp =
-    WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + ImmersiveHeaderContentHeight + 10.dp
+    effectiveStatusBarTopPadding() + ImmersiveHeaderContentHeight + 10.dp
 
 /**
  * A tab's heading on floating glass, as Home in Apple Music: the title at the start and the

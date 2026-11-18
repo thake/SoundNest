@@ -31,7 +31,6 @@ import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.FilterList
-import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.LibraryMusic
@@ -89,10 +88,8 @@ import io.github.thake.soundnest.core.ui.settings.m3FilterChipColors
 import io.github.thake.soundnest.core.ui.settings.m3SettingsBlock
 import io.github.thake.soundnest.core.ui.settings.m3SettingsSection
 import io.github.thake.soundnest.core.ui.settings.rememberM3SettingsPalette
-import io.github.thake.soundnest.feature.equalizer.settings.EqualizerSettingsUi
 import io.github.thake.soundnest.feature.home.settings.m3HomeParentSettingsSections
 import io.github.thake.soundnest.feature.library.settings.m3LibraryParentRow
-import io.github.thake.soundnest.feature.localfiles.settings.LocalFilesSettingsUi
 import io.github.thake.soundnest.feature.localfiles.settings.m3LocalFilesParentRow
 import io.github.thake.soundnest.feature.lyrics.settings.m3LyricsParentRows
 import io.github.thake.soundnest.feature.parental.security.AppSurface
@@ -102,10 +99,7 @@ import io.github.thake.soundnest.feature.parental.settings.ParentalConfigBackup
 import io.github.thake.soundnest.feature.parental.settings.ParentalPolicy
 import io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore
 import io.github.thake.soundnest.feature.parental.settings.RuleLabelStore
-import io.github.thake.soundnest.feature.player.settings.CrossfadePref
-import io.github.thake.soundnest.feature.player.settings.PlaybackSettingsUi
 import io.github.thake.soundnest.feature.player.settings.m3PlaybackParentRow
-import io.github.thake.soundnest.feature.radio.settings.RadioSettingsUi
 import io.github.thake.soundnest.feature.radio.settings.m3RadioParentRow
 import io.github.thake.soundnest.feature.speakers.connect.LanDiscovery
 import io.github.thake.soundnest.feature.speakers.jam.settings.m3JamParentRow
@@ -125,7 +119,6 @@ enum class ParentSettingsPage {
     Spotify,
     Audible,
     LocalAndRadio,
-    Transitions,
     SpeakersNetwork,
     SecurityBackup,
 }
@@ -305,15 +298,12 @@ fun ParentSettingsScreen(
                 onOpenAudiblePicker = { showAudiblePicker = true },
             )
             ParentSettingsPage.LocalAndRadio -> ParentLocalAndRadioPage(
-                navController = navController,
                 context = context,
                 policy = policy,
                 listState = pageListState,
                 back = back,
                 lockAndExit = lockAndExit,
-                onOpenTransitions = { open(ParentSettingsPage.Transitions) },
             )
-            ParentSettingsPage.Transitions -> PlaybackSettingsUi.M3CrossfadePage(back = back)
             ParentSettingsPage.SpeakersNetwork -> ParentSpeakersNetworkPage(
                 context = context,
                 policy = policy,
@@ -361,7 +351,7 @@ private fun ParentLockExitClassicAction(
         Icon(Icons.Rounded.Lock, contentDescription = null, tint = palette.accent, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(6.dp))
         Text(
-            text = stringResource(R.string.parent_action_lock_exit),
+            text = stringResource(R.string.parent_pin_lock),
             color = palette.text,
             fontFamily = palette.fontFamily,
             fontSize = 13.sp,
@@ -469,7 +459,7 @@ private fun ParentRootHubPage(
         immersiveActions = {
             ImmersiveBarAction(
                 icon = Icons.Rounded.Lock,
-                contentDescription = stringResource(R.string.parent_action_lock_exit),
+                contentDescription = stringResource(R.string.parent_pin_lock),
                 onClick = lockAndExit,
             )
         },
@@ -606,7 +596,7 @@ private fun ParentFilterRulesPage(
         immersiveActions = {
             ImmersiveBarAction(
                 icon = Icons.Rounded.Lock,
-                contentDescription = stringResource(R.string.parent_action_lock_exit),
+                contentDescription = stringResource(R.string.parent_pin_lock),
                 onClick = lockAndExit,
             )
         },
@@ -926,7 +916,7 @@ private fun ParentHomeSectionsPage(
         immersiveActions = {
             ImmersiveBarAction(
                 icon = Icons.Rounded.Lock,
-                contentDescription = stringResource(R.string.parent_action_lock_exit),
+                contentDescription = stringResource(R.string.parent_pin_lock),
                 onClick = lockAndExit,
             )
         },
@@ -957,7 +947,7 @@ private fun ParentSpotifyPage(
         immersiveActions = {
             ImmersiveBarAction(
                 icon = Icons.Rounded.Lock,
-                contentDescription = stringResource(R.string.parent_action_lock_exit),
+                contentDescription = stringResource(R.string.parent_pin_lock),
                 onClick = lockAndExit,
             )
         },
@@ -1018,7 +1008,7 @@ private fun ParentAudiblePage(
         immersiveActions = {
             ImmersiveBarAction(
                 icon = Icons.Rounded.Lock,
-                contentDescription = stringResource(R.string.parent_action_lock_exit),
+                contentDescription = stringResource(R.string.parent_pin_lock),
                 onClick = lockAndExit,
             )
         },
@@ -1066,7 +1056,7 @@ private fun ParentAudiblePage(
                 palette = scaffoldPalette,
                 header = context.getString(R.string.parent_audible_section_account),
             ) {
-                Box(Modifier.padding(12.dp)) {
+                Box(Modifier.padding(16.dp)) {
                     AudibleParentControlsCard(
                         audibleEnabled = policy.spokenWord.allowAudible,
                         onOpenPicker = onOpenAudiblePicker,
@@ -1079,13 +1069,11 @@ private fun ParentAudiblePage(
 
 @Composable
 private fun ParentLocalAndRadioPage(
-    navController: NavController,
     context: Context,
     policy: ParentalPolicy,
     listState: LazyListState,
     back: () -> Unit,
     lockAndExit: () -> Unit,
-    onOpenTransitions: () -> Unit,
 ) {
     val palette = rememberM3SettingsPalette()
     M3SettingsScaffold(
@@ -1097,7 +1085,7 @@ private fun ParentLocalAndRadioPage(
         immersiveActions = {
             ImmersiveBarAction(
                 icon = Icons.Rounded.Lock,
-                contentDescription = stringResource(R.string.parent_action_lock_exit),
+                contentDescription = stringResource(R.string.parent_pin_lock),
                 onClick = lockAndExit,
             )
         },
@@ -1109,41 +1097,6 @@ private fun ParentLocalAndRadioPage(
         ) {
             m3LocalFilesParentRow(context, policy, scaffoldPalette)
             m3RadioParentRow(context, policy, scaffoldPalette)
-        }
-
-        if (policy.localFiles.enabled || policy.radio.enabled) {
-            m3SettingsSection(
-                key = "local_radio:visibility",
-                palette = scaffoldPalette,
-                header = context.getString(R.string.local_radio_section_visibility),
-            ) {
-                with(LocalFilesSettingsUi) { m3LibraryRow(context, policy, scaffoldPalette) }
-                with(RadioSettingsUi) { m3LibraryRow(context, policy, scaffoldPalette) }
-            }
-
-            m3SettingsSection(
-                key = "local_radio:audio",
-                palette = scaffoldPalette,
-                header = context.getString(R.string.local_radio_section_audio),
-                hasLeadingIconBadges = true,
-            ) {
-                with(EqualizerSettingsUi) {
-                    m3SettingsRow(navController = navController, policy = policy, palette = scaffoldPalette)
-                }
-                if (policy.localFiles.enabled) {
-                    row {
-                        M3SettingsNavRow(
-                            icon = Icons.Rounded.GraphicEq,
-                            title = stringResource(R.string.settings_transitions_title),
-                            detail = stringResource(R.string.settings_transitions_detail_soundnest),
-                            value = PlaybackSettingsUi.transitionValue(CrossfadePref.seconds),
-                            palette = scaffoldPalette,
-                            testTag = "local_radio_transitions_nav",
-                            onClick = onOpenTransitions,
-                        )
-                    }
-                }
-            }
         }
     }
 }
@@ -1173,7 +1126,7 @@ private fun ParentSpeakersNetworkPage(
         immersiveActions = {
             ImmersiveBarAction(
                 icon = Icons.Rounded.Lock,
-                contentDescription = stringResource(R.string.parent_action_lock_exit),
+                contentDescription = stringResource(R.string.parent_pin_lock),
                 onClick = lockAndExit,
             )
         },
@@ -1210,7 +1163,7 @@ private fun ParentSecurityBackupPage(
         immersiveActions = {
             ImmersiveBarAction(
                 icon = Icons.Rounded.Lock,
-                contentDescription = stringResource(R.string.parent_action_lock_exit),
+                contentDescription = stringResource(R.string.parent_pin_lock),
                 onClick = lockAndExit,
             )
         },
