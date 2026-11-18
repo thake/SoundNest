@@ -56,6 +56,7 @@ import io.github.thake.soundnest.ConnectingScreen
 import io.github.thake.soundnest.LoginProblemScreen
 import io.github.thake.soundnest.feature.lyrics.ui.classic.LyricsScreen
 import io.github.thake.soundnest.feature.parental.ui.ManageContentRulesSheet
+import io.github.thake.soundnest.feature.parental.ui.ParentSettingsPage
 import io.github.thake.soundnest.api.Account
 import io.github.thake.soundnest.api.Album
 import io.github.thake.soundnest.api.AlbumRef
@@ -653,7 +654,7 @@ class DocScreenshotTest {
         add("Hero Overview", "parent-dashboard.png", "Parental Controls Dashboard", "PIN-locked configuration for filter modes, allowlists, and feature gates.", Look.CLASSIC, parentAdminPrep) {
             ParentSettingsScreen(navController = rememberNavController())
         }
-        add("Hero Overview", "kid-settings.png", "Kid-Accessible Settings", "Audio, appearance, and compact Parent Controls header icon.", Look.CLASSIC) {
+        add("Hero Overview", "kid-settings.png", "Kid-Accessible Settings", "Material 3 Settings hub with audio, display, library, system, and PIN-protected Parental Controls.", Look.CLASSIC) {
             ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav) }
         }
         add("Hero Overview", "immersive-player.png", "Immersive Full-Screen Player", "Full-screen artwork mesh backdrop, scrubber, sleep timer, and transport controls.", Look.IMMERSIVE, prepare = {
@@ -715,29 +716,40 @@ class DocScreenshotTest {
             ParentSettingsScreen(navController = rememberNavController())
             ChangeParentPinDialog(onDismiss = {})
         }
-        add("Parental Controls & Security", "parental/05-dashboard-top.png", "Dashboard: Security & Filter Mode", "Admin session status, PIN change, Filter Mode selector, and explicit/keyword rules.", Look.CLASSIC, parentAdminPrep) {
-            ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(0, 0))
+        add("Parental Controls & Security", "parental/05-dashboard-top.png", "Dashboard: Parental Controls Hub", "Material 3 Parental Controls hub with admin session status and categorized management sections.", Look.CLASSIC, parentAdminPrep) {
+            ParentSettingsScreen(navController = rememberNavController(), initialPage = ParentSettingsPage.Root)
         }
         add("Parental Controls & Security", "parental/06-dashboard-allowlists.png", "Dashboard: Content Allowlists & Rule Counts", "Approved playlists, albums, artists, and summary rule manager rows.", Look.CLASSIC, parentAdminPrep) {
-            ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(1, 520))
+            ParentSettingsScreen(navController = rememberNavController(), initialPage = ParentSettingsPage.FilterRules)
         }
         add("Parental Controls & Security", "parental/07-dashboard-home-sections.png", "Dashboard: Home Customization", "Minimal Home mode, Parent Picks shelf, and shelf visibility toggles.", Look.CLASSIC, parentAdminPrep) {
-            ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(2, 0))
+            ParentSettingsScreen(navController = rememberNavController(), initialPage = ParentSettingsPage.HomeSections)
         }
-        add("Parental Controls & Security", "parental/08-dashboard-feature-gates.png", "Dashboard: Feature Gates", "Granular switches for podcasts, audiobooks, lyrics, radio, local files, and library edits.", Look.CLASSIC, parentAdminPrep) {
-            ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(3, 0))
+        add("Parental Controls & Security", "parental/08-dashboard-feature-gates.png", "Dashboard: Spotify Features & Library", "Spotify access controls for read-only library protection, autoplay, podcasts, audiobooks, Jam, and lyrics.", Look.CLASSIC, parentAdminPrep) {
+            ParentSettingsScreen(navController = rememberNavController(), initialPage = ParentSettingsPage.Spotify)
+        }
+        add("Parental Controls & Security", "parental/08b-dashboard-local-radio.png", "Dashboard: Local Files & Live Radio", "Source gates, visibility toggles, Equalizer, and AutoMix transition settings for local audio and Live Radio.", Look.CLASSIC, prepare = { app ->
+            parentAdminPrep(app)
+            ParentalPolicyStore.update(app) {
+                it.copy(
+                    localFiles = LocalFilesParentalPolicy(enabled = true),
+                    radio = RadioParentalPolicy(enabled = true),
+                )
+            }
+        }) {
+            ParentSettingsScreen(navController = rememberNavController(), initialPage = ParentSettingsPage.LocalAndRadio)
         }
         add("Parental Controls & Security", "parental/09-dashboard-speakers-network.png", "Dashboard: Speakers & Trusted Home LAN", "Zero-permission Home LAN & mDNS speaker fingerprints and Spotify Connect visibility rules.", Look.CLASSIC, parentAdminPrep) {
-            ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(4, 0))
+            ParentSettingsScreen(navController = rememberNavController(), initialPage = ParentSettingsPage.SpeakersNetwork)
         }
         add("Parental Controls & Security", "parental/10-dashboard-backup-restore.png", "Dashboard: Encrypted Config Backup", "Passphrase-encrypted parental policy export and import.", Look.CLASSIC, parentAdminPrep) {
-            ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(5, 0))
+            ParentSettingsScreen(navController = rememberNavController(), initialPage = ParentSettingsPage.SecurityBackup)
         }
         add("Parental Controls & Security", "parental/11-settings-admin-unlocked.png", "Settings (Admin Session Active)", "Floating global Parent Mode banner while the 5-minute Admin Session is unlocked.", Look.CLASSIC, parentAdminPrep) {
             ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav) }
         }
         add("Parental Controls & Security", "parental/12-manage-content-rules-sheet.png", "Manage Content Rules Sheet", "Searchable Approved & Blocked item rules manager with human-readable titles.", Look.CLASSIC, parentAdminPrep) {
-            ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(1, 520))
+            ParentSettingsScreen(navController = rememberNavController(), initialPage = ParentSettingsPage.FilterRules)
             ManageContentRulesSheet(initialTabIsApproved = true, onDismiss = {})
         }
         val audibleAdminPrep: (Application) -> Unit = { app ->
@@ -796,10 +808,10 @@ class DocScreenshotTest {
             }
         }
         add("Parental Controls & Security", "parental/13-audible-account-controls.png", "Dashboard: Audible Audiobooks", "Connected Audible marketplace status, library sync, and approved/pinned book counts.", Look.CLASSIC, audibleAdminPrep) {
-            ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(3, 360))
+            ParentSettingsScreen(navController = rememberNavController(), initialPage = ParentSettingsPage.Audible)
         }
         add("Parental Controls & Security", "parental/14-audible-parent-picker-sheet.png", "Audible Parent Picker Sheet", "Explicit per-book Approve and separate Pin to Home controls over the parent's owned Audible library.", Look.CLASSIC, audibleAdminPrep) {
-            ParentSettingsScreen(navController = rememberNavController(), listState = LazyListState(3, 360))
+            ParentSettingsScreen(navController = rememberNavController(), initialPage = ParentSettingsPage.Audible)
             io.github.thake.soundnest.feature.spokenword.audible.ui.AudiblePickerSheet(onDismiss = {})
         }
         add("Parental Controls & Security", "parental/15-playlist-inline-block-pill.png", "In-App Blocking: Playlist Header Pill", "1-tap Block Playlist pill and floating Parent Mode banner directly on a regular playlist detail page (zero Spotify URIs needed).", Look.IMMERSIVE, parentAdminPrep) {
@@ -945,28 +957,28 @@ class DocScreenshotTest {
         add("Classic Look", "classic/32-queue.png", "Play Queue", "Classic Queue screen with Now Playing, Next in Queue, and Next Up.", Look.CLASSIC) {
             QueueScreen(rememberNavController())
         }
-        add("Classic Look", "classic/33-settings-playback.png", "Settings: Playback", "Classic Settings Playback tab with streaming quality, autoplay, and transitions.", Look.CLASSIC) {
+        add("Classic Look", "classic/33-settings-playback.png", "Settings: Playback", "Classic Settings Playback sub-page with streaming quality, queue & controls.", Look.CLASSIC) {
             ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav, initialTab = 0) }
         }
         add("Classic Look", "classic/34-settings-transitions.png", "Settings: Transitions & AutoMix", "Classic Settings Transitions sub-page (crossfade & AutoMix).", Look.CLASSIC) {
             ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav, initialTab = 0, initialSub = "transitions") }
         }
-        add("Classic Look", "classic/35-settings-lyrics.png", "Settings: Lyrics", "Classic Settings Lyrics tab.", Look.CLASSIC) {
+        add("Classic Look", "classic/35-settings-lyrics.png", "Settings: Lyrics", "Classic Settings Lyrics sub-page.", Look.CLASSIC) {
             ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav, initialTab = 1) }
         }
-        add("Classic Look", "classic/36-settings-storage.png", "Settings: Storage & Data", "Classic Settings Storage tab (image/audio caches & data saver).", Look.CLASSIC) {
+        add("Classic Look", "classic/36-settings-storage.png", "Settings: Storage", "Classic Settings Storage sub-page (image/audio & AutoMix caches).", Look.CLASSIC) {
             ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav, initialTab = 2) }
         }
-        add("Classic Look", "classic/37-settings-appearance.png", "Settings: Appearance", "Classic Settings Appearance tab (Look, AMOLED theme, language).", Look.CLASSIC) {
+        add("Classic Look", "classic/37-settings-appearance.png", "Settings: Display & Appearance", "Classic Settings Display sub-page (Look, accent color, AMOLED theme, language).", Look.CLASSIC) {
             ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav, initialTab = 3) }
         }
-        add("Classic Look", "classic/38-settings-about.png", "Settings: About", "Classic Settings About tab (version, diagnostics, credits).", Look.CLASSIC) {
+        add("Classic Look", "classic/38-settings-about.png", "Settings: App & Troubleshooting", "Classic Settings App sub-page (player repair, diagnostics, About SoundNest).", Look.CLASSIC) {
             ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav, initialTab = 4) }
         }
-        add("Classic Look", "classic/39-settings-accounts.png", "Settings: Accounts (PIN-Unlocked)", "Classic Settings Accounts tab after parent PIN unlock.", Look.CLASSIC, parentAdminPrep) {
+        add("Classic Look", "classic/39-settings-accounts.png", "Settings: Accounts (PIN-Unlocked)", "Classic Settings Accounts sub-page after parent PIN unlock.", Look.CLASSIC, parentAdminPrep) {
             ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav, initialTab = 5) }
         }
-        add("Classic Look", "classic/40-settings-library.png", "Settings: Library", "Classic Settings Library tab.", Look.CLASSIC) {
+        add("Classic Look", "classic/40-settings-library.png", "Settings: Library", "Classic Settings Library sub-page.", Look.CLASSIC) {
             ClassicShell("detail", capped = true) { nav -> SettingsScreen(nav, initialTab = 6) }
         }
         add("Classic Look", "classic/41-about-soundnest.png", "Menu: About SoundNest", "Full-screen Classic About page with GPL-3.0 credits and upstream attributions.", Look.CLASSIC) {

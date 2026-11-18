@@ -10,6 +10,7 @@ import android.webkit.CookieManager
 import android.webkit.WebView
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,7 +46,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -62,10 +62,8 @@ import io.github.thake.soundnest.audible.AudibleBook
 import io.github.thake.soundnest.audible.AudibleMarketplace
 import io.github.thake.soundnest.audible.AudiblePkceSession
 import io.github.thake.soundnest.audible.AudibleSessionTokens
-import io.github.thake.soundnest.core.ui.classic.AppAccent
-import io.github.thake.soundnest.core.ui.classic.AppMuted
-import io.github.thake.soundnest.core.ui.classic.AppText
-import io.github.thake.soundnest.core.ui.classic.tone
+import io.github.thake.soundnest.core.ui.settings.m3FilledButtonColors
+import io.github.thake.soundnest.core.ui.settings.rememberM3SettingsPalette
 import io.github.thake.soundnest.feature.spokenword.audible.data.AudibleCatalogCache
 import io.github.thake.soundnest.feature.spokenword.audible.data.AudibleProgressStore
 import io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer
@@ -253,31 +251,35 @@ fun AudibleParentControlsCard(
     val approvedCount = policy.spokenWord.audible.allowedAsins.size
     val pinnedCount = policy.spokenWord.audible.pinnedAsins.size
 
-    val accentButtonColors = ButtonDefaults.buttonColors(
-        containerColor = AppAccent,
-        contentColor = Color.Black,
-        disabledContainerColor = tone(0xFF2E2E2E),
-        disabledContentColor = AppMuted.copy(alpha = 0.5f),
-    )
+    val palette = rememberM3SettingsPalette()
+    val accentButtonColors = m3FilledButtonColors(palette)
+    val cardShape = RoundedCornerShape(16.dp)
+    val subCardShape = RoundedCornerShape(12.dp)
 
     Column(
         verticalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(tone(0xFF282828))
+            .clip(cardShape)
+            .background(palette.innerCardBg)
+            .then(
+                if (palette.border != null) Modifier.border(1.dp, palette.border, cardShape)
+                else Modifier,
+            )
             .padding(14.dp)
             .testTag("audible_parent_card"),
     ) {
         Text(
             text = stringResource(R.string.audible_section_title),
-            color = AppText,
+            color = palette.text,
+            fontFamily = palette.fontFamily,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
         )
         Text(
             text = stringResource(R.string.audible_section_subtitle),
-            color = AppMuted,
+            color = palette.muted,
+            fontFamily = palette.fontFamily,
             fontSize = 12.sp,
         )
 
@@ -285,7 +287,8 @@ fun AudibleParentControlsCard(
         if (connected != null && !isAudibleActive) {
             Text(
                 text = stringResource(R.string.audible_paused_notice),
-                color = Color(0xFFFFB74D),
+                color = palette.warning,
+                fontFamily = palette.fontFamily,
                 fontSize = 12.sp,
                 modifier = Modifier.testTag("audible_paused_notice"),
             )
@@ -297,8 +300,8 @@ fun AudibleParentControlsCard(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(tone(0xFF1F1F1F))
+                        .clip(subCardShape)
+                        .background(palette.cardBg)
                         .clickable { dropdownExpanded = true }
                         .padding(horizontal = 12.dp, vertical = 10.dp)
                         .testTag("audible_marketplace_selector"),
@@ -309,21 +312,22 @@ fun AudibleParentControlsCard(
                         } else {
                             "${stringResource(R.string.audible_marketplace_label)} · ${stringResource(R.string.audible_marketplace_manual)}"
                         }
-                        Text(originLabel, color = AppMuted, fontSize = 11.sp)
+                        Text(originLabel, color = palette.muted, fontFamily = palette.fontFamily, fontSize = 11.sp)
                         Text(
                             text = selectedMarketplace.localizedName(context),
-                            color = AppText,
+                            color = palette.text,
+                            fontFamily = palette.fontFamily,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                         )
                     }
-                    Icon(Icons.Default.ArrowDropDown, contentDescription = "Select marketplace", tint = AppAccent)
+                    Icon(Icons.Default.ArrowDropDown, contentDescription = "Select marketplace", tint = palette.accent)
                 }
 
                 DropdownMenu(
                     expanded = dropdownExpanded,
                     onDismissRequest = { dropdownExpanded = false },
-                    modifier = Modifier.background(tone(0xFF2B2B2B)),
+                    modifier = Modifier.background(palette.elevatedCardBg),
                 ) {
                     AudibleMarketplace.entries.forEach { market ->
                         DropdownMenuItem(
@@ -331,13 +335,14 @@ fun AudibleParentControlsCard(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         text = market.localizedName(context),
-                                        color = if (market == selectedMarketplace) AppAccent else AppText,
+                                        color = if (market == selectedMarketplace) palette.accent else palette.text,
+                                        fontFamily = palette.fontFamily,
                                         fontWeight = if (market == selectedMarketplace) FontWeight.Bold else FontWeight.Normal,
                                         modifier = Modifier.weight(1f),
                                     )
                                     if (market == selectedMarketplace) {
                                         Spacer(Modifier.width(8.dp))
-                                        Icon(Icons.Default.Check, contentDescription = null, tint = AppAccent, modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Default.Check, contentDescription = null, tint = palette.accent, modifier = Modifier.size(16.dp))
                                     }
                                 }
                             },
@@ -365,15 +370,19 @@ fun AudibleParentControlsCard(
                     .fillMaxWidth()
                     .testTag("audible_sign_in_button"),
             ) {
-                Text(stringResource(R.string.audible_sign_in_button), fontWeight = FontWeight.Bold)
+                Text(
+                    text = stringResource(R.string.audible_sign_in_button),
+                    fontFamily = palette.fontFamily,
+                    fontWeight = FontWeight.Bold,
+                )
             }
         } else {
             Column(
                 verticalArrangement = Arrangement.spacedBy(3.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(AppAccent.copy(alpha = 0.14f))
+                    .clip(subCardShape)
+                    .background(palette.accent.copy(alpha = 0.14f))
                     .padding(horizontal = 12.dp, vertical = 10.dp),
             ) {
                 val headerText = if (!connected.customerName.isNullOrBlank()) {
@@ -383,7 +392,8 @@ fun AudibleParentControlsCard(
                 }
                 Text(
                     text = headerText,
-                    color = AppAccent,
+                    color = palette.accent,
+                    fontFamily = palette.fontFamily,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -391,7 +401,8 @@ fun AudibleParentControlsCard(
                 )
                 Text(
                     text = stringResource(R.string.audible_status_summary, syncedBooks.size, approvedCount, pinnedCount),
-                    color = AppText,
+                    color = palette.text,
+                    fontFamily = palette.fontFamily,
                     fontSize = 12.sp,
                 )
             }
@@ -406,6 +417,7 @@ fun AudibleParentControlsCard(
             ) {
                 Text(
                     text = "${stringResource(R.string.audible_manage_books_button)} ($approvedCount)",
+                    fontFamily = palette.fontFamily,
                     fontWeight = FontWeight.Bold,
                 )
             }
@@ -434,14 +446,18 @@ fun AudibleParentControlsCard(
                     },
                     modifier = Modifier.testTag("audible_sync_library_button"),
                 ) {
-                    Icon(Icons.Default.Refresh, contentDescription = null, tint = AppText, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Refresh, contentDescription = null, tint = palette.text, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.audible_sync_library_button), color = AppText)
+                    Text(
+                        text = stringResource(R.string.audible_sync_library_button),
+                        color = palette.text,
+                        fontFamily = palette.fontFamily,
+                    )
                 }
 
                 OutlinedButton(
                     enabled = !busy,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF6B6B)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.destructive),
                     onClick = {
                         busy = true
                         scope.launch {
@@ -457,7 +473,11 @@ fun AudibleParentControlsCard(
                     },
                     modifier = Modifier.testTag("audible_disconnect_button"),
                 ) {
-                    Text(stringResource(R.string.audible_disconnect_button), fontWeight = FontWeight.SemiBold)
+                    Text(
+                        text = stringResource(R.string.audible_disconnect_button),
+                        fontFamily = palette.fontFamily,
+                        fontWeight = FontWeight.SemiBold,
+                    )
                 }
             }
         }

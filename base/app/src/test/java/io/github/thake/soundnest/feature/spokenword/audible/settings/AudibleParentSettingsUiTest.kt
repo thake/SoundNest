@@ -12,12 +12,14 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.navigation.compose.rememberNavController
 import io.github.thake.soundnest.audible.AudibleAuth
@@ -250,9 +252,10 @@ class AudibleParentSettingsUiTest {
             }
         }
 
-        // Scroll to Home Sections card (index 2 in LazyColumn)
-        rule.onNodeWithTag("parent_settings_list").performScrollToIndex(2)
-        rule.onNodeWithTag("parent_home_pinned_audible_toggle").assertIsOn().performClick()
+        // Open Home Sections subpage
+        rule.onNodeWithTag("parent_nav_home_sections").performScrollTo().performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("parent_home_pinned_audible_toggle").performScrollTo().assertIsOn().performClick()
         assertFalse(ParentalPolicyStore.current(app).spokenWord.audible.showPinnedOnHome)
         rule.onNodeWithTag("parent_home_pinned_audible_toggle").assertIsOff()
     }
@@ -303,24 +306,36 @@ class AudibleParentSettingsUiTest {
             }
         }
 
-        // Scroll to feature gates card
-        rule.onNodeWithTag("parent_settings_list").performScrollToIndex(3)
+        // Open Spotify subpage & toggle Spotify audiobooks -> updates allowAudiobooks only
+        rule.onNodeWithTag("parent_settings_list").performScrollToNode(hasTestTag("parent_nav_spotify"))
+        rule.onNodeWithTag("parent_nav_spotify").performClick()
         rule.waitForIdle()
-
-        // Toggle Spotify audiobooks -> updates allowAudiobooks only
-        rule.onNodeWithTag("parent_spotify_audiobooks_toggle").performScrollTo().assertIsOff().performClick()
+        rule.onNodeWithTag("parent_settings_list").performScrollToNode(hasTestTag("parent_spotify_audiobooks_toggle"))
+        rule.onNodeWithTag("parent_spotify_audiobooks_toggle").assertIsOff().performClick()
         rule.waitForIdle()
         assertTrue(ParentalPolicyStore.current(app).spokenWord.allowAudiobooks)
         assertFalse(ParentalPolicyStore.current(app).spokenWord.allowAudible)
 
-        // Toggle Audible audiobooks -> updates allowAudible only
-        rule.onNodeWithTag("parent_audible_audiobooks_toggle").performScrollTo().assertIsOff().performClick()
+        // Back to hub, open Audible subpage & toggle Audible audiobooks -> updates allowAudible only
+        rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
+        rule.waitForIdle()
+        rule.onNodeWithTag("parent_settings_list").performScrollToNode(hasTestTag("parent_nav_audible"))
+        rule.onNodeWithTag("parent_nav_audible").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("parent_settings_list").performScrollToNode(hasTestTag("parent_audible_audiobooks_toggle"))
+        rule.onNodeWithTag("parent_audible_audiobooks_toggle").assertIsOff().performClick()
         rule.waitForIdle()
         assertTrue(ParentalPolicyStore.current(app).spokenWord.allowAudiobooks)
         assertTrue(ParentalPolicyStore.current(app).spokenWord.allowAudible)
 
-        // Turn off Spotify audiobooks -> Audible remains enabled
-        rule.onNodeWithTag("parent_spotify_audiobooks_toggle").performScrollTo().performClick()
+        // Return to Spotify subpage and turn off Spotify audiobooks -> Audible remains enabled
+        rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
+        rule.waitForIdle()
+        rule.onNodeWithTag("parent_settings_list").performScrollToNode(hasTestTag("parent_nav_spotify"))
+        rule.onNodeWithTag("parent_nav_spotify").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("parent_settings_list").performScrollToNode(hasTestTag("parent_spotify_audiobooks_toggle"))
+        rule.onNodeWithTag("parent_spotify_audiobooks_toggle").performClick()
         rule.waitForIdle()
         assertFalse(ParentalPolicyStore.current(app).spokenWord.allowAudiobooks)
         assertTrue(ParentalPolicyStore.current(app).spokenWord.allowAudible)

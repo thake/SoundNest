@@ -6,52 +6,47 @@ import android.content.Intent
 import android.provider.Settings
 import android.text.format.Formatter
 import android.widget.Toast
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.BugReport
+import androidx.compose.material.icons.rounded.CleaningServices
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.SettingsApplications
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavController
 import io.github.thake.soundnest.BuildConfig
 import io.github.thake.soundnest.R
 import io.github.thake.soundnest.core.preferences.SettingsEntry
-import io.github.thake.soundnest.core.ui.classic.AppMuted
-import io.github.thake.soundnest.core.ui.classic.AppText
-import io.github.thake.soundnest.core.ui.immersive.pages.ImmersiveGroupRow
-import io.github.thake.soundnest.core.ui.immersive.pages.ImmersivePage
-import io.github.thake.soundnest.core.ui.immersive.pages.ImmersiveSwitchRow
-import io.github.thake.soundnest.core.ui.immersive.pages.immersiveGroup
+import io.github.thake.soundnest.core.ui.navigation.Routes
+import io.github.thake.soundnest.core.ui.navigation.navigateSingleTop
+import io.github.thake.soundnest.core.ui.settings.M3SettingsNavRow
+import io.github.thake.soundnest.core.ui.settings.M3SettingsScaffold
+import io.github.thake.soundnest.core.ui.settings.M3SettingsSwitchRow
+import io.github.thake.soundnest.core.ui.settings.m3SettingsSection
 import io.github.thake.soundnest.core.util.AppStorage
 import io.github.thake.soundnest.feature.parental.security.AppSurface
 import io.github.thake.soundnest.feature.parental.security.ParentSecurityManager
 import io.github.thake.soundnest.feature.system.data.BatteryExemption
-import io.github.thake.soundnest.feature.system.ui.AboutSheet
 import io.github.thake.soundnest.host.android.Logbook
 import io.github.thake.soundnest.host.android.SoundNestRuntime
-import io.github.thake.soundnest.core.ui.classic.OptionRow
-import io.github.thake.soundnest.core.ui.classic.Section
 import kotlinx.coroutines.launch
 import java.io.File
 
 /**
- * Classic & Immersive Settings UI surfaces and Settings Search entries for Storage,
+ * Unified Material Design 3 Settings UI surfaces and Settings Search entries for Storage,
  * Energy/Data/Battery, and App/About/Repair (including PIN-gated diagnostic export).
  */
 object SystemSettingsUi {
@@ -118,167 +113,116 @@ object SystemSettingsUi {
     )
 
     @Composable
-    fun ClassicDataAndBatterySection() {
+    fun M3DataPage(back: () -> Unit) {
         val ctx = LocalContext.current
         val energy by EnergySettings.state.collectAsStateWithLifecycle()
-        Section(R.string.settings_section_data)
-        OptionRow(
-            label = stringResource(R.string.energy_saver_title),
-            detail = stringResource(R.string.energy_saver_summary),
-            checked = energy.manualSaver,
-            onChecked = EnergySettings::setSaver,
-        )
-        OptionRow(
-            label = stringResource(R.string.data_saver_title),
-            detail = stringResource(R.string.data_saver_summary_soundnest),
-            checked = DataSaver.enabled,
-            onChecked = DataSaver::set,
-        )
         var exempt by remember { mutableStateOf(BatteryExemption.isExempt(ctx)) }
         LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
             exempt = BatteryExemption.isExempt(ctx)
         }
-        OptionRow(
-            label = stringResource(R.string.background_playback_title),
-            detail = stringResource(if (exempt) R.string.background_playback_on else R.string.background_playback_off),
-            checked = exempt,
-            onChecked = {
-                if (exempt) ctx.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-                else BatteryExemption.request(ctx)
-            },
-        )
-        if (BatteryExemption.isSamsung()) Column(
-            Modifier
-                .fillMaxWidth()
-                .clickable { BatteryExemption.openAppSettings(ctx) }
-                .padding(horizontal = 20.dp, vertical = 10.dp),
-        ) {
-            Text(stringResource(R.string.background_playback_open), color = AppText, fontSize = 16.sp)
-            Text(stringResource(R.string.background_playback_samsung), color = AppMuted, fontSize = 12.sp)
-        }
-    }
 
-    @Composable
-    fun ClassicStorageTabContent() {
-        Section(R.string.settings_section_storage)
-        val ctx = LocalContext.current
-        val scope = rememberCoroutineScope()
-        val storage = AppStorage
-        var refresh by remember { mutableStateOf(0) }
-        var clearing by remember { mutableStateOf(false) }
-        val usage by produceState<AppStorage.Usage?>(null, refresh) { value = storage.usage(ctx) }
-        usage?.let { u ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
+        M3SettingsScaffold(
+            title = stringResource(R.string.settings_section_data),
+            onBack = back,
+        ) { palette ->
+            m3SettingsSection(
+                key = "data:savers",
+                palette = palette,
+                header = ctx.getString(R.string.settings_data_section_savers),
             ) {
-                Text(stringResource(R.string.settings_automix_cache), color = AppText, fontSize = 16.sp, modifier = Modifier.weight(1f))
-                Text(Formatter.formatShortFileSize(ctx, u.automix), color = AppMuted, fontSize = 14.sp)
+                row {
+                    M3SettingsSwitchRow(
+                        title = stringResource(R.string.data_saver_title),
+                        detail = stringResource(R.string.data_saver_summary_soundnest),
+                        checked = DataSaver.enabled,
+                        palette = palette,
+                        onCheckedChange = DataSaver::set,
+                    )
+                }
+                row {
+                    M3SettingsSwitchRow(
+                        title = stringResource(R.string.energy_saver_title),
+                        detail = stringResource(R.string.energy_saver_summary),
+                        checked = energy.manualSaver,
+                        palette = palette,
+                        onCheckedChange = EnergySettings::setSaver,
+                    )
+                }
+            }
+
+            m3SettingsSection(
+                key = "data:background",
+                palette = palette,
+                header = ctx.getString(R.string.background_playback_title),
+            ) {
+                row {
+                    M3SettingsSwitchRow(
+                        title = stringResource(R.string.background_playback_title),
+                        detail = stringResource(if (exempt) R.string.background_playback_on else R.string.background_playback_off),
+                        checked = exempt,
+                        palette = palette,
+                        onCheckedChange = {
+                            if (exempt) ctx.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                            else BatteryExemption.request(ctx)
+                        },
+                    )
+                }
+                if (BatteryExemption.isSamsung()) {
+                    row {
+                        M3SettingsNavRow(
+                            icon = Icons.Rounded.SettingsApplications,
+                            title = stringResource(R.string.background_playback_open),
+                            detail = stringResource(R.string.background_playback_samsung),
+                            palette = palette,
+                            onClick = { BatteryExemption.openAppSettings(ctx) },
+                        )
+                    }
+                }
             }
         }
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .clickable(enabled = !clearing) {
-                    clearing = true
-                    scope.launch {
-                        storage.clearCaches(ctx)
-                        clearing = false
-                        refresh++
-                        Toast.makeText(ctx, ctx.getString(R.string.settings_storage_cleared), Toast.LENGTH_SHORT).show()
-                    }
-                }
-                .padding(horizontal = 20.dp, vertical = 10.dp),
-        ) {
-            Text(stringResource(R.string.settings_storage_clear_cache), color = AppText, fontSize = 16.sp)
-            Text(
-                usage?.let {
-                    stringResource(
-                        R.string.settings_storage_clear_cache_detail_soundnest,
-                        Formatter.formatShortFileSize(ctx, it.caches),
-                    )
-                }.orEmpty(),
-                color = AppMuted,
-                fontSize = 12.sp,
-            )
-        }
     }
 
     @Composable
-    fun ClassicAboutTabContent() {
-        val ctx = LocalContext.current
-        var open by remember { mutableStateOf(false) }
-        if (open) AboutSheet(onDismiss = { open = false })
-        Section(R.string.settings_section_app)
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .clickable { open = true }
-                .padding(horizontal = 20.dp, vertical = 10.dp),
-        ) {
-            Text(stringResource(R.string.creator_biography_section_title), color = AppText, fontSize = 16.sp)
-            Text(stringResource(R.string.settings_about_version, BuildConfig.VERSION_NAME), color = AppMuted, fontSize = 12.sp)
-        }
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .clickable {
-                    SoundNestRuntime.host.reload()
-                    Toast.makeText(ctx, ctx.getString(R.string.restart_player_done), Toast.LENGTH_SHORT).show()
-                }
-                .padding(horizontal = 20.dp, vertical = 10.dp),
-        ) {
-            Text(stringResource(R.string.restart_player_title), color = AppText, fontSize = 16.sp)
-            Text(stringResource(R.string.restart_player_detail), color = AppMuted, fontSize = 12.sp)
-        }
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .clickable {
-                    ParentSecurityManager.runProtected(
-                        ctx,
-                        AppSurface.DIAGNOSTIC_EXPORT,
-                    ) {
-                        val file = runCatching { Logbook.export(ctx) }.getOrNull()
-                        if (file != null) shareDiagnosticReport(ctx, file)
-                        else Toast.makeText(ctx, ctx.getString(R.string.diagnostic_export_failed), Toast.LENGTH_SHORT).show()
-                    }
-                }
-                .padding(horizontal = 20.dp, vertical = 10.dp),
-        ) {
-            Text(stringResource(R.string.diagnostic_export_title), color = AppText, fontSize = 16.sp)
-            Text(stringResource(R.string.diagnostic_export_detail), color = AppMuted, fontSize = 12.sp)
-        }
-    }
-
-    @Composable
-    fun ImmersiveStoragePage(back: () -> Unit) {
+    fun M3StoragePage(back: () -> Unit) {
         val ctx = LocalContext.current
         val scope = rememberCoroutineScope()
         val storage = AppStorage
         var refresh by remember { mutableStateOf(0) }
         var clearing by remember { mutableStateOf(false) }
         val usage by produceState<AppStorage.Usage?>(null, refresh) { value = storage.usage(ctx) }
-        ImmersivePage(title = stringResource(R.string.settings_section_storage), onBack = back) {
-            immersiveGroup("caches") {
+
+        M3SettingsScaffold(
+            title = stringResource(R.string.settings_section_storage),
+            onBack = back,
+        ) { palette ->
+            m3SettingsSection(
+                key = "storage:caches",
+                palette = palette,
+                header = ctx.getString(R.string.settings_section_storage),
+            ) {
                 usage?.let { u ->
                     row {
-                        ImmersiveGroupRow(
-                            stringResource(R.string.settings_automix_cache),
+                        M3SettingsNavRow(
+                            title = stringResource(R.string.settings_automix_cache),
                             value = Formatter.formatShortFileSize(ctx, u.automix),
+                            palette = palette,
+                            showChevron = false,
                         )
                     }
                 }
                 row {
-                    ImmersiveGroupRow(
-                        stringResource(R.string.settings_storage_clear_cache),
+                    M3SettingsNavRow(
+                        icon = Icons.Rounded.CleaningServices,
+                        title = stringResource(R.string.settings_storage_clear_cache),
                         detail = usage?.let {
                             stringResource(
                                 R.string.settings_storage_clear_cache_detail_soundnest,
                                 Formatter.formatShortFileSize(ctx, it.caches),
                             )
                         },
+                        palette = palette,
                         enabled = !clearing,
+                        showChevron = false,
                         onClick = {
                             clearing = true
                             scope.launch {
@@ -295,96 +239,69 @@ object SystemSettingsUi {
     }
 
     @Composable
-    fun ImmersiveDataPage(back: () -> Unit) {
+    fun M3AppPage(navController: NavController, back: () -> Unit) {
         val ctx = LocalContext.current
-        val energy by EnergySettings.state.collectAsStateWithLifecycle()
-        var exempt by remember { mutableStateOf(BatteryExemption.isExempt(ctx)) }
-        LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-            exempt = BatteryExemption.isExempt(ctx)
-        }
-        ImmersivePage(title = stringResource(R.string.settings_section_data), onBack = back) {
-            immersiveGroup("data") {
-                row {
-                    ImmersiveSwitchRow(
-                        stringResource(R.string.energy_saver_title),
-                        checked = energy.manualSaver,
-                        onChecked = EnergySettings::setSaver,
-                        detail = stringResource(R.string.energy_saver_summary),
-                    )
-                }
-                row {
-                    ImmersiveSwitchRow(
-                        stringResource(R.string.data_saver_title),
-                        checked = DataSaver.enabled,
-                        onChecked = DataSaver::set,
-                        detail = stringResource(R.string.data_saver_summary_soundnest),
-                    )
-                }
-                row {
-                    ImmersiveSwitchRow(
-                        stringResource(R.string.background_playback_title),
-                        checked = exempt,
-                        onChecked = {
-                            if (exempt) ctx.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-                            else BatteryExemption.request(ctx)
-                        },
-                        detail = stringResource(if (exempt) R.string.background_playback_on else R.string.background_playback_off),
-                    )
-                }
-                if (BatteryExemption.isSamsung()) row {
-                    ImmersiveGroupRow(
-                        stringResource(R.string.background_playback_open),
-                        detail = stringResource(R.string.background_playback_samsung),
-                        chevron = true,
-                        onClick = { BatteryExemption.openAppSettings(ctx) },
-                    )
-                }
-            }
-        }
-    }
+        val secTick by ParentSecurityManager.sessionTick.collectAsState()
+        val adminUnlocked = remember(secTick) { ParentSecurityManager.isAdminUnlocked(ctx) }
 
-    @Composable
-    fun ImmersiveAppPage(back: () -> Unit) {
-        val ctx = LocalContext.current
-        var about by remember { mutableStateOf(false) }
-        if (about) AboutSheet(onDismiss = { about = false })
-        ImmersivePage(title = stringResource(R.string.settings_section_app), onBack = back) {
-            immersiveGroup("about") {
+        M3SettingsScaffold(
+            title = stringResource(R.string.settings_section_app),
+            onBack = back,
+        ) { palette ->
+            m3SettingsSection(
+                key = "app:repair",
+                palette = palette,
+                header = ctx.getString(R.string.settings_app_section_repair),
+                hasLeadingIconBadges = true,
+            ) {
                 row {
-                    ImmersiveGroupRow(
-                        stringResource(R.string.creator_biography_section_title),
-                        detail = stringResource(R.string.about_detail),
-                        value = BuildConfig.VERSION_NAME,
-                        chevron = true,
-                        onClick = { about = true },
-                    )
-                }
-            }
-            immersiveGroup("repair") {
-                row {
-                    ImmersiveGroupRow(
-                        stringResource(R.string.restart_player_title),
+                    M3SettingsNavRow(
+                        icon = Icons.Rounded.Refresh,
+                        title = stringResource(R.string.restart_player_title),
                         detail = stringResource(R.string.restart_player_detail),
+                        palette = palette,
+                        showChevron = false,
                         onClick = {
-                            SoundNestRuntime.host.reload()
+                            if (SoundNestRuntime.isStarted) {
+                                SoundNestRuntime.host.reload()
+                            }
                             Toast.makeText(ctx, ctx.getString(R.string.restart_player_done), Toast.LENGTH_SHORT).show()
                         },
                     )
                 }
                 row {
-                    ImmersiveGroupRow(
-                        stringResource(R.string.diagnostic_export_title),
+                    M3SettingsNavRow(
+                        icon = Icons.Rounded.BugReport,
+                        title = stringResource(R.string.diagnostic_export_title),
                         detail = stringResource(R.string.diagnostic_export_detail),
+                        palette = palette,
+                        locked = !adminUnlocked,
+                        showChevron = false,
                         onClick = {
-                            ParentSecurityManager.runProtected(
-                                ctx,
-                                AppSurface.DIAGNOSTIC_EXPORT,
-                            ) {
+                            ParentSecurityManager.runProtected(ctx, AppSurface.DIAGNOSTIC_EXPORT) {
                                 val file = runCatching { Logbook.export(ctx) }.getOrNull()
                                 if (file != null) shareDiagnosticReport(ctx, file)
                                 else Toast.makeText(ctx, ctx.getString(R.string.diagnostic_export_failed), Toast.LENGTH_SHORT).show()
                             }
                         },
+                    )
+                }
+            }
+
+            m3SettingsSection(
+                key = "app:about",
+                palette = palette,
+                header = ctx.getString(R.string.settings_app_section_about),
+                hasLeadingIconBadges = true,
+            ) {
+                row {
+                    M3SettingsNavRow(
+                        icon = Icons.Rounded.Info,
+                        title = stringResource(R.string.menu_about_title),
+                        detail = stringResource(R.string.about_detail),
+                        value = BuildConfig.VERSION_NAME,
+                        palette = palette,
+                        onClick = { navController.navigateSingleTop(Routes.About.route) },
                     )
                 }
             }

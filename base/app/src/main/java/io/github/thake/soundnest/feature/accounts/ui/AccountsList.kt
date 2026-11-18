@@ -1,25 +1,26 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 package io.github.thake.soundnest.feature.accounts.ui
 
-
-import io.github.thake.soundnest.core.ui.look.LookAlertDialog
-import io.github.thake.soundnest.core.ui.look.LookSheet
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,7 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -37,165 +38,260 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.thake.soundnest.R
-import io.github.thake.soundnest.host.android.SoundNestRuntime
-import io.github.thake.soundnest.host.android.SavedAccount
 import io.github.thake.soundnest.core.di.Graph
+import io.github.thake.soundnest.core.ui.look.LookAlertDialog
+import io.github.thake.soundnest.core.ui.settings.M3LeadingIconBadge
+import io.github.thake.soundnest.core.ui.settings.rememberM3SettingsPalette
+import io.github.thake.soundnest.feature.accounts.session.ProfileCache
 import io.github.thake.soundnest.feature.accounts.session.SessionActions
-import io.github.thake.soundnest.core.ui.immersive.Immersive
-import io.github.thake.soundnest.core.ui.navigation.isImmersive
-import io.github.thake.soundnest.core.ui.classic.AppAccent
-import io.github.thake.soundnest.core.ui.classic.AppMuted
-import io.github.thake.soundnest.core.ui.classic.AppText
-import io.github.thake.soundnest.core.ui.classic.tone
-
-/** The colours the account rows are drawn in: the Classic look's or the Immersive one's. */
-private class AccountsLook(val text: Color, val muted: Color, val accent: Color, val destructive: Color, val dialog: Color)
-
-@Composable
-private fun accountsLook(): AccountsLook =
-    if (isImmersive()) AccountsLook(Immersive.Text, Immersive.TextSecondary, Immersive.Accent, Immersive.Destructive, Color.Transparent)
-    else AccountsLook(AppText, AppMuted, AppAccent, Color(0xFFFF6B6B), tone(0xFF282828))
+import io.github.thake.soundnest.host.android.AccountList
+import io.github.thake.soundnest.host.android.SavedAccount
+import io.github.thake.soundnest.host.android.SoundNestRuntime
+import io.github.thake.soundnest.spotify.AccountPlan
 
 /**
- * The Spotify accounts kept on this phone, in both looks (Settings, and the sheet behind the
- * avatar): each with its name, picture and plan, the active one ticked. Another one is switched to
- * after a word that playback stops; "Add account" opens Spotify's sign-in in a new WebView profile;
- * Remove deletes an account's sign-in from the phone. A WebView without profiles keeps one account
- * at a time, and says so: adding signs this one out.
+ * The Spotify accounts kept on this phone, styled with [rememberM3SettingsPalette] for both
+ * Classic and Immersive looks: active profile first with plan + check mark, saved profiles with
+ * remove buttons, and an "Add account" row.
  */
 @Composable
-fun AccountsList(onLeave: () -> Unit = {}) {
-    val look = accountsLook()
+fun AccountsList(
+    onLeave: () -> Unit = {},
+    showFooter: Boolean = false,
+) {
+    val palette = rememberM3SettingsPalette()
     val ctx = LocalContext.current
-    val host = SoundNestRuntime.host
-    val list by host.accounts.list.collectAsStateWithLifecycle()
-    val livePlan by io.github.thake.soundnest.spotify.AccountPlan.premium.collectAsStateWithLifecycle()
+    val host = if (SoundNestRuntime.isStarted) SoundNestRuntime.host else null
+    val list by if (host != null) {
+        host.accounts.list.collectAsStateWithLifecycle()
+    } else {
+        remember { mutableStateOf(AccountList()) }
+    }
+    val multiProfile = host?.multiProfile == true
+    val livePlan by AccountPlan.premium.collectAsStateWithLifecycle()
     var switchTo by remember { mutableStateOf<SavedAccount?>(null) }
     var remove by remember { mutableStateOf<SavedAccount?>(null) }
     var addSingle by remember { mutableStateOf(false) }
-    // The account in use first, then the one used last; one not signed in yet (an "Add account" left) last.
+
     val shown = remember(list) {
         val active = list.current ?: SavedAccount(profile = list.active)
-        listOf(active) + list.accounts.filter { it.profile != list.active }.sortedWith(compareBy<SavedAccount> { !it.known }.thenByDescending { it.usedAt })
+        listOf(active) + list.accounts
+            .filter { it.profile != list.active }
+            .sortedWith(compareBy<SavedAccount> { !it.known }.thenByDescending { it.usedAt })
     }
+
     Column(Modifier.fillMaxWidth()) {
-        shown.forEach { account ->
+        shown.forEachIndexed { index, account ->
             val active = account.profile == list.active
-            // The account in use: its name and picture as read now, before they are saved.
-            val name = (if (active) io.github.thake.soundnest.feature.accounts.session.ProfileCache.name else null) ?: account.name
-            val image = (if (active) io.github.thake.soundnest.feature.accounts.session.ProfileCache.imageUrl else null) ?: account.imageUrl
+            val name = (if (active) ProfileCache.name else null) ?: account.name
+            val image = (if (active) ProfileCache.imageUrl else null) ?: account.imageUrl
             val premium = if (active) livePlan ?: account.premium else account.premium
+            val planText = when (premium) {
+                true -> stringResource(R.string.accounts_plan_premium)
+                false -> stringResource(R.string.accounts_plan_free)
+                null -> null
+            }
+            val detail = listOfNotNull(
+                planText,
+                if (active) stringResource(R.string.accounts_in_use) else null,
+            ).joinToString(" · ")
+
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
                     .clickable(enabled = !active, role = Role.Button) { switchTo = account }
-                    .padding(start = 20.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                    .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
             ) {
                 ProfileAvatar(url = image, name = name, size = 40.dp)
-                Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
                     Text(
-                        name?.takeIf { it.isNotBlank() } ?: stringResource(if (account.known || active) R.string.spotify_account else R.string.accounts_not_signed_in),
-                        color = look.text, fontSize = 16.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        text = name?.takeIf { it.isNotBlank() }
+                            ?: stringResource(if (account.known || active) R.string.spotify_account else R.string.accounts_not_signed_in),
+                        color = palette.text,
+                        fontFamily = palette.fontFamily,
+                        fontSize = 15.sp,
+                        fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
-                    val plan = when (premium) {
-                        true -> stringResource(R.string.accounts_plan_premium)
-                        false -> stringResource(R.string.accounts_plan_free)
-                        null -> null
+                    if (detail.isNotEmpty()) {
+                        Text(
+                            text = detail,
+                            color = if (active) palette.accent else palette.muted,
+                            fontFamily = palette.fontFamily,
+                            fontSize = 12.sp,
+                        )
                     }
-                    val detail = listOfNotNull(plan, if (active) stringResource(R.string.accounts_in_use) else null).joinToString(" · ")
-                    if (detail.isNotEmpty()) Text(detail, color = if (active) look.accent else look.muted, fontSize = 12.sp)
                 }
-                if (active) Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.accounts_in_use), tint = look.accent,
-                    modifier = Modifier.padding(horizontal = 12.dp).size(22.dp))
-                // The account in use is removed by "Log out"; the others from here.
-                else IconButton(onClick = { remove = account }) {
-                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.accounts_remove), tint = look.muted, modifier = Modifier.size(20.dp))
+                if (active) {
+                    if (planText != null) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(palette.accent.copy(alpha = 0.16f))
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                        ) {
+                            Text(
+                                text = planText,
+                                color = palette.accent,
+                                fontFamily = palette.fontFamily,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.size(40.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Check,
+                            contentDescription = stringResource(R.string.accounts_in_use),
+                            tint = palette.accent,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                } else {
+                    IconButton(onClick = { remove = account }) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = stringResource(R.string.accounts_remove),
+                            tint = palette.muted,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
                 }
             }
+            if (index < shown.lastIndex) {
+                HorizontalDivider(
+                    color = palette.divider,
+                    modifier = Modifier.padding(start = 70.dp, end = 16.dp),
+                )
+            }
         }
+
+        HorizontalDivider(
+            color = palette.divider,
+            modifier = Modifier.padding(start = 70.dp, end = 16.dp),
+        )
+
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
                 .clickable(role = Role.Button) {
-                    if (host.multiProfile) { onLeave(); SessionActions.addAccount(Graph.app) } else addSingle = true
+                    if (multiProfile) {
+                        onLeave()
+                        SessionActions.addAccount(Graph.app)
+                    } else {
+                        addSingle = true
+                    }
                 }
-                .padding(horizontal = 20.dp, vertical = 10.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
-            Icon(Icons.Filled.Add, contentDescription = null, tint = look.text, modifier = Modifier.size(40.dp).padding(8.dp))
-            Column(Modifier.padding(start = 14.dp)) {
-                Text(stringResource(R.string.accounts_add), color = look.text, fontSize = 16.sp)
-                Text(stringResource(if (host.multiProfile) R.string.accounts_add_detail else R.string.accounts_add_single_detail), color = look.muted, fontSize = 12.sp)
+            M3LeadingIconBadge(icon = Icons.Rounded.Add, palette = palette)
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.accounts_add),
+                    color = palette.text,
+                    fontFamily = palette.fontFamily,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+                Text(
+                    text = stringResource(if (multiProfile) R.string.accounts_add_detail else R.string.accounts_add_single_detail),
+                    color = palette.muted,
+                    fontFamily = palette.fontFamily,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                )
             }
         }
-        Text(
-            stringResource(if (host.multiProfile) R.string.accounts_footer else R.string.accounts_single_footer),
-            color = look.muted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
-        )
+
+        if (showFooter) {
+            Text(
+                text = stringResource(if (multiProfile) R.string.accounts_footer else R.string.accounts_single_footer),
+                color = palette.muted,
+                fontFamily = palette.fontFamily,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+        }
     }
+
     switchTo?.let { account ->
         val name = account.name?.takeIf { it.isNotBlank() } ?: stringResource(R.string.spotify_account)
         LookAlertDialog(
             onDismissRequest = { switchTo = null },
-            containerColor = look.dialog,
-            title = { Text(stringResource(R.string.accounts_switch_title, name), color = look.text) },
-            text = { Text(stringResource(R.string.accounts_switch_text), color = look.muted) },
+            containerColor = palette.dialogBg,
+            title = { Text(stringResource(R.string.accounts_switch_title, name), color = palette.text) },
+            text = { Text(stringResource(R.string.accounts_switch_text), color = palette.muted) },
             confirmButton = {
                 TextButton(onClick = { switchTo = null; onLeave(); SessionActions.switchAccount(Graph.app, account.profile) }) {
-                    Text(stringResource(R.string.accounts_switch_confirm), color = look.accent)
+                    Text(stringResource(R.string.accounts_switch_confirm), color = palette.accent)
                 }
             },
-            dismissButton = { TextButton(onClick = { switchTo = null }) { Text(stringResource(R.string.add_to_playlist_button_cancel), color = look.text) } },
+            dismissButton = {
+                TextButton(onClick = { switchTo = null }) {
+                    Text(stringResource(R.string.add_to_playlist_button_cancel), color = palette.text)
+                }
+            },
         )
     }
+
     remove?.let { account ->
-        val name = account.name?.takeIf { it.isNotBlank() } ?: stringResource(if (account.known) R.string.spotify_account else R.string.accounts_not_signed_in)
+        val name = account.name?.takeIf { it.isNotBlank() }
+            ?: stringResource(if (account.known) R.string.spotify_account else R.string.accounts_not_signed_in)
         LookAlertDialog(
             onDismissRequest = { remove = null },
-            containerColor = look.dialog,
-            title = { Text(stringResource(R.string.accounts_remove_title, name), color = look.text) },
-            text = { Text(stringResource(R.string.accounts_remove_text), color = look.muted) },
+            containerColor = palette.dialogBg,
+            title = { Text(stringResource(R.string.accounts_remove_title, name), color = palette.text) },
+            text = { Text(stringResource(R.string.accounts_remove_text), color = palette.muted) },
             confirmButton = {
                 TextButton(onClick = { remove = null; SessionActions.removeAccount(ctx, account.profile) }) {
-                    Text(stringResource(R.string.accounts_remove), color = look.destructive)
+                    Text(stringResource(R.string.accounts_remove), color = palette.destructive)
                 }
             },
-            dismissButton = { TextButton(onClick = { remove = null }) { Text(stringResource(R.string.add_to_playlist_button_cancel), color = look.text) } },
+            dismissButton = {
+                TextButton(onClick = { remove = null }) {
+                    Text(stringResource(R.string.add_to_playlist_button_cancel), color = palette.text)
+                }
+            },
         )
     }
-    if (addSingle) LookAlertDialog(
-        onDismissRequest = { addSingle = false },
-        containerColor = look.dialog,
-        title = { Text(stringResource(R.string.accounts_add), color = look.text) },
-        text = { Text(stringResource(R.string.accounts_single_footer), color = look.muted) },
-        confirmButton = {
-            TextButton(onClick = { addSingle = false; onLeave(); SessionActions.addAccount(Graph.app) }) {
-                Text(stringResource(R.string.connect_device_menu_logout), color = look.accent)
-            }
-        },
-        dismissButton = { TextButton(onClick = { addSingle = false }) { Text(stringResource(R.string.add_to_playlist_button_cancel), color = look.text) } },
-    )
+
+    if (addSingle) {
+        LookAlertDialog(
+            onDismissRequest = { addSingle = false },
+            containerColor = palette.dialogBg,
+            title = { Text(stringResource(R.string.accounts_add), color = palette.text) },
+            text = { Text(stringResource(R.string.accounts_single_footer), color = palette.muted) },
+            confirmButton = {
+                TextButton(onClick = { addSingle = false; onLeave(); SessionActions.addAccount(Graph.app) }) {
+                    Text(stringResource(R.string.connect_device_menu_logout), color = palette.accent)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { addSingle = false }) {
+                    Text(stringResource(R.string.add_to_playlist_button_cancel), color = palette.text)
+                }
+            },
+        )
+    }
 }
 
 /** The detail of the "Switch account" row behind the avatar: the other accounts kept, by name. */
 @Composable
 fun switchAccountDetail(): String {
+    if (!SoundNestRuntime.isStarted) {
+        return stringResource(R.string.accounts_switch_row_detail)
+    }
     val list by SoundNestRuntime.host.accounts.list.collectAsStateWithLifecycle()
     return list.others.mapNotNull { it.name?.takeIf { n -> n.isNotBlank() } }.joinToString(", ")
         .ifEmpty { stringResource(R.string.accounts_switch_row_detail) }
-}
-
-/** [AccountsList] in a sheet of the current look, from the sheet behind the avatar. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AccountsSheet(onDismiss: () -> Unit, onLeave: () -> Unit = onDismiss) {
-    val look = accountsLook()
-    LookSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = tone(0xFF282828)) {
-        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 16.dp)) {
-            Text(stringResource(R.string.accounts_title), color = look.text, fontSize = 18.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
-            // Switching or adding leaves the screens: the sheet goes, and whatever opened it.
-            AccountsList(onLeave = onLeave)
-        }
-    }
 }

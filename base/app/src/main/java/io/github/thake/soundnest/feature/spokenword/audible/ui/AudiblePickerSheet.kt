@@ -31,10 +31,10 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -46,7 +46,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -62,10 +61,9 @@ import io.github.thake.soundnest.audible.AudibleBook
 import io.github.thake.soundnest.feature.spokenword.audible.data.AudibleCatalogCache
 import io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore
 import io.github.thake.soundnest.core.ui.look.LookSheet
-import io.github.thake.soundnest.core.ui.classic.AppAccent
-import io.github.thake.soundnest.core.ui.classic.AppMuted
-import io.github.thake.soundnest.core.ui.classic.AppText
-import io.github.thake.soundnest.core.ui.classic.tone
+import io.github.thake.soundnest.core.ui.settings.M3SettingsPalette
+import io.github.thake.soundnest.core.ui.settings.m3FilterChipColors
+import io.github.thake.soundnest.core.ui.settings.rememberM3SettingsPalette
 import kotlinx.coroutines.launch
 
 private enum class AudiblePickerFilter { ALL, APPROVED, PINNED }
@@ -76,9 +74,10 @@ fun AudiblePickerSheet(
     onDismiss: () -> Unit,
     onSyncRequested: (suspend () -> Result<Int>)? = null,
 ) {
+    val palette = rememberM3SettingsPalette()
     LookSheet(
         onDismissRequest = onDismiss,
-        containerColor = tone(0xFF222222),
+        containerColor = palette.elevatedCardBg,
     ) {
         AudiblePickerSheetBody(
             onDismiss = onDismiss,
@@ -125,11 +124,8 @@ fun AudiblePickerSheetBody(
         }
     }
 
-    val selectedChipColors = FilterChipDefaults.filterChipColors(
-        selectedContainerColor = AppAccent,
-        selectedLabelColor = Color.Black,
-        selectedLeadingIconColor = Color.Black,
-    )
+    val palette = rememberM3SettingsPalette()
+    val selectedChipColors = m3FilterChipColors(palette)
 
     Column(
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -146,13 +142,15 @@ fun AudiblePickerSheetBody(
             Column(Modifier.weight(1f)) {
                 Text(
                     text = stringResource(R.string.audible_picker_title),
-                    color = AppText,
+                    color = palette.text,
+                    fontFamily = palette.fontFamily,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
                     text = stringResource(R.string.audible_picker_hint),
-                    color = AppMuted,
+                    color = palette.muted,
+                    fontFamily = palette.fontFamily,
                     fontSize = 12.sp,
                 )
             }
@@ -175,10 +173,10 @@ fun AudiblePickerSheetBody(
                     }
                 },
             ) {
-                Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.audible_sync_library_button), tint = AppAccent)
+                Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.audible_sync_library_button), tint = palette.accent)
             }
             IconButton(onClick = onDismiss) {
-                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close), tint = AppMuted)
+                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close), tint = palette.muted)
             }
         }
 
@@ -190,7 +188,7 @@ fun AudiblePickerSheetBody(
                 leadingIcon = if (filter == AudiblePickerFilter.ALL) {
                     { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
                 } else null,
-                label = { Text(stringResource(R.string.audible_picker_tab_all, allBooks.size)) },
+                label = { Text(stringResource(R.string.audible_picker_tab_all, allBooks.size), fontFamily = palette.fontFamily) },
                 modifier = Modifier.testTag("audible_picker_filter_all"),
             )
             FilterChip(
@@ -200,7 +198,7 @@ fun AudiblePickerSheetBody(
                 leadingIcon = if (filter == AudiblePickerFilter.APPROVED) {
                     { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
                 } else null,
-                label = { Text(stringResource(R.string.audible_picker_tab_approved, allowedSet.size)) },
+                label = { Text(stringResource(R.string.audible_picker_tab_approved, allowedSet.size), fontFamily = palette.fontFamily) },
                 modifier = Modifier.testTag("audible_picker_filter_approved"),
             )
             FilterChip(
@@ -210,7 +208,7 @@ fun AudiblePickerSheetBody(
                 leadingIcon = if (filter == AudiblePickerFilter.PINNED) {
                     { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
                 } else null,
-                label = { Text(stringResource(R.string.audible_picker_tab_pinned, pinnedSet.size)) },
+                label = { Text(stringResource(R.string.audible_picker_tab_pinned, pinnedSet.size), fontFamily = palette.fontFamily) },
                 modifier = Modifier.testTag("audible_picker_filter_pinned"),
             )
         }
@@ -218,8 +216,16 @@ fun AudiblePickerSheetBody(
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            placeholder = { Text(stringResource(R.string.audible_picker_search_hint)) },
+            placeholder = { Text(stringResource(R.string.audible_picker_search_hint), color = palette.muted, fontFamily = palette.fontFamily) },
             singleLine = true,
+            shape = RoundedCornerShape(14.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = palette.text,
+                unfocusedTextColor = palette.text,
+                focusedBorderColor = palette.accent,
+                unfocusedBorderColor = palette.divider,
+                cursorColor = palette.accent,
+            ),
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("audible_picker_search"),
@@ -234,7 +240,8 @@ fun AudiblePickerSheetBody(
             }
             Text(
                 text = emptyCopy,
-                color = AppMuted,
+                color = palette.muted,
+                fontFamily = palette.fontFamily,
                 fontSize = 13.sp,
                 modifier = Modifier.padding(vertical = 20.dp),
             )
@@ -251,6 +258,7 @@ fun AudiblePickerSheetBody(
                         book = book,
                         isAllowed = book.asin in allowedSet,
                         isPinned = book.asin in pinnedSet,
+                        palette = palette,
                         onToggleAllowed = { allowed ->
                             ParentalPolicyStore.setAudibleBookAllowed(
                                 context = context,
@@ -280,6 +288,7 @@ private fun AudibleBookPickerRow(
     book: AudibleBook,
     isAllowed: Boolean,
     isPinned: Boolean,
+    palette: M3SettingsPalette,
     onToggleAllowed: (Boolean) -> Unit,
     onTogglePinned: (Boolean) -> Unit,
 ) {
@@ -294,20 +303,21 @@ private fun AudibleBookPickerRow(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(tone(0xFF2B2B2B))
+            .clip(RoundedCornerShape(14.dp))
+            .background(palette.innerCardBg)
             .padding(start = 10.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
     ) {
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .size(48.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(tone(0xFF3A3A3A)),
+                .clip(RoundedCornerShape(10.dp))
+                .background(palette.chipBg),
         ) {
             Text(
                 text = book.title.take(1).uppercase(),
-                color = AppAccent,
+                color = palette.accent,
+                fontFamily = palette.fontFamily,
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp,
             )
@@ -327,7 +337,8 @@ private fun AudibleBookPickerRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = book.title,
-                    color = AppText,
+                    color = palette.text,
+                    fontFamily = palette.fontFamily,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -338,12 +349,13 @@ private fun AudibleBookPickerRow(
                     Spacer(Modifier.width(6.dp))
                     Text(
                         text = "18+",
-                        color = Color(0xFFFF6B6B),
+                        color = palette.destructive,
+                        fontFamily = palette.fontFamily,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xFFFF6B6B).copy(alpha = 0.18f))
+                            .background(palette.destructive.copy(alpha = 0.18f))
                             .padding(horizontal = 5.dp, vertical = 2.dp)
                             .testTag("audible_adult_badge_${book.asin}"),
                     )
@@ -351,7 +363,8 @@ private fun AudibleBookPickerRow(
             }
             Text(
                 text = metaLine,
-                color = AppMuted,
+                color = palette.muted,
+                fontFamily = palette.fontFamily,
                 fontSize = 12.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -364,7 +377,8 @@ private fun AudibleBookPickerRow(
                 }
                 Text(
                     text = seriesText,
-                    color = AppAccent.copy(alpha = 0.85f),
+                    color = palette.accent.copy(alpha = 0.85f),
+                    fontFamily = palette.fontFamily,
                     fontSize = 11.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -381,9 +395,9 @@ private fun AudibleBookPickerRow(
                 imageVector = if (isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
                 contentDescription = if (isPinned) stringResource(R.string.audible_unpin_from_home) else stringResource(R.string.audible_pin_to_home),
                 tint = when {
-                    !isAllowed -> AppMuted.copy(alpha = 0.3f)
-                    isPinned -> AppAccent
-                    else -> AppMuted
+                    !isAllowed -> palette.muted.copy(alpha = 0.3f)
+                    isPinned -> palette.accent
+                    else -> palette.muted
                 },
             )
         }
@@ -392,9 +406,9 @@ private fun AudibleBookPickerRow(
             checked = isAllowed,
             onCheckedChange = onToggleAllowed,
             colors = CheckboxDefaults.colors(
-                checkedColor = AppAccent,
-                checkmarkColor = Color.Black,
-                uncheckedColor = AppMuted,
+                checkedColor = palette.accent,
+                checkmarkColor = palette.onAccent,
+                uncheckedColor = palette.muted,
             ),
             modifier = Modifier.testTag("audible_allow_toggle_${book.asin}"),
         )

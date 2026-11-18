@@ -33,21 +33,27 @@ class SettingsSearchTest {
 
     @Test fun everyPlaceIsReachable() {
         val pages = setOf("Root", "Playback", "Lyrics", "StreamingWifi", "StreamingCell", "Crossfade",
-            "Storage", "Data", "Display", "Look", "Rotation", "Language", "LyricsLanguage", "App", "Accounts", "Library")
+            "Storage", "Data", "Display", "Look", "Rotation", "Language", "LyricsLanguage", "App", "Accounts", "Library", "LocalAndRadio")
         assertTrue(SettingsSearch.immersive.all { it.immersivePage in pages })
-        assertTrue(SettingsSearch.classic.all { it.classicPlace == "transitions" || it.classicPlace?.toIntOrNull() in 0..6 })
+        assertTrue(SettingsSearch.classic.all { it.classicPlace == "transitions" || it.classicPlace?.toIntOrNull() in 0..7 })
     }
 
-    /** Accounts, storage, and library rows sit on their own pages/tabs. */
+    /** Accounts, storage, library, and local/radio rows sit on their own pages/tabs. */
     @Test fun rowsSitWithWhatTheyAreAbout() {
         fun immersivePlace(title: Int) = SettingsSearch.immersive.first { it.title == title }.immersivePage
         fun classicPlace(title: Int) = SettingsSearch.classic.first { it.title == title }.classicPlace
         assertEquals("Accounts", immersivePlace(io.github.thake.soundnest.R.string.accounts_title))
         assertEquals("Storage", immersivePlace(io.github.thake.soundnest.R.string.settings_storage_clear_cache))
         assertEquals("Library", immersivePlace(io.github.thake.soundnest.R.string.hidden_songs_title))
+        assertEquals("LocalAndRadio", immersivePlace(io.github.thake.soundnest.R.string.live_radio_settings_title))
+        assertEquals("LocalAndRadio", immersivePlace(io.github.thake.soundnest.R.string.equalizer_title))
+        assertEquals("StreamingWifi", immersivePlace(io.github.thake.soundnest.R.string.quality_streaming_wifi_title))
+        assertEquals("StreamingCell", immersivePlace(io.github.thake.soundnest.R.string.quality_streaming_cell_title))
+        assertEquals("Root", immersivePlace(io.github.thake.soundnest.R.string.parent_settings_title))
+        assertEquals("0", classicPlace(io.github.thake.soundnest.R.string.parent_settings_title))
         assertEquals("5", classicPlace(io.github.thake.soundnest.R.string.accounts_title))
         assertEquals("2", classicPlace(io.github.thake.soundnest.R.string.settings_storage_clear_cache))
-        assertEquals("6", classicPlace(io.github.thake.soundnest.R.string.live_radio_settings_title))
+        assertEquals("7", classicPlace(io.github.thake.soundnest.R.string.live_radio_settings_title))
     }
 
     @Test fun filterForPolicyHidesRowsDisabledByParentalPolicy() {
@@ -55,6 +61,7 @@ class SettingsSearchTest {
         val defaultPolicy = io.github.thake.soundnest.feature.parental.settings.ParentalPolicy()
         val defaultTitles = SettingsSearch.filterForPolicy(SettingsSearch.classic, defaultPolicy).map { it.title }.toSet()
         // Defaults: Autoplay & Lyrics & WhatsNew on; Podcasts, Audiobooks, LocalFiles, LiveRadio, Genius, ExtraLyrics off.
+        assertTrue(io.github.thake.soundnest.R.string.parent_settings_title in defaultTitles)
         assertTrue(io.github.thake.soundnest.R.string.settings_autoplay_title in defaultTitles)
         assertTrue(io.github.thake.soundnest.R.string.lyrics_word_sync_title in defaultTitles)
         assertFalse(io.github.thake.soundnest.R.string.settings_local_files_shown in defaultTitles)

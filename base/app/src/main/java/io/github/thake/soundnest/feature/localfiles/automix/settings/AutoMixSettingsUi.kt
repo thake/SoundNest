@@ -3,20 +3,17 @@ package io.github.thake.soundnest.feature.localfiles.automix.settings
 
 import android.content.Context
 import android.text.format.Formatter
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -28,12 +25,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,17 +38,14 @@ import io.github.thake.soundnest.R
 import io.github.thake.soundnest.automix.segue.MixIdea
 import io.github.thake.soundnest.core.playback.LocalPlayer
 import io.github.thake.soundnest.core.preferences.SettingsEntry
-import io.github.thake.soundnest.core.ui.classic.AppAccent
-import io.github.thake.soundnest.core.ui.classic.AppMuted
-import io.github.thake.soundnest.core.ui.classic.AppText
-import io.github.thake.soundnest.core.ui.classic.OptionRow
-import io.github.thake.soundnest.core.ui.classic.tone
-import io.github.thake.soundnest.core.ui.immersive.Immersive
-import io.github.thake.soundnest.core.ui.immersive.pages.ImmersiveChoiceRow
-import io.github.thake.soundnest.core.ui.immersive.pages.ImmersiveGroupRow
-import io.github.thake.soundnest.core.ui.immersive.pages.ImmersiveSwitchRow
-import io.github.thake.soundnest.core.ui.immersive.pages.immersiveGroup
-import io.github.thake.soundnest.core.ui.immersive.sheets.ImmersiveAlertDialog
+import io.github.thake.soundnest.core.ui.look.LookAlertDialog
+import io.github.thake.soundnest.core.ui.settings.M3InfoBannerCard
+import io.github.thake.soundnest.core.ui.settings.M3SettingsChoiceRow
+import io.github.thake.soundnest.core.ui.settings.M3SettingsNavRow
+import io.github.thake.soundnest.core.ui.settings.M3SettingsPalette
+import io.github.thake.soundnest.core.ui.settings.M3SettingsSwitchRow
+import io.github.thake.soundnest.core.ui.settings.m3SettingsBlock
+import io.github.thake.soundnest.core.ui.settings.m3SettingsSection
 import io.github.thake.soundnest.feature.localfiles.automix.engine.AutoMix
 import io.github.thake.soundnest.feature.localfiles.automix.engine.AutoMixDiagnostics
 import io.github.thake.soundnest.feature.localfiles.automix.ui.autoMixReasonText
@@ -62,11 +55,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Classic & Immersive AutoMix settings rows/groups (delegated to from `PlaybackSettingsUi`
+ * Unified Material Design 3 AutoMix settings sections (delegated to from `PlaybackSettingsUi`
  * when `policy.localFiles.enabled`) and Settings Search entries.
  */
 object AutoMixSettingsUi {
     val settingsEntries: List<SettingsEntry> = listOf(
+        SettingsEntry(
+            title = R.string.settings_automix_style,
+            detail = R.string.settings_automix_style_detail,
+            classicPlace = "transitions",
+            immersivePage = "Crossfade",
+            isVisible = { it.localFiles.enabled },
+        ),
         SettingsEntry(
             title = R.string.settings_automix_segue,
             detail = R.string.settings_automix_segue_detail,
@@ -77,6 +77,13 @@ object AutoMixSettingsUi {
         SettingsEntry(
             title = R.string.settings_automix_session,
             detail = R.string.settings_automix_session_detail,
+            classicPlace = "transitions",
+            immersivePage = "Crossfade",
+            isVisible = { it.localFiles.enabled },
+        ),
+        SettingsEntry(
+            title = R.string.settings_automix_orpheon,
+            detail = R.string.settings_automix_orpheon_detail,
             classicPlace = "transitions",
             immersivePage = "Crossfade",
             isVisible = { it.localFiles.enabled },
@@ -117,8 +124,55 @@ object AutoMixSettingsUi {
             isVisible = { it.localFiles.enabled },
         ),
         SettingsEntry(
+            title = R.string.settings_automix_pulse,
+            classicPlace = "transitions",
+            immersivePage = "Crossfade",
+            isVisible = { it.localFiles.enabled },
+        ),
+        SettingsEntry(
+            title = R.string.settings_automix_on_next,
+            detail = R.string.settings_automix_on_next_detail,
+            classicPlace = "transitions",
+            immersivePage = "Crossfade",
+            isVisible = { it.localFiles.enabled },
+        ),
+        SettingsEntry(
+            title = R.string.settings_automix_length,
+            detail = R.string.settings_automix_length_detail,
+            classicPlace = "transitions",
+            immersivePage = "Crossfade",
+            isVisible = { it.localFiles.enabled },
+        ),
+        SettingsEntry(
+            title = R.string.settings_automix_duration,
+            detail = R.string.settings_automix_duration_detail,
+            classicPlace = "transitions",
+            immersivePage = "Crossfade",
+            isVisible = { it.localFiles.enabled },
+        ),
+        SettingsEntry(
             title = R.string.settings_automix_mobile_data,
             detail = R.string.settings_automix_mobile_data_detail,
+            classicPlace = "transitions",
+            immersivePage = "Crossfade",
+            isVisible = { it.localFiles.enabled },
+        ),
+        SettingsEntry(
+            title = R.string.settings_automix_performance,
+            detail = R.string.settings_automix_performance_detail,
+            classicPlace = "transitions",
+            immersivePage = "Crossfade",
+            isVisible = { it.localFiles.enabled },
+        ),
+        SettingsEntry(
+            title = R.string.settings_automix_tempo,
+            detail = R.string.settings_automix_tempo_detail,
+            classicPlace = "transitions",
+            immersivePage = "Crossfade",
+            isVisible = { it.localFiles.enabled },
+        ),
+        SettingsEntry(
+            title = R.string.settings_automix_diagnostics,
             classicPlace = "transitions",
             immersivePage = "Crossfade",
             isVisible = { it.localFiles.enabled },
@@ -132,173 +186,6 @@ object AutoMixSettingsUi {
     )
 
     fun currentWhyNotRes(): Int? = autoMixReasonText(AutoMix.whyNot())
-
-    @Composable
-    fun ClassicAutoMixHeaderDetails() {
-        Text(
-            stringResource(R.string.settings_automix_detail_soundnest),
-            color = AppMuted,
-            fontSize = 12.sp,
-            modifier = Modifier.padding(top = 8.dp),
-        )
-        currentWhyNotRes()?.let {
-            Text(stringResource(it), color = AppAccent, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
-        }
-    }
-
-    @Composable
-    fun ClassicAutoMixOptions(policy: ParentalPolicy) {
-        if (!policy.localFiles.enabled) return
-        val ctx = LocalContext.current
-        val settings = AutoMixSettings
-
-        @Composable
-        fun Chip(label: String, selected: Boolean, onClick: () -> Unit) = Text(
-            label,
-            color = if (selected) Color.Black else AppText,
-            fontSize = 14.sp,
-            modifier = Modifier
-                .clip(RoundedCornerShape(50))
-                .background(if (selected) AppAccent else tone(0xFF2A2A2A))
-                .clickable(onClick = onClick)
-                .padding(horizontal = 14.dp, vertical = 8.dp),
-        )
-
-        if (settings.style == 0) OptionRow(
-            stringResource(R.string.settings_automix_segue),
-            stringResource(R.string.settings_automix_segue_detail),
-            checked = settings.segue,
-            onChecked = { settings.changeSegue(it, ctx) },
-        )
-        if (!settings.segueActive) OptionRow(
-            stringResource(R.string.settings_automix_session),
-            stringResource(R.string.settings_automix_session_detail),
-            checked = settings.sessionDj,
-            onChecked = { settings.changeSessionDj(it, ctx) },
-        )
-        OptionRow(
-            stringResource(R.string.settings_automix_orpheon),
-            stringResource(R.string.settings_automix_orpheon_detail),
-            checked = settings.orpheon,
-            onChecked = { settings.changeOrpheon(it, ctx) },
-        )
-        if (BuildConfig.APPLICATION_ID == "io.github.thake.soundnest.automixlab") {
-            for (idea in MixIdea.values()) OptionRow(
-                idea.title,
-                idea.detail,
-                checked = settings.hasIdea(idea),
-                enabled = settings.orpheon,
-                onChecked = { settings.changeIdea(idea, it, ctx) },
-            )
-        }
-        OptionRow(
-            stringResource(R.string.settings_automix_album_order),
-            stringResource(R.string.settings_automix_album_order_detail),
-            checked = settings.albumOrder,
-            onChecked = { settings.changeAlbumOrder(it, ctx) },
-        )
-        if (policy.spokenWord.allowPodcasts) {
-            OptionRow(
-                stringResource(R.string.settings_automix_podcasts),
-                stringResource(R.string.settings_automix_podcasts_detail),
-                checked = settings.mixPodcasts,
-                onChecked = { settings.changeMixPodcasts(it, ctx) },
-            )
-        }
-        OptionRow(
-            stringResource(R.string.settings_automix_harmonic),
-            stringResource(R.string.settings_automix_harmonic_detail),
-            checked = settings.harmonic,
-            onChecked = { settings.changeHarmonic(it, ctx) },
-        )
-        OptionRow(
-            stringResource(R.string.settings_automix_eq),
-            stringResource(R.string.settings_automix_eq_detail),
-            checked = settings.djEq,
-            onChecked = { settings.changeDjEq(it, ctx) },
-        )
-        OptionRow(
-            stringResource(R.string.settings_automix_show),
-            stringResource(R.string.settings_automix_show_detail),
-            checked = settings.showInPlayer,
-            onChecked = { settings.changeShowInPlayer(it, ctx) },
-        )
-        OptionRow(
-            stringResource(R.string.settings_automix_mobile_data),
-            stringResource(R.string.settings_automix_mobile_data_detail),
-            checked = settings.analyzeOnMobileData,
-            onChecked = { settings.changeAnalyzeOnMobileData(it, ctx) },
-        )
-        @OptIn(ExperimentalLayoutApi::class)
-        @Composable
-        fun Choices(title: Int, detail: Int?, labels: List<Int>, selected: Int, pick: (Int) -> Unit) =
-            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp)) {
-                Text(stringResource(title), color = AppText, fontSize = 16.sp)
-                detail?.let { Text(stringResource(it), color = AppMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp)) }
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(top = 10.dp),
-                ) {
-                    labels.forEachIndexed { i, l -> Chip(stringResource(l), selected == i) { pick(i) } }
-                }
-            }
-        Choices(
-            R.string.settings_automix_on_next,
-            R.string.settings_automix_on_next_detail,
-            listOf(R.string.settings_automix_next_cut, R.string.settings_automix_next_quick, R.string.settings_automix_next_full),
-            settings.nextStyle,
-        ) { settings.changeNextStyle(it, ctx) }
-        Choices(
-            R.string.settings_automix_style,
-            R.string.settings_automix_style_detail,
-            listOf(R.string.settings_automix_style_blend, R.string.settings_automix_style_cut, R.string.settings_automix_style_fade),
-            settings.style,
-        ) { settings.changeStyle(it, ctx) }
-        Choices(
-            R.string.settings_automix_length,
-            R.string.settings_automix_length_detail,
-            listOf(R.string.settings_automix_length_short, R.string.settings_automix_length_auto, R.string.settings_automix_length_long),
-            settings.mixLength,
-        ) { settings.changeMixLength(it, ctx) }
-        AutoMixDurationBoundsRow()
-        OptionRow(
-            stringResource(R.string.settings_automix_performance),
-            stringResource(R.string.settings_automix_performance_detail),
-            checked = settings.performancePriority,
-            onChecked = { settings.changePerformancePriority(it, ctx) },
-        )
-        Choices(
-            R.string.settings_automix_tempo,
-            R.string.settings_automix_tempo_detail,
-            listOf(R.string.settings_automix_tempo_strict, R.string.settings_automix_tempo_normal, R.string.settings_automix_tempo_wide),
-            settings.tempoRange,
-        ) { settings.changeTempoRange(it, ctx) }
-        if (settings.showInPlayer) Choices(
-            R.string.settings_automix_pulse,
-            null,
-            listOf(R.string.settings_crossfade_off, R.string.settings_automix_pulse_subtle, R.string.settings_automix_pulse_strong),
-            settings.pulseLevel,
-        ) { settings.changePulseLevel(it, ctx) }
-        AutoMixDiagnosticsPanel()
-        AutoMixCacheRow()
-    }
-
-    @Composable
-    fun ClassicAutoMixIntroDialog(onDismiss: () -> Unit) {
-        val ctx = LocalContext.current
-        AlertDialog(
-            onDismissRequest = { onDismiss(); AutoMixSettings.markIntroSeen(ctx) },
-            containerColor = tone(0xFF282828),
-            title = { Text(stringResource(R.string.settings_automix_intro_title), color = AppText) },
-            text = { Text(stringResource(R.string.settings_automix_intro_text_soundnest), color = AppMuted) },
-            confirmButton = {
-                TextButton(onClick = { onDismiss(); AutoMixSettings.markIntroSeen(ctx) }) {
-                    Text(stringResource(R.string.settings_automix_intro_ok), color = AppAccent)
-                }
-            },
-        )
-    }
 
     @Composable
     fun rememberCacheState(): Pair<Long?, () -> Unit> {
@@ -316,159 +203,291 @@ object AutoMixSettingsUi {
         return cacheBytes to clear
     }
 
-    fun LazyListScope.immersiveAutoMixGroups(
+    fun LazyListScope.m3AutoMixSections(
         ctx: Context,
         policy: ParentalPolicy,
+        palette: M3SettingsPalette,
         cacheBytes: Long?,
         onClearCache: () -> Unit,
     ) {
         if (!policy.localFiles.enabled) return
         val settings = AutoMixSettings
+
         currentWhyNotRes()?.let { reason ->
-            immersiveGroup("automix-now") {
-                row { ImmersiveGroupRow(stringResource(reason)) }
-            }
-        }
-        immersiveGroup("automix-style", headerRes = R.string.settings_automix_style, footerRes = R.string.settings_automix_style_detail) {
-            listOf(R.string.settings_automix_style_blend, R.string.settings_automix_style_cut, R.string.settings_automix_style_fade).forEachIndexed { i, label ->
-                row { ImmersiveChoiceRow(stringResource(label), selected = settings.style == i, onClick = { settings.changeStyle(i, ctx) }) }
-            }
-            if (settings.style == 0) row {
-                ImmersiveSwitchRow(
-                    stringResource(R.string.settings_automix_segue),
-                    checked = settings.segue,
-                    onChecked = { settings.changeSegue(it, ctx) },
-                    detail = stringResource(R.string.settings_automix_segue_detail),
+            m3SettingsBlock(key = "automix:status", palette = palette) {
+                M3InfoBannerCard(
+                    text = stringResource(reason),
+                    palette = palette,
+                    icon = Icons.Rounded.GraphicEq,
                 )
             }
         }
-        immersiveGroup("automix-length", headerRes = R.string.settings_automix_length, footerRes = R.string.settings_automix_length_detail) {
-            listOf(R.string.settings_automix_length_short, R.string.settings_automix_length_auto, R.string.settings_automix_length_long).forEachIndexed { i, label ->
-                row { ImmersiveChoiceRow(stringResource(label), selected = settings.mixLength == i, onClick = { settings.changeMixLength(i, ctx) }) }
+
+        // 1. Transition Style & Planner
+        m3SettingsSection(
+            key = "automix:style",
+            palette = palette,
+            header = ctx.getString(R.string.settings_automix_style),
+            footer = ctx.getString(R.string.settings_automix_style_detail),
+        ) {
+            listOf(
+                R.string.settings_automix_style_blend,
+                R.string.settings_automix_style_cut,
+                R.string.settings_automix_style_fade,
+            ).forEachIndexed { index, labelRes ->
+                row {
+                    M3SettingsChoiceRow(
+                        title = stringResource(labelRes),
+                        selected = settings.style == index,
+                        palette = palette,
+                        onClick = { settings.changeStyle(index, ctx) },
+                    )
+                }
             }
-            row {
-                DurationStepper(R.string.settings_automix_duration_min, settings.minDurationSeconds, zero = R.string.settings_automix_duration_auto) { v ->
-                    settings.changeDurationBounds(v, if (settings.maxDurationSeconds in 1 until v) v else settings.maxDurationSeconds, ctx)
+            if (settings.style == 0) {
+                row {
+                    M3SettingsSwitchRow(
+                        title = stringResource(R.string.settings_automix_segue),
+                        detail = stringResource(R.string.settings_automix_segue_detail),
+                        checked = settings.segue,
+                        palette = palette,
+                        onCheckedChange = { settings.changeSegue(it, ctx) },
+                    )
+                }
+            }
+            if (!settings.segueActive) {
+                row {
+                    M3SettingsSwitchRow(
+                        title = stringResource(R.string.settings_automix_session),
+                        detail = stringResource(R.string.settings_automix_session_detail),
+                        checked = settings.sessionDj,
+                        palette = palette,
+                        onCheckedChange = { settings.changeSessionDj(it, ctx) },
+                    )
                 }
             }
             row {
-                DurationStepper(R.string.settings_automix_duration_max, settings.maxDurationSeconds, zero = R.string.settings_automix_duration_none) { v ->
-                    settings.changeDurationBounds(if (v in 1 until settings.minDurationSeconds) v else settings.minDurationSeconds, v, ctx)
+                M3SettingsSwitchRow(
+                    title = stringResource(R.string.settings_automix_orpheon),
+                    detail = stringResource(R.string.settings_automix_orpheon_detail),
+                    checked = settings.orpheon,
+                    palette = palette,
+                    onCheckedChange = { settings.changeOrpheon(it, ctx) },
+                )
+            }
+            if (BuildConfig.APPLICATION_ID == "io.github.thake.soundnest.automixlab") {
+                for (idea in MixIdea.values()) {
+                    row {
+                        M3SettingsSwitchRow(
+                            title = idea.title,
+                            detail = idea.detail,
+                            checked = settings.hasIdea(idea),
+                            enabled = settings.orpheon,
+                            palette = palette,
+                            onCheckedChange = { settings.changeIdea(idea, it, ctx) },
+                        )
+                    }
                 }
             }
         }
-        immersiveGroup("automix-tempo", headerRes = R.string.settings_automix_tempo, footerRes = R.string.settings_automix_tempo_detail) {
-            listOf(R.string.settings_automix_tempo_strict, R.string.settings_automix_tempo_normal, R.string.settings_automix_tempo_wide).forEachIndexed { i, label ->
-                row { ImmersiveChoiceRow(stringResource(label), selected = settings.tempoRange == i, onClick = { settings.changeTempoRange(i, ctx) }) }
-            }
-        }
-        immersiveGroup("automix-next", headerRes = R.string.settings_automix_on_next, footerRes = R.string.settings_automix_on_next_detail) {
-            listOf(R.string.settings_automix_next_cut, R.string.settings_automix_next_quick, R.string.settings_automix_next_full).forEachIndexed { i, label ->
-                row { ImmersiveChoiceRow(stringResource(label), selected = settings.nextStyle == i, onClick = { settings.changeNextStyle(i, ctx) }) }
-            }
-        }
-        immersiveGroup("automix", headerRes = R.string.settings_automix_options, footerRes = R.string.settings_automix_detail_soundnest) {
+
+        // 2. Mix Rules
+        m3SettingsSection(
+            key = "automix:rules",
+            palette = palette,
+            header = ctx.getString(R.string.settings_automix_options),
+            footer = ctx.getString(R.string.settings_automix_detail_soundnest),
+        ) {
             row {
-                ImmersiveSwitchRow(
-                    stringResource(R.string.settings_automix_harmonic),
-                    checked = settings.harmonic,
-                    onChecked = { settings.changeHarmonic(it, ctx) },
-                    detail = stringResource(R.string.settings_automix_harmonic_detail),
-                )
-            }
-            row {
-                ImmersiveSwitchRow(
-                    stringResource(R.string.settings_automix_eq),
-                    checked = settings.djEq,
-                    onChecked = { settings.changeDjEq(it, ctx) },
-                    detail = stringResource(R.string.settings_automix_eq_detail),
-                )
-            }
-            row {
-                ImmersiveSwitchRow(
-                    stringResource(R.string.settings_automix_album_order),
-                    checked = settings.albumOrder,
-                    onChecked = { settings.changeAlbumOrder(it, ctx) },
+                M3SettingsSwitchRow(
+                    title = stringResource(R.string.settings_automix_album_order),
                     detail = stringResource(R.string.settings_automix_album_order_detail),
+                    checked = settings.albumOrder,
+                    palette = palette,
+                    onCheckedChange = { settings.changeAlbumOrder(it, ctx) },
                 )
             }
             if (policy.spokenWord.allowPodcasts) {
                 row {
-                    ImmersiveSwitchRow(
-                        stringResource(R.string.settings_automix_podcasts),
-                        checked = settings.mixPodcasts,
-                        onChecked = { settings.changeMixPodcasts(it, ctx) },
+                    M3SettingsSwitchRow(
+                        title = stringResource(R.string.settings_automix_podcasts),
                         detail = stringResource(R.string.settings_automix_podcasts_detail),
+                        checked = settings.mixPodcasts,
+                        palette = palette,
+                        onCheckedChange = { settings.changeMixPodcasts(it, ctx) },
                     )
                 }
             }
             row {
-                ImmersiveSwitchRow(
-                    stringResource(R.string.settings_automix_orpheon),
-                    checked = settings.orpheon,
-                    onChecked = { settings.changeOrpheon(it, ctx) },
-                    detail = stringResource(R.string.settings_automix_orpheon_detail),
+                M3SettingsSwitchRow(
+                    title = stringResource(R.string.settings_automix_harmonic),
+                    detail = stringResource(R.string.settings_automix_harmonic_detail),
+                    checked = settings.harmonic,
+                    palette = palette,
+                    onCheckedChange = { settings.changeHarmonic(it, ctx) },
                 )
             }
-            if (!settings.segueActive) row {
-                ImmersiveSwitchRow(
-                    stringResource(R.string.settings_automix_session),
-                    checked = settings.sessionDj,
-                    onChecked = { settings.changeSessionDj(it, ctx) },
-                    detail = stringResource(R.string.settings_automix_session_detail),
+            row {
+                M3SettingsSwitchRow(
+                    title = stringResource(R.string.settings_automix_eq),
+                    detail = stringResource(R.string.settings_automix_eq_detail),
+                    checked = settings.djEq,
+                    palette = palette,
+                    onCheckedChange = { settings.changeDjEq(it, ctx) },
                 )
             }
         }
-        immersiveGroup("automix-analysis", headerRes = R.string.settings_automix_analysis) {
+
+        // 3. Player Visuals
+        m3SettingsSection(
+            key = "automix:display",
+            palette = palette,
+            header = ctx.getString(R.string.settings_automix_display),
+        ) {
             row {
-                ImmersiveSwitchRow(
-                    stringResource(R.string.settings_automix_mobile_data),
-                    checked = settings.analyzeOnMobileData,
-                    onChecked = { settings.changeAnalyzeOnMobileData(it, ctx) },
-                    detail = stringResource(R.string.settings_automix_mobile_data_detail),
-                )
-            }
-            row {
-                ImmersiveSwitchRow(
-                    stringResource(R.string.settings_automix_performance),
-                    checked = settings.performancePriority,
-                    onChecked = { settings.changePerformancePriority(it, ctx) },
-                    detail = stringResource(R.string.settings_automix_performance_detail),
-                )
-            }
-        }
-        immersiveGroup("automix-display", headerRes = R.string.settings_automix_display) {
-            row {
-                ImmersiveSwitchRow(
-                    stringResource(R.string.settings_automix_show),
-                    checked = settings.showInPlayer,
-                    onChecked = { settings.changeShowInPlayer(it, ctx) },
+                M3SettingsSwitchRow(
+                    title = stringResource(R.string.settings_automix_show),
                     detail = stringResource(R.string.settings_automix_show_detail),
+                    checked = settings.showInPlayer,
+                    palette = palette,
+                    onCheckedChange = { settings.changeShowInPlayer(it, ctx) },
                 )
             }
-            if (settings.showInPlayer) listOf(R.string.settings_crossfade_off, R.string.settings_automix_pulse_subtle, R.string.settings_automix_pulse_strong).forEachIndexed { i, label ->
+            if (settings.showInPlayer) {
+                listOf(
+                    R.string.settings_crossfade_off,
+                    R.string.settings_automix_pulse_subtle,
+                    R.string.settings_automix_pulse_strong,
+                ).forEachIndexed { index, labelRes ->
+                    row {
+                        M3SettingsChoiceRow(
+                            title = "${stringResource(R.string.settings_automix_pulse)} · ${stringResource(labelRes)}",
+                            selected = settings.pulseLevel == index,
+                            palette = palette,
+                            onClick = { settings.changePulseLevel(index, ctx) },
+                        )
+                    }
+                }
+            }
+        }
+
+        // 4. Timing & Bounds (On Next + Mix Length + Duration Bounds)
+        m3SettingsSection(
+            key = "automix:on-next",
+            palette = palette,
+            header = ctx.getString(R.string.settings_automix_on_next),
+            footer = ctx.getString(R.string.settings_automix_on_next_detail),
+        ) {
+            listOf(
+                R.string.settings_automix_next_cut,
+                R.string.settings_automix_next_quick,
+                R.string.settings_automix_next_full,
+            ).forEachIndexed { index, labelRes ->
                 row {
-                    ImmersiveChoiceRow(
-                        stringResource(R.string.settings_automix_pulse) + " · " + stringResource(label),
-                        selected = settings.pulseLevel == i,
-                        onClick = { settings.changePulseLevel(i, ctx) },
+                    M3SettingsChoiceRow(
+                        title = stringResource(labelRes),
+                        selected = settings.nextStyle == index,
+                        palette = palette,
+                        onClick = { settings.changeNextStyle(index, ctx) },
                     )
                 }
             }
         }
-        immersiveGroup("automix-cache") {
+
+        m3SettingsSection(
+            key = "automix:length",
+            palette = palette,
+            header = ctx.getString(R.string.settings_automix_length),
+            footer = ctx.getString(R.string.settings_automix_length_detail),
+        ) {
+            listOf(
+                R.string.settings_automix_length_short,
+                R.string.settings_automix_length_auto,
+                R.string.settings_automix_length_long,
+            ).forEachIndexed { index, labelRes ->
+                row {
+                    M3SettingsChoiceRow(
+                        title = stringResource(labelRes),
+                        selected = settings.mixLength == index,
+                        palette = palette,
+                        onClick = { settings.changeMixLength(index, ctx) },
+                    )
+                }
+            }
+            row { M3AutoMixDurationBoundsRow(palette) }
+        }
+
+        // 5. Performance & Tempo
+        m3SettingsSection(
+            key = "automix:tempo",
+            palette = palette,
+            header = ctx.getString(R.string.settings_automix_tempo),
+            footer = ctx.getString(R.string.settings_automix_tempo_detail),
+        ) {
+            listOf(
+                R.string.settings_automix_tempo_strict,
+                R.string.settings_automix_tempo_normal,
+                R.string.settings_automix_tempo_wide,
+            ).forEachIndexed { index, labelRes ->
+                row {
+                    M3SettingsChoiceRow(
+                        title = stringResource(labelRes),
+                        selected = settings.tempoRange == index,
+                        palette = palette,
+                        onClick = { settings.changeTempoRange(index, ctx) },
+                    )
+                }
+            }
+        }
+
+        m3SettingsSection(
+            key = "automix:analysis",
+            palette = palette,
+            header = ctx.getString(R.string.settings_automix_analysis),
+        ) {
             row {
-                ImmersiveGroupRow(
-                    stringResource(R.string.settings_automix_cache),
-                    detail = cacheBytes?.let { stringResource(R.string.settings_automix_cache_detail, Formatter.formatShortFileSize(ctx, it)) },
-                    trailing = {
+                M3SettingsSwitchRow(
+                    title = stringResource(R.string.settings_automix_mobile_data),
+                    detail = stringResource(R.string.settings_automix_mobile_data_detail),
+                    checked = settings.analyzeOnMobileData,
+                    palette = palette,
+                    onCheckedChange = { settings.changeAnalyzeOnMobileData(it, ctx) },
+                )
+            }
+            row {
+                M3SettingsSwitchRow(
+                    title = stringResource(R.string.settings_automix_performance),
+                    detail = stringResource(R.string.settings_automix_performance_detail),
+                    checked = settings.performancePriority,
+                    palette = palette,
+                    onCheckedChange = { settings.changePerformancePriority(it, ctx) },
+                )
+            }
+        }
+
+        // 6. Diagnostics & Cache (both looks!)
+        m3SettingsSection(
+            key = "automix:diagnostics-cache",
+            palette = palette,
+            header = ctx.getString(R.string.settings_automix_diagnostics),
+        ) {
+            row { M3AutoMixDiagnosticsRow(palette) }
+            row {
+                M3SettingsNavRow(
+                    title = stringResource(R.string.settings_automix_cache),
+                    detail = cacheBytes?.let {
+                        stringResource(R.string.settings_automix_cache_detail, Formatter.formatShortFileSize(ctx, it))
+                    },
+                    palette = palette,
+                    trailingContent = {
                         TextButton(
                             enabled = (cacheBytes ?: 0L) > 0L,
                             onClick = onClearCache,
                         ) {
                             Text(
-                                stringResource(R.string.settings_automix_cache_clear),
-                                color = if ((cacheBytes ?: 0L) > 0L) Immersive.Accent else Immersive.TextSecondary,
+                                text = stringResource(R.string.settings_automix_cache_clear),
+                                color = if ((cacheBytes ?: 0L) > 0L) palette.accent else palette.muted,
+                                fontFamily = palette.fontFamily,
                             )
                         }
                     },
@@ -478,15 +497,40 @@ object AutoMixSettingsUi {
     }
 
     @Composable
-    fun ImmersiveAutoMixIntroDialog(onDismiss: () -> Unit) {
+    fun M3AutoMixIntroDialog(palette: M3SettingsPalette, onDismiss: () -> Unit) {
         val ctx = LocalContext.current
-        ImmersiveAlertDialog(
-            onDismissRequest = { onDismiss(); AutoMixSettings.markIntroSeen(ctx) },
-            title = { Text(stringResource(R.string.settings_automix_intro_title), style = Immersive.Headline) },
-            text = { Text(stringResource(R.string.settings_automix_intro_text_soundnest), style = Immersive.Subhead) },
+        LookAlertDialog(
+            onDismissRequest = {
+                onDismiss()
+                AutoMixSettings.markIntroSeen(ctx)
+            },
+            containerColor = palette.dialogBg,
+            title = {
+                Text(
+                    stringResource(R.string.settings_automix_intro_title),
+                    color = palette.text,
+                    fontFamily = palette.fontFamily,
+                )
+            },
+            text = {
+                Text(
+                    stringResource(R.string.settings_automix_intro_text_soundnest),
+                    color = palette.muted,
+                    fontFamily = palette.fontFamily,
+                )
+            },
             confirmButton = {
-                TextButton(onClick = { onDismiss(); AutoMixSettings.markIntroSeen(ctx) }) {
-                    Text(stringResource(R.string.settings_automix_intro_ok), color = Immersive.Accent)
+                TextButton(
+                    onClick = {
+                        onDismiss()
+                        AutoMixSettings.markIntroSeen(ctx)
+                    },
+                ) {
+                    Text(
+                        stringResource(R.string.settings_automix_intro_ok),
+                        color = palette.accent,
+                        fontFamily = palette.fontFamily,
+                    )
                 }
             },
         )
@@ -494,7 +538,7 @@ object AutoMixSettingsUi {
 }
 
 @Composable
-private fun AutoMixDurationBoundsRow() {
+private fun M3AutoMixDurationBoundsRow(palette: M3SettingsPalette) {
     val ctx = LocalContext.current
     val settings = AutoMixSettings
     var minText by remember(settings.minDurationSeconds) { mutableStateOf(settings.minDurationSeconds.toString()) }
@@ -502,37 +546,79 @@ private fun AutoMixDurationBoundsRow() {
     val minValue = minText.toIntOrNull()?.takeIf { it in 0..90 }
     val maxValue = maxText.toIntOrNull()?.takeIf { it in 0..90 }
     val valid = minValue != null && maxValue != null && (maxValue == 0 || minValue <= maxValue)
-    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp)) {
-        Text(stringResource(R.string.settings_automix_duration), color = AppText, fontSize = 16.sp)
-        Text(stringResource(R.string.settings_automix_duration_detail), color = AppMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 8.dp)) {
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = palette.text,
+        unfocusedTextColor = palette.text,
+        focusedBorderColor = palette.accent,
+        unfocusedBorderColor = palette.divider,
+        focusedLabelColor = palette.accent,
+        unfocusedLabelColor = palette.muted,
+        cursorColor = palette.accent,
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.settings_automix_duration),
+            color = palette.text,
+            fontFamily = palette.fontFamily,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+        )
+        Text(
+            text = stringResource(R.string.settings_automix_duration_detail),
+            color = palette.muted,
+            fontFamily = palette.fontFamily,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(top = 10.dp),
+        ) {
             OutlinedTextField(
-                minText,
-                { minText = it.filter(Char::isDigit).take(2) },
+                value = minText,
+                onValueChange = { minText = it.filter(Char::isDigit).take(2) },
                 label = { Text(stringResource(R.string.settings_automix_duration_min)) },
                 singleLine = true,
                 isError = minValue == null || (maxValue != null && maxValue > 0 && minValue > maxValue),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                colors = fieldColors,
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
-                maxText,
-                { maxText = it.filter(Char::isDigit).take(2) },
+                value = maxText,
+                onValueChange = { maxText = it.filter(Char::isDigit).take(2) },
                 label = { Text(stringResource(R.string.settings_automix_duration_max)) },
                 singleLine = true,
                 isError = maxValue == null || (minValue != null && maxValue != 0 && minValue > maxValue),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                colors = fieldColors,
                 modifier = Modifier.weight(1f),
             )
         }
         if (!valid) {
-            Text(stringResource(R.string.settings_automix_duration_error), color = AppAccent, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+            Text(
+                text = stringResource(R.string.settings_automix_duration_error),
+                color = palette.destructive,
+                fontFamily = palette.fontFamily,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 6.dp),
+            )
         } else if (minValue != settings.minDurationSeconds || maxValue != settings.maxDurationSeconds) {
             TextButton(
                 onClick = { settings.changeDurationBounds(minValue!!, maxValue!!, ctx) },
                 modifier = Modifier.align(Alignment.End),
             ) {
-                Text(stringResource(R.string.settings_automix_duration_apply))
+                Text(
+                    stringResource(R.string.settings_automix_duration_apply),
+                    color = palette.accent,
+                    fontFamily = palette.fontFamily,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
         }
     }
@@ -540,51 +626,78 @@ private fun AutoMixDurationBoundsRow() {
 
 /** Event-driven status and recent AutoMix events; copied text is redacted before leaving the app. */
 @Composable
-private fun AutoMixDiagnosticsPanel() {
+private fun M3AutoMixDiagnosticsRow(palette: M3SettingsPalette) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val expandedState = remember { mutableStateOf(false) }
     val expanded = expandedState.value
     val events = AutoMix.journalSnapshot
     val cue by LocalPlayer.mixCue
-    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
             Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.settings_automix_diagnostics), color = AppText, fontSize = 16.sp)
                 Text(
-                    stringResource(
+                    text = stringResource(R.string.settings_automix_diagnostics),
+                    color = palette.text,
+                    fontFamily = palette.fontFamily,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+                Text(
+                    text = stringResource(
                         if (cue == null) R.string.settings_automix_diagnostics_no_plan
                         else if (cue?.mixing == true) R.string.settings_automix_diagnostics_running
                         else R.string.settings_automix_diagnostics_planned,
                     ),
-                    color = AppMuted,
+                    color = palette.muted,
+                    fontFamily = palette.fontFamily,
                     fontSize = 12.sp,
                 )
             }
-            TextButton(onClick = {
-                val reason = autoMixReasonText(AutoMix.whyNot())?.let(context.resources::getString).orEmpty()
-                val cueLine = cue?.let {
-                    "${if (it.mixing) "running" else "planned"} ${it.style}, A ${it.exitMs}-${it.endMs} ms, B ${it.entryMs}-${it.resumeMs} ms"
-                } ?: "no transition planned"
-                val safeEvents = AutoMixDiagnostics.safeJournal(events.takeLast(20))
-                val report = buildString {
-                    appendLine("AutoMix diagnostics")
-                    appendLine("Enabled: ${AutoMixSettings.on}")
-                    appendLine("Transition: $cueLine")
-                    if (reason.isNotBlank()) appendLine("Reason: $reason")
-                    appendLine("Recent events:")
-                    safeEvents.forEach { appendLine(it) }
-                }
-                clipboard.setText(AnnotatedString(report))
-            }) { Text(stringResource(R.string.settings_automix_diagnostics_copy), color = AppAccent) }
+            TextButton(
+                onClick = {
+                    val reason = autoMixReasonText(AutoMix.whyNot())?.let(context.resources::getString).orEmpty()
+                    val cueLine = cue?.let {
+                        "${if (it.mixing) "running" else "planned"} ${it.style}, A ${it.exitMs}-${it.endMs} ms, B ${it.entryMs}-${it.resumeMs} ms"
+                    } ?: "no transition planned"
+                    val safeEvents = AutoMixDiagnostics.safeJournal(events.takeLast(20))
+                    val report = buildString {
+                        appendLine("AutoMix diagnostics")
+                        appendLine("Enabled: ${AutoMixSettings.on}")
+                        appendLine("Transition: $cueLine")
+                        if (reason.isNotBlank()) appendLine("Reason: $reason")
+                        appendLine("Recent events:")
+                        safeEvents.forEach { appendLine(it) }
+                    }
+                    clipboard.setText(AnnotatedString(report))
+                },
+            ) {
+                Text(
+                    stringResource(R.string.settings_automix_diagnostics_copy),
+                    color = palette.accent,
+                    fontFamily = palette.fontFamily,
+                )
+            }
             TextButton(onClick = { expandedState.value = !expanded }) {
-                Text(stringResource(if (expanded) R.string.settings_automix_diagnostics_hide else R.string.settings_automix_diagnostics_show), color = AppAccent)
+                Text(
+                    stringResource(if (expanded) R.string.settings_automix_diagnostics_hide else R.string.settings_automix_diagnostics_show),
+                    color = palette.accent,
+                    fontFamily = palette.fontFamily,
+                )
             }
         }
         if (expanded) {
             cue?.let {
                 Text(
-                    stringResource(
+                    text = stringResource(
                         R.string.settings_automix_diagnostics_cue,
                         stringResource(if (it.mixing) R.string.settings_automix_diagnostics_running_short else R.string.settings_automix_diagnostics_planned_short),
                         it.style.name,
@@ -593,68 +706,48 @@ private fun AutoMixDiagnosticsPanel() {
                         it.entryMs,
                         it.resumeMs,
                     ),
-                    color = AppMuted,
+                    color = palette.muted,
+                    fontFamily = palette.fontFamily,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
             autoMixReasonText(AutoMix.whyNot())?.let {
-                Text(stringResource(it), color = AppMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                Text(
+                    stringResource(it),
+                    color = palette.muted,
+                    fontFamily = palette.fontFamily,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
             }
             val visible = events.takeLast(12)
-            if (visible.isEmpty()) Text(stringResource(R.string.settings_automix_diagnostics_empty), color = AppMuted, fontSize = 12.sp)
-            else visible.forEach { Text(it, color = AppMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp)) }
-            Text(stringResource(R.string.settings_automix_diagnostics_privacy), color = AppMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
-        }
-    }
-}
-
-/** The AutoMix analyses kept on the phone: their space, and a button that drops them (analysed again when played). */
-@Composable
-private fun AutoMixCacheRow() {
-    val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var refresh by remember { mutableStateOf(0) }
-    val bytes by produceState<Long?>(null, refresh) {
-        value = withContext(Dispatchers.IO) { AutoMix.cacheBytes() }
-    }
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 10.dp, bottom = 10.dp)) {
-        Column(Modifier.weight(1f)) {
-            Text(stringResource(R.string.settings_automix_cache), color = AppText, fontSize = 16.sp)
+            if (visible.isEmpty()) {
+                Text(
+                    stringResource(R.string.settings_automix_diagnostics_empty),
+                    color = palette.muted,
+                    fontFamily = palette.fontFamily,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            } else {
+                visible.forEach {
+                    Text(
+                        it,
+                        color = palette.muted,
+                        fontFamily = palette.fontFamily,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 3.dp),
+                    )
+                }
+            }
             Text(
-                bytes?.let { stringResource(R.string.settings_automix_cache_detail, Formatter.formatShortFileSize(ctx, it)) }.orEmpty(),
-                color = AppMuted,
-                fontSize = 12.sp,
+                stringResource(R.string.settings_automix_diagnostics_privacy),
+                color = palette.tertiary,
+                fontFamily = palette.fontFamily,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(top = 6.dp),
             )
         }
-        TextButton(
-            enabled = (bytes ?: 0L) > 0L,
-            onClick = {
-                scope.launch {
-                    withContext(Dispatchers.IO) { AutoMix.clearCache() }
-                    refresh++
-                }
-            },
-        ) { Text(stringResource(R.string.settings_automix_cache_clear), color = AppAccent) }
     }
-}
-
-/** A whole number of seconds from 0 to 90 with − and +; 0 reads as [zero] ("Automatic", "No limit"). */
-@Composable
-private fun DurationStepper(title: Int, value: Int, zero: Int, onChange: (Int) -> Unit) {
-    val steps = listOf(0, 2, 4, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, 60, 75, 90)
-    val at = steps.indexOfFirst { it >= value }.let { if (it < 0) steps.lastIndex else it }
-    ImmersiveGroupRow(
-        stringResource(title),
-        value = if (value == 0) stringResource(zero) else stringResource(R.string.settings_automix_seconds, value),
-        trailing = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(enabled = at > 0, onClick = { onChange(steps[at - 1]) }) { Text("−", style = Immersive.Headline) }
-                TextButton(
-                    enabled = at < steps.lastIndex,
-                    onClick = { onChange(steps[(if (steps[at] == value) at + 1 else at).coerceAtMost(steps.lastIndex)]) },
-                ) { Text("+", style = Immersive.Headline) }
-            }
-        },
-    )
 }

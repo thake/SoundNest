@@ -1,28 +1,20 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 package io.github.thake.soundnest.feature.library.hiddensongs.settings
 
-import android.content.Context
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import io.github.thake.soundnest.R
 import io.github.thake.soundnest.core.preferences.SettingsEntry
-import io.github.thake.soundnest.core.ui.classic.AppMuted
-import io.github.thake.soundnest.core.ui.classic.AppText
-import io.github.thake.soundnest.core.ui.immersive.pages.ImmersiveGroupRow
-import io.github.thake.soundnest.core.ui.immersive.pages.ImmersiveGroupScope
 import io.github.thake.soundnest.core.ui.navigation.Routes
+import io.github.thake.soundnest.core.ui.navigation.navigateSingleTop
+import io.github.thake.soundnest.core.ui.settings.M3SectionScope
+import io.github.thake.soundnest.core.ui.settings.M3SettingsNavRow
+import io.github.thake.soundnest.core.ui.settings.M3SettingsPalette
 
 /**
- * Kid Settings rows (Classic & Immersive) and Settings Search entry for Hidden Songs.
+ * Settings row and Settings Search entry for Hidden Songs.
  */
 object HiddenSongsSettingsUi {
     val settingsEntries: List<SettingsEntry> = listOf(
@@ -34,30 +26,17 @@ object HiddenSongsSettingsUi {
         ),
     )
 
-    @Composable
-    fun ClassicLibraryRow(navController: NavController) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .clickable {
-                    navController.navigate(Routes.HiddenSongs.route)
-                }
-                .padding(horizontal = 20.dp, vertical = 10.dp),
-        ) {
-            Text(stringResource(R.string.hidden_songs_title), color = AppText, fontSize = 16.sp)
-            Text(stringResource(R.string.hidden_songs_detail), color = AppMuted, fontSize = 12.sp)
-        }
-    }
-
-    internal fun ImmersiveGroupScope.immersiveLibraryRow(ctx: Context, navController: NavController) {
+    fun M3SectionScope.m3LibraryRow(
+        navController: NavController,
+        palette: M3SettingsPalette,
+    ) {
         row {
-            ImmersiveGroupRow(
-                stringResource(R.string.hidden_songs_title),
+            M3SettingsNavRow(
+                icon = Icons.Rounded.VisibilityOff,
+                title = stringResource(R.string.hidden_songs_title),
                 detail = stringResource(R.string.hidden_songs_detail),
-                chevron = true,
-                onClick = {
-                    navController.navigate(Routes.HiddenSongs.route)
-                },
+                palette = palette,
+                onClick = { navController.navigateSingleTop(Routes.HiddenSongs.route) },
             )
         }
     }

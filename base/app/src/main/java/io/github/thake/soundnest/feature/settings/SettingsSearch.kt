@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 package io.github.thake.soundnest.feature.settings
 
+import io.github.thake.soundnest.R
 import io.github.thake.soundnest.core.preferences.SettingsEntry
 import io.github.thake.soundnest.feature.accounts.settings.AccountsSettingsUi
 import io.github.thake.soundnest.feature.appearance.settings.AppearanceSettingsUi
@@ -12,18 +13,34 @@ import io.github.thake.soundnest.feature.system.settings.SystemSettingsUi
 import java.text.Normalizer
 
 /**
- * What the search button of Settings looks through, in both looks: the rows of every page, by
- * their title and description in the app's language. A hit opens the page (Immersive: a
- * `SettingsPage` name) or the tab (Classic: its index, or `transitions` for that page) it is on.
+ * Search index for Settings in both Classic and Immersive looks. Each hit opens its target
+ * `SettingsPage` (or Parental Controls for the parent management entry).
  */
 internal object SettingsSearch {
+    private val parentalEntries: List<SettingsEntry> = listOf(
+        SettingsEntry(
+            title = R.string.parent_settings_title,
+            detail = R.string.parental_controls_detail_locked,
+            classicPlace = "0",
+            immersivePage = "Root",
+        ),
+    )
+
     val allEntries: List<SettingsEntry> = listOf(
         *PlaybackSettingsUi.settingsEntries.toTypedArray(),
         *LibrarySettingsUi.settingsEntries.toTypedArray(),
         *LyricsSettingsUi.settingsEntries.toTypedArray(),
         *SystemSettingsUi.settingsEntries.toTypedArray(),
+        SettingsEntry(
+            title = R.string.settings_section_local_radio,
+            detail = R.string.settings_local_radio_row_detail,
+            classicPlace = "7",
+            immersivePage = "LocalAndRadio",
+            isVisible = { it.localFiles.enabled || it.radio.enabled },
+        ),
         *AppearanceSettingsUi.settingsEntries.toTypedArray(),
         *AccountsSettingsUi.settingsEntries.toTypedArray(),
+        *parentalEntries.toTypedArray(),
     )
 
     val immersive: List<SettingsEntry>

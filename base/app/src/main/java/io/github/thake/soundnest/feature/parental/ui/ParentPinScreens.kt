@@ -42,6 +42,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -71,7 +72,11 @@ import io.github.thake.soundnest.core.ui.classic.AppMuted
 import io.github.thake.soundnest.core.ui.classic.AppText
 import io.github.thake.soundnest.core.ui.classic.tone
 import io.github.thake.soundnest.core.ui.immersive.Immersive
+import io.github.thake.soundnest.core.ui.look.LookAlertDialog
 import io.github.thake.soundnest.core.ui.navigation.isImmersive
+import io.github.thake.soundnest.core.ui.settings.m3FilledButtonColors
+import io.github.thake.soundnest.core.ui.settings.m3SwitchColors
+import io.github.thake.soundnest.core.ui.settings.rememberM3SettingsPalette
 import io.github.thake.soundnest.feature.parental.security.AppSurface
 import io.github.thake.soundnest.feature.parental.security.ParentSecurityManager
 import io.github.thake.soundnest.feature.parental.security.PinChangeResult
@@ -519,6 +524,9 @@ private fun launchSystemBiometric(context: Context, onError: (String) -> Unit) {
 @Composable
 fun ParentSecurityControlsSection(onOpenParentSettings: (() -> Unit)? = null) {
     val context = LocalContext.current
+    val palette = rememberM3SettingsPalette()
+    val buttonColors = m3FilledButtonColors(palette)
+    val switchColors = m3SwitchColors(palette)
     val tick by ParentSecurityManager.sessionTick.collectAsState()
     val unlocked = remember(tick) { ParentSecurityManager.isAdminUnlocked(context) }
     var biometricEnabled by remember(tick) { mutableStateOf(ParentSecurityManager.isBiometricEnabled(context)) }
@@ -533,27 +541,29 @@ fun ParentSecurityControlsSection(onOpenParentSettings: (() -> Unit)? = null) {
             Column(Modifier.weight(1f).padding(end = 8.dp)) {
                 Text(
                     text = if (unlocked) stringResource(R.string.menu_parent_mode_active) else stringResource(R.string.parent_locked_title),
-                    color = if (unlocked) AppAccent else AppText,
+                    color = if (unlocked) palette.accent else palette.text,
+                    fontFamily = palette.fontFamily,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
                     text = if (unlocked) stringResource(R.string.parent_pin_session_unlocked_hint)
                     else stringResource(R.string.parent_pin_session_locked_hint),
-                    color = AppMuted,
+                    color = palette.muted,
+                    fontFamily = palette.fontFamily,
                     fontSize = 12.sp,
                 )
             }
             if (unlocked) {
                 OutlinedButton(onClick = { ParentSecurityManager.lockNow(context) }) {
-                    Text(stringResource(R.string.parent_pin_lock_now), color = AppText)
+                    Text(stringResource(R.string.parent_pin_lock_now), color = palette.text, fontFamily = palette.fontFamily)
                 }
             } else {
                 Button(
                     onClick = { ParentSecurityManager.runProtected(context, AppSurface.PARENT_CONTROLS) {} },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppAccent, contentColor = Color.Black),
+                    colors = buttonColors,
                 ) {
-                    Text(stringResource(R.string.parent_pin_unlock))
+                    Text(stringResource(R.string.parent_pin_unlock), fontFamily = palette.fontFamily, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -565,22 +575,27 @@ fun ParentSecurityControlsSection(onOpenParentSettings: (() -> Unit)? = null) {
                         onOpenParentSettings()
                     }
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = AppAccent, contentColor = Color.Black),
+                colors = buttonColors,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(stringResource(R.string.parent_pin_dashboard_open), fontWeight = FontWeight.Bold)
+                Text(
+                    text = stringResource(R.string.parent_pin_dashboard_open),
+                    fontFamily = palette.fontFamily,
+                    fontWeight = FontWeight.Bold,
+                )
             }
         }
 
         if (unlocked) {
             if (biometricSupported) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.weight(1f)) {
-                        Text(stringResource(R.string.parent_pin_biometric_title), color = AppText, fontSize = 15.sp)
-                        Text(stringResource(R.string.parent_pin_biometric_subtitle), color = AppMuted, fontSize = 12.sp)
+                    Column(Modifier.weight(1f).padding(end = 12.dp)) {
+                        Text(stringResource(R.string.parent_pin_biometric_title), color = palette.text, fontFamily = palette.fontFamily, fontSize = 15.sp)
+                        Text(stringResource(R.string.parent_pin_biometric_subtitle), color = palette.muted, fontFamily = palette.fontFamily, fontSize = 12.sp)
                     }
                     Switch(
                         checked = biometricEnabled,
+                        colors = switchColors,
                         onCheckedChange = {
                             biometricEnabled = it
                             ParentSecurityManager.setBiometricEnabled(context, it)
@@ -594,7 +609,13 @@ fun ParentSecurityControlsSection(onOpenParentSettings: (() -> Unit)? = null) {
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(stringResource(R.string.parent_pin_change_button), color = AppText, fontSize = 13.sp, maxLines = 1)
+                Text(
+                    text = stringResource(R.string.parent_pin_change_button),
+                    color = palette.text,
+                    fontFamily = palette.fontFamily,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                )
             }
         }
     }
@@ -607,6 +628,7 @@ fun ParentSecurityControlsSection(onOpenParentSettings: (() -> Unit)? = null) {
 @Composable
 internal fun ChangeParentPinDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
+    val palette = rememberM3SettingsPalette()
     var currentPin by remember { mutableStateOf("") }
     var newPin by remember { mutableStateOf("") }
     var confirmPin by remember { mutableStateOf("") }
@@ -614,26 +636,43 @@ internal fun ChangeParentPinDialog(onDismiss: () -> Unit) {
     var errorText by remember { mutableStateOf<String?>(null) }
 
     val transformation = if (showSecrets) VisualTransformation.None else PasswordVisualTransformation()
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = palette.text,
+        unfocusedTextColor = palette.text,
+        focusedBorderColor = palette.accent,
+        unfocusedBorderColor = palette.divider,
+        focusedLabelColor = palette.accent,
+        unfocusedLabelColor = palette.muted,
+        cursorColor = palette.accent,
+    )
 
-    AlertDialog(
+    LookAlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = tone(0xFF282828),
-        title = { Text(stringResource(R.string.parent_pin_change_title), color = AppText, fontWeight = FontWeight.Bold) },
+        containerColor = palette.dialogBg,
+        title = {
+            Text(
+                text = stringResource(R.string.parent_pin_change_title),
+                color = palette.text,
+                fontFamily = palette.fontFamily,
+                fontWeight = FontWeight.Bold,
+            )
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
                     value = currentPin,
                     onValueChange = { currentPin = sanitizeSecretInput(it); errorText = null },
-                    label = { Text(stringResource(R.string.parent_pin_current_label)) },
+                    label = { Text(stringResource(R.string.parent_pin_current_label), fontFamily = palette.fontFamily) },
                     singleLine = true,
                     visualTransformation = transformation,
                     keyboardOptions = SecretKeyboardOptions,
+                    colors = fieldColors,
                     trailingIcon = {
                         IconButton(onClick = { showSecrets = !showSecrets }) {
                             Icon(
                                 imageVector = if (showSecrets) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                                 contentDescription = if (showSecrets) stringResource(R.string.parent_pin_hide_toggle) else stringResource(R.string.parent_pin_show_toggle),
-                                tint = AppMuted,
+                                tint = palette.muted,
                             )
                         }
                     },
@@ -641,20 +680,24 @@ internal fun ChangeParentPinDialog(onDismiss: () -> Unit) {
                 OutlinedTextField(
                     value = newPin,
                     onValueChange = { newPin = sanitizeSecretInput(it); errorText = null },
-                    label = { Text(stringResource(R.string.parent_pin_new_label)) },
+                    label = { Text(stringResource(R.string.parent_pin_new_label), fontFamily = palette.fontFamily) },
                     singleLine = true,
                     visualTransformation = transformation,
                     keyboardOptions = SecretKeyboardOptions,
+                    colors = fieldColors,
                 )
                 OutlinedTextField(
                     value = confirmPin,
                     onValueChange = { confirmPin = sanitizeSecretInput(it); errorText = null },
-                    label = { Text(stringResource(R.string.parent_pin_confirm_label)) },
+                    label = { Text(stringResource(R.string.parent_pin_confirm_label), fontFamily = palette.fontFamily) },
                     singleLine = true,
                     visualTransformation = transformation,
                     keyboardOptions = SecretKeyboardOptions,
+                    colors = fieldColors,
                 )
-                errorText?.let { Text(it, color = Color(0xFFFF6B6B), fontSize = 13.sp) }
+                errorText?.let {
+                    Text(it, color = palette.destructive, fontFamily = palette.fontFamily, fontSize = 13.sp)
+                }
             }
         },
         confirmButton = {
@@ -663,8 +706,8 @@ internal fun ChangeParentPinDialog(onDismiss: () -> Unit) {
                     newPin.length >= ParentSecurityManager.MIN_PIN_LENGTH &&
                     confirmPin.length >= ParentSecurityManager.MIN_PIN_LENGTH,
                 colors = ButtonDefaults.textButtonColors(
-                    contentColor = AppAccent,
-                    disabledContentColor = AppMuted.copy(alpha = 0.45f),
+                    contentColor = palette.accent,
+                    disabledContentColor = palette.muted.copy(alpha = 0.45f),
                 ),
                 onClick = {
                     if (newPin != confirmPin) {
@@ -679,11 +722,13 @@ internal fun ChangeParentPinDialog(onDismiss: () -> Unit) {
                     }
                 },
             ) {
-                Text(stringResource(R.string.parent_pin_save), fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.parent_pin_save), fontFamily = palette.fontFamily, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = AppMuted) }
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel), color = palette.muted, fontFamily = palette.fontFamily)
+            }
         },
     )
 }
@@ -695,6 +740,7 @@ internal fun ChangeParentPinDialog(onDismiss: () -> Unit) {
 @Composable
 fun CompactParentalControlsRow(onOpenParentSettings: () -> Unit) {
     val context = LocalContext.current
+    val palette = rememberM3SettingsPalette()
     val tick by ParentSecurityManager.sessionTick.collectAsState()
     val unlocked = remember(tick) { ParentSecurityManager.isAdminUnlocked(context) }
 
@@ -713,19 +759,21 @@ fun CompactParentalControlsRow(onOpenParentSettings: () -> Unit) {
         Icon(
             imageVector = Icons.Default.Lock,
             contentDescription = null,
-            tint = AppAccent,
+            tint = palette.accent,
             modifier = Modifier.padding(end = 14.dp),
         )
         Column(Modifier.weight(1f)) {
             Text(
                 text = stringResource(R.string.parent_settings_title),
-                color = AppText,
+                color = palette.text,
+                fontFamily = palette.fontFamily,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
                 text = if (unlocked) stringResource(R.string.parent_pin_active_hint) else stringResource(R.string.parent_pin_manage_rules_hint),
-                color = if (unlocked) AppAccent else AppMuted,
+                color = if (unlocked) palette.accent else palette.muted,
+                fontFamily = palette.fontFamily,
                 fontSize = 12.sp,
             )
         }
@@ -734,13 +782,19 @@ fun CompactParentalControlsRow(onOpenParentSettings: () -> Unit) {
                 onClick = { ParentSecurityManager.lockNow(context) },
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
             ) {
-                Text(stringResource(R.string.parent_pin_lock), color = AppAccent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text(
+                    text = stringResource(R.string.parent_pin_lock),
+                    color = palette.accent,
+                    fontFamily = palette.fontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                )
             }
         }
         Icon(
             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
-            tint = AppMuted,
+            tint = palette.muted,
         )
     }
 }

@@ -1,25 +1,32 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 package io.github.thake.soundnest.feature.localfiles.settings
 
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import android.content.Context
 import androidx.compose.ui.res.stringResource
 import io.github.thake.soundnest.R
+import io.github.thake.soundnest.core.ui.settings.M3SectionScope
+import io.github.thake.soundnest.core.ui.settings.M3SettingsPalette
+import io.github.thake.soundnest.core.ui.settings.M3SettingsSwitchRow
 import io.github.thake.soundnest.feature.parental.settings.ParentalPolicy
 import io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore
-import io.github.thake.soundnest.feature.parental.ui.PolicyToggleRow
 
 /**
  * Parent Controls Dashboard toggle row for Local Audio Files.
  */
-@Composable
-fun LocalFilesParentSettingsRow(policy: ParentalPolicy) {
-    val context = LocalContext.current
-    PolicyToggleRow(
-        title = stringResource(R.string.parent_local_files_title),
-        subtitle = stringResource(R.string.parent_local_files_subtitle),
-        checked = policy.localFiles.enabled,
-    ) { enabled ->
-        ParentalPolicyStore.update(context) { it.copy(localFiles = it.localFiles.copy(enabled = enabled)) }
+fun M3SectionScope.m3LocalFilesParentRow(
+    context: Context,
+    policy: ParentalPolicy,
+    palette: M3SettingsPalette,
+) {
+    row {
+        M3SettingsSwitchRow(
+            title = stringResource(R.string.parent_local_files_title),
+            detail = stringResource(R.string.parent_local_files_subtitle),
+            checked = policy.localFiles.enabled,
+            palette = palette,
+            onCheckedChange = { enabled ->
+                ParentalPolicyStore.update(context) { it.copy(localFiles = it.localFiles.copy(enabled = enabled)) }
+            },
+        )
     }
 }

@@ -1171,4 +1171,77 @@
     <string name="audiobook_previous_chapter">Previous chapter</string>
     <string name="audiobook_next_chapter">Next chapter</string>
     <string name="audiobook_released_date">Released %1$s</string>
+
+    <!-- Material Design 3 Settings & Management reorganization -->
+    <string name="settings_group_audio_playback" tools:ignore="MissingTranslation">Audio &amp; Playback</string>
+    <string name="settings_group_display_content" tools:ignore="MissingTranslation">Display &amp; Content</string>
+    <string name="settings_group_data_system" tools:ignore="MissingTranslation">Data, Storage &amp; System</string>
+    <string name="settings_group_parent_account" tools:ignore="MissingTranslation">Parent &amp; Account</string>
+    <string name="settings_playback_row_detail" tools:ignore="MissingTranslation">Streaming quality, autoplay and playback controls</string>
+    <string name="settings_display_row_detail" tools:ignore="MissingTranslation">Theme, accent color, font, rotation and language</string>
+    <string name="settings_library_row_detail" tools:ignore="MissingTranslation">Release alerts and hidden songs</string>
+    <string name="settings_lyrics_row_detail" tools:ignore="MissingTranslation">Word sync, sources, translations and screen wake</string>
+    <string name="settings_data_row_detail" tools:ignore="MissingTranslation">Data saver, battery saver and background playback</string>
+    <string name="settings_storage_row_detail" tools:ignore="MissingTranslation">Media cache and AutoMix analysis storage</string>
+    <string name="settings_app_row_detail" tools:ignore="MissingTranslation">Player repair, diagnostic report and About SoundNest</string>
+    <string name="settings_equalizer_off" tools:ignore="MissingTranslation">Off</string>
+    <string name="settings_playback_section_quality" tools:ignore="MissingTranslation">Streaming quality</string>
+    <string name="settings_playback_section_queue" tools:ignore="MissingTranslation">Queue &amp; Shuffle</string>
+    <string name="settings_display_section_theme" tools:ignore="MissingTranslation">Theme &amp; Colors</string>
+    <string name="settings_display_section_player" tools:ignore="MissingTranslation">Player Interface</string>
+    <string name="settings_display_section_layout" tools:ignore="MissingTranslation">Layout &amp; Language</string>
+    <string name="settings_library_section_preferences" tools:ignore="MissingTranslation">Library Preferences</string>
+    <string name="settings_library_section_manage" tools:ignore="MissingTranslation">Manage</string>
+    <string name="settings_lyrics_section_sync" tools:ignore="MissingTranslation">Sync &amp; Sources</string>
+    <string name="settings_lyrics_section_reading" tools:ignore="MissingTranslation">Reading &amp; Translation</string>
+    <string name="settings_data_section_savers" tools:ignore="MissingTranslation">Savers</string>
+    <string name="settings_app_section_repair" tools:ignore="MissingTranslation">Troubleshooting</string>
+    <string name="settings_app_section_about" tools:ignore="MissingTranslation">About</string>
+    <string name="settings_transitions_section_mode" tools:ignore="MissingTranslation">Transition Mode</string>
+    <string name="parent_group_content" tools:ignore="MissingTranslation">Content &amp; Experience</string>
+    <string name="parent_group_system" tools:ignore="MissingTranslation">Network, Security &amp; Backup</string>
+    <string name="parent_nav_filter_rules_detail" tools:ignore="MissingTranslation">Mode: %1$s · %2$d approved, %3$d blocked</string>
+    <string name="parent_nav_home_minimal_summary" tools:ignore="MissingTranslation">Minimal Home mode · Only Shortcuts &amp; Parent Picks</string>
+    <string name="parent_nav_home_open_summary" tools:ignore="MissingTranslation">Custom Home layout · %1$d carousels visible</string>
+    <string name="parent_nav_feature_gates_summary" tools:ignore="MissingTranslation">%1$d features enabled</string>
+    <string name="parent_nav_speakers_summary_trusted" tools:ignore="MissingTranslation">Trusted Home LAN active</string>
+    <string name="parent_nav_speakers_summary_unrestricted" tools:ignore="MissingTranslation">Network boundary off · Allowed everywhere</string>
+    <string name="parent_nav_speakers_summary_blocked" tools:ignore="MissingTranslation">Outside trusted Wi-Fi · Remote speakers hidden</string>
+    <string name="parent_section_security_backup" tools:ignore="MissingTranslation">Security, PIN &amp; Policy Backup</string>
+    <string name="parent_nav_security_backup_detail" tools:ignore="MissingTranslation">PIN, biometrics and JSON export or import</string>
+    <string name="parent_filter_section_mode" tools:ignore="MissingTranslation">Catalog Mode &amp; Explicit</string>
+    <string name="parent_filter_section_lists" tools:ignore="MissingTranslation">Approved &amp; Blocked Lists</string>
+    <string name="parent_filter_section_quick" tools:ignore="MissingTranslation">Quick Allow / Block</string>
+    <string name="parent_filter_section_patterns" tools:ignore="MissingTranslation">Keywords &amp; Regex</string>
+    <string name="parent_home_section_layout" tools:ignore="MissingTranslation">Home Layout</string>
+    <string name="parent_features_section_library" tools:ignore="MissingTranslation">Library &amp; Playback</string>
+    <string name="parent_features_section_spoken" tools:ignore="MissingTranslation">Spoken Word &amp; Audiobooks</string>
+    <string name="parent_features_section_sources" tools:ignore="MissingTranslation">Audio Sources &amp; Social</string>
+    <string name="parent_features_section_lyrics" tools:ignore="MissingTranslation">Lyrics</string>
+    <string name="parent_speakers_section_network" tools:ignore="MissingTranslation">Home Network Boundary</string>
+    <string name="parent_speakers_section_devices" tools:ignore="MissingTranslation">Known Speakers</string>
+    <string name="equalizer_section_equalizer" tools:ignore="MissingTranslation">Equalizer</string>
+    <string name="accounts_section_profiles" tools:ignore="MissingTranslation">Spotify Profiles</string>
+    <string name="accounts_section_actions" tools:ignore="MissingTranslation">Account Actions</string>
+    <string name="about_section_credits" tools:ignore="MissingTranslation">License &amp; Credits</string>
+    <string name="parent_section_spotify" tools:ignore="MissingTranslation">Spotify</string>
+    <string name="parent_nav_spotify_summary_readonly" tools:ignore="MissingTranslation">Read-only library · %1$d features enabled</string>
+    <string name="parent_nav_spotify_summary_editable" tools:ignore="MissingTranslation">Library editable · %1$d features enabled</string>
+    <string name="parent_features_section_podcasts_audiobooks" tools:ignore="MissingTranslation">Podcasts &amp; Audiobooks</string>
+    <string name="parent_features_section_social" tools:ignore="MissingTranslation">Social</string>
+    <string name="parent_section_audible" tools:ignore="MissingTranslation">Audible</string>
+    <string name="parent_nav_audible_summary_enabled" tools:ignore="MissingTranslation">Enabled · %1$d approved</string>
+    <string name="parent_nav_audible_summary_paused" tools:ignore="MissingTranslation">Paused · %1$d approved</string>
+    <string name="parent_nav_audible_summary_disabled" tools:ignore="MissingTranslation">Disabled</string>
+    <string name="parent_audible_section_access" tools:ignore="MissingTranslation">Access &amp; Home</string>
+    <string name="parent_audible_section_account" tools:ignore="MissingTranslation">Account &amp; Library</string>
+    <string name="settings_section_local_radio" tools:ignore="MissingTranslation">Local Files &amp; Live Radio</string>
+    <string name="settings_local_radio_row_detail" tools:ignore="MissingTranslation">Equalizer, local audio files and internet radio</string>
+    <string name="parent_nav_local_radio_both" tools:ignore="MissingTranslation">Local files &amp; Live Radio enabled</string>
+    <string name="parent_nav_local_radio_local_only" tools:ignore="MissingTranslation">Local files enabled</string>
+    <string name="parent_nav_local_radio_radio_only" tools:ignore="MissingTranslation">Live Radio enabled</string>
+    <string name="parent_nav_local_radio_disabled" tools:ignore="MissingTranslation">Disabled</string>
+    <string name="local_radio_section_sources" tools:ignore="MissingTranslation">Sources</string>
+    <string name="local_radio_section_visibility" tools:ignore="MissingTranslation">Library &amp; Menu Visibility</string>
+    <string name="local_radio_section_audio" tools:ignore="MissingTranslation">Audio &amp; Mixing</string>
 </resources>
