@@ -1,7 +1,9 @@
 package io.github.thake.soundnest.host.android
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
@@ -24,6 +26,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.io.ByteArrayInputStream
+import java.lang.ref.WeakReference
+
+internal tailrec fun findActivity(context: Context?): Activity? = when (context) {
+    is Activity -> if (context.isFinishing || context.isDestroyed) null else context
+    is ContextWrapper -> findActivity(context.baseContext)
+    else -> null
+}
 
 /**
  * [BridgeHost] on an Android WebView that loads the official Web Player.
@@ -228,7 +237,10 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    var view: WebView = createView()
+    var view: WebView = createView(null)
+
+    private var viewActivity: WeakReference<Activity>? = null
+    private var releaseActivityWhenIdle = false
 
     /**
      * Builds the page view. Called once at startup, and again after a renderer crash: a WebView
@@ -236,9 +248,12 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
      * [onRenderProcessGone] returns false (see [rebuild]).
      */
     @SuppressLint("SetJavaScriptEnabled")
-    private fun createView(): WebView = AwakeWebView(android.content.MutableContextWrapper(context.applicationContext)).apply {
-        // The account's profile, before anything else is done with the view (androidx.webkit's rule).
-        useProfile(this)
+    private fun createView(activity: Activity? = null): WebView {
+        viewActivity = activity?.let(::WeakReference)
+        return AwakeWebView(android.content.MutableContextWrapper(activity ?: context.applicationContext)).apply {
+            importantForAutofill = if (activity != null) View.IMPORTANT_FOR_AUTOFILL_YES else View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+            // The account's profile, before anything else is done with the view (androidx.webkit's rule).
+            useProfile(this)
         settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -470,6 +485,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
             }
         }
     }
+}
 
     /** The container the page is attached to, so a rebuilt page goes back to the same place. */
     private var container: ViewGroup? = null
@@ -483,29 +499,46 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
      * the app kept a dead page — a blank screen with the sound gone — until it was restarted.
      */
     private fun rebuild(then: (() -> Unit)? = null): Boolean = main.post {
+        releaseActivityWhenIdle = false
         main.removeCallbacks(drmWatch)
         val wasLoaded = loadAsked
         // Mid sign-in: the page comes back to the sign-in, not to an anonymous player in front of the user.
         val wasLogin = _loginRequired.value || _loginLoad.value != LoginLoad.NONE
+        val targetActivity = if (lastVisible || wasLogin || then != null) findActivity(container?.context) else null
         val box = container
         box?.let { runCatching { it.removeView(view) } }
         (view as? AwakeWebView)?.releaseFromWindow()
         runCatching { view.stopLoading() }
         runCatching { view.destroy() }
-        view = createView()
+        view = createView(targetActivity)
         applyAwake()
         pageStarts = 0
         _url.value = ""
         // attach() loads the page itself when a load is pending; the pending load is asked again
         // just after, once, so a rebuilt page is loaded exactly once.
         loadAsked = false
-        box?.let { attach(it, lastVisible) }
+        box?.let { attachViewToContainer(it, lastVisible) }
         // Another account's page ([switchProfile], [addProfile]): what it opens on is the caller's.
         if (then != null) { then(); return@post }
         // The new view's first navigation can be lost while the browser side still settles after
         // the kill (seen: no page start for 4 s): the watchdog looks again after 1.5 s, not 4 s.
         if (wasLogin) { loadAsked = wasLoaded; beginLoginLoad(); view.loadUrl(LOGIN_URL) }
         else if (wasLoaded) load(firstWatchMs = REBUILD_WATCH_MS) else view.loadUrl("about:blank")
+    }
+
+    private fun ensureActivityView(activity: Activity): Boolean {
+        if (viewActivity?.get() === activity) return false
+        val box = container
+        box?.let { runCatching { it.removeView(view) } }
+        (view as? AwakeWebView)?.releaseFromWindow()
+        runCatching { view.stopLoading() }
+        runCatching { view.destroy() }
+        view = createView(activity)
+        applyAwake()
+        pageStarts = 0
+        _url.value = ""
+        box?.let { attachViewToContainer(it, lastVisible) }
+        return true
     }
 
     /** Spotify's sign-in pages and the "Continue with Google / Facebook / Apple" ones (see [LoginLoad.isLoginUrl]). */
@@ -640,6 +673,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
     }
 
     fun openLogin() = main.post {
+        findActivity(container?.context)?.let { ensureActivityView(it) }
         // A player retry or load timeout still pending would replace the sign-in page just asked for.
         main.removeCallbacks(retryPlayerPage)
         main.removeCallbacks(loadTimeout)
@@ -649,6 +683,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
 
     /** Signs out of Spotify in this WebView, then shows the login page. */
     fun logout() = main.post {
+        findActivity(container?.context)?.let { ensureActivityView(it) }
         roots.edit().remove(SIGNED_IN_KEY).apply()
         // The profile stays, with no account in it: the next sign-in on it is read as whoever it is.
         accounts.update { it.signedOut(profile) }
@@ -661,7 +696,11 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
      * a sign-in behind (the cookies and storage of a flow that never finished), and Spotify's page
      * answers "Oops! Something went wrong" to a flow it cannot match with its own state.
      */
-    fun retryLogin() = main.post { beginLoginLoad(); cleanSlate { view.loadUrl(LOGIN_URL) } }
+    fun retryLogin() = main.post {
+        findActivity(container?.context)?.let { ensureActivityView(it) }
+        beginLoginLoad()
+        cleanSlate { view.loadUrl(LOGIN_URL) }
+    }
 
     /**
      * Before a report sent from the sign-in: what the page shows right now (its path, title, the
@@ -883,8 +922,27 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
      * off, which is how most listening happens.
      */
     fun attach(container: ViewGroup, visible: Boolean) = main.post {
+        releaseActivityWhenIdle = false
         this.container = container
         lastVisible = visible
+        val activity = if (visible) findActivity(container.context) else null
+        if (activity != null && viewActivity?.get() !== activity) {
+            val wasLogin = _loginRequired.value || _loginLoad.value != LoginLoad.NONE
+            val currentUrl = _url.value
+            ensureActivityView(activity)
+            if (wasLogin) {
+                val urlToLoad = currentUrl.takeIf { isLoginPage(it) } ?: LOGIN_URL
+                view.loadUrl(urlToLoad)
+            }
+        } else {
+            attachViewToContainer(container, visible)
+        }
+        // Now in a window: a first navigation that never started gets another go. Not over a
+        // sign-in page being opened on a new view (another account's, or after a dead renderer).
+        if (loadAsked && _url.value.isEmpty() && pageStarts == 0 && _loginLoad.value == LoginLoad.NONE) view.loadUrl(playerRoot())
+    }
+
+    private fun attachViewToContainer(container: ViewGroup, visible: Boolean) {
         // A <select> (the birth month on Spotify's sign-up page) opens its list as a dialog, which
         // needs an Activity: shown, the page works on the activity's context; hidden, on the
         // application's again, so no activity is kept by a page that outlives them. Same page, no reload.
@@ -899,6 +957,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
         // Still opening or failed, the sign-in page stays out of sight (the app's own screen covers it).
         view.alpha = if (_loginLoad.value == LoginLoad.LOADING || _loginLoad.value == LoginLoad.FAILED) 0f else 1f
         view.visibility = if (visible) View.VISIBLE else View.INVISIBLE
+        view.importantForAutofill = if (visible) View.IMPORTANT_FOR_AUTOFILL_YES else View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
         view.importantForAccessibility = if (visible) View.IMPORTANT_FOR_ACCESSIBILITY_AUTO else View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
         // Typing in the login form needs touch focus, or the keyboard never opens.
         view.isFocusable = visible
@@ -908,9 +967,6 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
         view.requestLayout()
         // Shown again after being hidden at 1 px: a page that was not told to redraw can stay white.
         if (visible) view.postInvalidateOnAnimation()
-        // Now in a window: a first navigation that never started gets another go. Not over a
-        // sign-in page being opened on a new view (another account's, or after a dead renderer).
-        if (loadAsked && _url.value.isEmpty() && pageStarts == 0 && _loginLoad.value == LoginLoad.NONE) view.loadUrl(playerRoot())
     }
 
     /**
@@ -946,6 +1002,13 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
         lastVisible = false
         (view.parent as? ViewGroup)?.removeView(view)
         (view.context as? android.content.MutableContextWrapper)?.baseContext = context.applicationContext
+        if (viewActivity != null && !_loginRequired.value && _loginLoad.value == LoginLoad.NONE) {
+            if (!useful) {
+                rebuild()
+            } else {
+                releaseActivityWhenIdle = true
+            }
+        }
     }
 
     /**
@@ -964,7 +1027,15 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
         useful = on
         applyAwake()
         main.removeCallbacks(breath)
-        if (!on) main.postDelayed(breath, BREATH_EVERY_MS)
+        if (!on) {
+            if (releaseActivityWhenIdle) {
+                releaseActivityWhenIdle = false
+                if (viewActivity != null && !_loginRequired.value && _loginLoad.value == LoginLoad.NONE) {
+                    rebuild()
+                }
+            }
+            main.postDelayed(breath, BREATH_EVERY_MS)
+        }
     }
 
     override fun commandComing() = wake(COMMAND_AWAKE_MS)

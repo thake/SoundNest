@@ -1,6 +1,7 @@
 package io.github.thake.soundnest.host.android
 
 import android.content.MutableContextWrapper
+import android.view.View
 import android.widget.FrameLayout
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -26,7 +27,10 @@ class WebPlayerHostDetachTest {
         instrumentation.waitForIdleSync()
         val container = WebPlayerHost::class.java.getDeclaredField("container").apply { isAccessible = true }
         try {
-            instrumentation.runOnMainSync { host.detach(first) }
+            instrumentation.runOnMainSync {
+                assertEquals(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS, host.view.importantForAutofill)
+                host.detach(first)
+            }
             instrumentation.waitForIdleSync()
             instrumentation.runOnMainSync {
                 assertNull("the destroyed root must not remain in the process-wide host", container.get(host))
@@ -51,6 +55,40 @@ class WebPlayerHostDetachTest {
             }
         } finally {
             instrumentation.runOnMainSync { host.view.destroy() }
+        }
+    }
+
+    @Test fun attachVisibleUpgradesToActivityAndDetachReleasesActivity() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val app = instrumentation.targetContext.applicationContext
+        var host: WebPlayerHost? = null
+        lateinit var actContainer: FrameLayout
+        val scenario = androidx.test.core.app.ActivityScenario.launch(io.github.thake.soundnest.MainActivity::class.java)
+        try {
+            scenario.onActivity { activity ->
+                val h = WebPlayerHost(app)
+                host = h
+                actContainer = FrameLayout(activity)
+                h.attach(actContainer, visible = true)
+            }
+            instrumentation.waitForIdleSync()
+            instrumentation.runOnMainSync {
+                val h = host!!
+                assertEquals(View.IMPORTANT_FOR_AUTOFILL_YES, h.view.importantForAutofill)
+                scenario.onActivity { activity ->
+                    assertSame(activity, (h.view.context as MutableContextWrapper).baseContext)
+                }
+                h.detach(actContainer)
+            }
+            instrumentation.waitForIdleSync()
+            instrumentation.runOnMainSync {
+                val h = host!!
+                assertEquals(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS, h.view.importantForAutofill)
+                assertSame(app, (h.view.context as MutableContextWrapper).baseContext)
+            }
+        } finally {
+            scenario.close()
+            instrumentation.runOnMainSync { host?.view?.destroy() }
         }
     }
 }

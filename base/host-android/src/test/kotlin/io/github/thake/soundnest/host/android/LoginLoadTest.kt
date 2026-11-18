@@ -1,11 +1,21 @@
 package io.github.thake.soundnest.host.android
 
+import android.app.Activity
+import android.content.ContextWrapper
+import android.content.MutableContextWrapper
 import io.github.thake.soundnest.host.android.LoginLoad.Blank
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.Robolectric
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 
+@RunWith(RobolectricTestRunner::class)
 class LoginLoadTest {
 
     @Test fun `spotify sign-in pages are login pages`() {
@@ -101,5 +111,34 @@ class LoginLoadTest {
         w.tick(5 * 60_000, inFront = true, ready = false)
         assertEquals(SessionWait.MAX_TURN_MS, w.elapsedMs)
         assertFalse(w.expired)
+    }
+
+    @Test fun `findActivity unwraps direct activity`() {
+        val controller = Robolectric.buildActivity(Activity::class.java).setup()
+        val activity = controller.get()
+        assertSame(activity, findActivity(activity))
+    }
+
+    @Test fun `findActivity unwraps nested ContextWrapper and MutableContextWrapper`() {
+        val controller = Robolectric.buildActivity(Activity::class.java).setup()
+        val activity = controller.get()
+        val wrapped = ContextWrapper(MutableContextWrapper(ContextWrapper(activity)))
+        assertSame(activity, findActivity(wrapped))
+    }
+
+    @Test fun `findActivity returns null for Application context and wrapped Application context`() {
+        val app = RuntimeEnvironment.getApplication()
+        assertNull(findActivity(app))
+        assertNull(findActivity(ContextWrapper(app)))
+        assertNull(findActivity(MutableContextWrapper(app)))
+        assertNull(findActivity(null))
+    }
+
+    @Test fun `findActivity ignores finishing or destroyed activity`() {
+        val controller = Robolectric.buildActivity(Activity::class.java).setup()
+        val activity = controller.get()
+        controller.pause().stop().destroy()
+        assertNull(findActivity(activity))
+        assertNull(findActivity(ContextWrapper(activity)))
     }
 }

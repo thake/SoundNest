@@ -6,6 +6,7 @@ package io.github.thake.soundnest
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.activity.compose.setContent
@@ -95,6 +96,7 @@ class MainActivity : AppCompatActivity() {
         setupNeeded = io.github.thake.soundnest.feature.accounts.ui.Setup.needed(this)
         root = FrameLayout(this)
         val compose = ComposeView(this).apply {
+            importantForAutofill = if (showingLogin) View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS else View.IMPORTANT_FOR_AUTOFILL_AUTO
             setContent {
                 SpotuiTheme { io.github.thake.soundnest.core.ui.look.ProvideLook { io.github.thake.soundnest.core.ui.look.ProvideWindowSize {
                     val orientation = io.github.thake.soundnest.feature.appearance.settings.OrientationPref.mode
@@ -203,6 +205,15 @@ class MainActivity : AppCompatActivity() {
             }
         }
         onBackPressedDispatcher.addCallback(this, backToAccount)
+        lifecycleScope.launch {
+            androidx.compose.runtime.snapshotFlow { showingLogin }.collect { login ->
+                compose.importantForAutofill = if (login) {
+                    View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+                } else {
+                    View.IMPORTANT_FOR_AUTOFILL_AUTO
+                }
+            }
+        }
         lifecycleScope.launch {
             combine(androidx.compose.runtime.snapshotFlow { showingLogin && !connecting }, SoundNestRuntime.host.accounts.list) { login, list ->
                 login && SoundNestRuntime.host.multiProfile && list.others.isNotEmpty()
