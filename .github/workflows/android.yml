@@ -35,7 +35,7 @@ jobs:
       # Unit tests across all modules (Android + JVM + KMP).
       # Live browser tests in host-cdp and on-demand DocScreenshotTest skip automatically during CI unit test runs.
       - name: Unit tests
-        run: ./gradlew :api:test :api-spotify:test :automix:test :engine:jvmTest :engine-android:testDebugUnitTest :host-android:testDebugUnitTest :host-cdp:test :app:testDebugUnitTest
+        run: ./gradlew :api:test :api-audible:test :api-spotify:test :automix:test :engine:jvmTest :engine-android:testDebugUnitTest :host-android:testDebugUnitTest :host-cdp:test :app:testDebugUnitTest
 
       - name: Test reports
         if: ${{ failure() }}

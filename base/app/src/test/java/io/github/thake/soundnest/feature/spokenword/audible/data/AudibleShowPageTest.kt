@@ -256,4 +256,35 @@ class AudibleShowPageTest {
         assertFalse(vm.isFinished(chapterRow))
         assertEquals(emptySet<Int>(), AudibleProgressStore.get(app, "B08G9PRS1K")?.finishedChapters)
     }
+
+    @Test
+    fun `load refreshes truncated single-header cached chapters when full chapter table is available`() = runBlocking {
+        connectAudible()
+        AudibleCatalogCache.saveBooks(app, listOf(sampleBook()))
+        // Simulate a stale 1-item intro header previously cached from an unflattened Tree response
+        AudibleCatalogCache.saveChapters(
+            app,
+            "B08G9PRS1K",
+            listOf(AudibleChapter(index = 0, title = "Opening Credits", startOffsetMs = 0L, lengthMs = 5_000L)),
+        )
+
+        val policy = ParentalPolicy(
+            spokenWord = SpokenWordParentalPolicy(
+                allowAudiobooks = false,
+                allowAudible = true,
+                audible = AudibleParentalPolicy(allowedAsins = setOf("B08G9PRS1K")),
+            ),
+        )
+
+        val page = AudibleShowPageLoader.load(
+            context = app,
+            showId = "audible:B08G9PRS1K",
+            policy = policy,
+            fetchManifestChapters = { sampleChapters() },
+        ).getOrThrow()
+
+        assertEquals(3, page.items.size)
+        assertEquals(listOf("Chapter 1", "Chapter 2", "Chapter 3"), page.items.map { it.title })
+        assertEquals(3, AudibleCatalogCache.chapters(app, "B08G9PRS1K")?.size)
+    }
 }

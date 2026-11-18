@@ -234,6 +234,122 @@ class AudibleApiClientTest {
     }
 
     @Test
+    fun `fetches chapters via read-only content metadata endpoint with Flat chapter titles`() = runTest {
+        var capturedPath = ""
+        var capturedResponseGroups = ""
+        var capturedChapterType = ""
+        val http = OkHttpClient.Builder().addInterceptor { chain ->
+            val req = chain.request()
+            assertEquals("GET", req.method)
+            assertNotNull(req.header("x-adp-token"))
+            capturedPath = req.url.encodedPath
+            capturedResponseGroups = req.url.queryParameter("response_groups").orEmpty()
+            capturedChapterType = req.url.queryParameter("chapter_titles_type").orEmpty()
+
+            val resp = """
+                {
+                  "content_metadata": {
+                    "chapter_info": {
+                      "brandIntroDurationMs": 2043,
+                      "runtime_length_ms": 1263000,
+                      "chapters": [
+                        {"title": "Opening Credits", "start_offset_ms": 0, "length_ms": 18000},
+                        {"title": "Chapter 1", "start_offset_ms": 18000, "length_ms": 1245000}
+                      ]
+                    }
+                  }
+                }
+            """.trimIndent()
+            Response.Builder()
+                .request(req)
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("OK")
+                .body(resp.toResponseBody("application/json".toMediaType()))
+                .build()
+        }.build()
+
+        val client = AudibleApiClient(http = http, tokensProvider = ::testTokens, clock = fixedClock)
+        val chapters = client.fetchChapters("B08G9PRS1K")
+
+        assertEquals("/1.0/content/B08G9PRS1K/metadata", capturedPath)
+        assertEquals("chapter_info,content_reference", capturedResponseGroups)
+        assertEquals("Flat", capturedChapterType)
+        assertEquals(2, chapters.size)
+        assertEquals(AudibleChapter(0, "Opening Credits", 0L, 18_000L), chapters[0])
+        assertEquals(AudibleChapter(1, "Chapter 1", 18_000L, 1_245_000L), chapters[1])
+    }
+
+    @Test
+    fun `flattens nested Tree chapters with spoken part headers and pure section wrappers`() = runTest {
+        val http = OkHttpClient.Builder().addInterceptor { chain ->
+            val req = chain.request()
+            val resp = """
+                {
+                  "content_metadata": {
+                    "chapter_info": {
+                      "runtime_length_ms": 4070000,
+                      "chapters": [
+                        {
+                          "title": "Opening Credits",
+                          "start_offset_ms": 0,
+                          "length_ms": 2368
+                        },
+                        {
+                          "title": "Part One: The Mission",
+                          "start_offset_ms": 2368,
+                          "length_ms": 8840,
+                          "chapters": [
+                            {
+                              "title": "Chapter 1",
+                              "start_offset_ms": 11208,
+                              "length_ms": 2258533
+                            },
+                            {
+                              "title": "Chapter 2",
+                              "start_offset_ms": 2269741,
+                              "length_ms": 800259
+                            }
+                          ]
+                        },
+                        {
+                          "title": "Part Two",
+                          "start_offset_ms": 3070000,
+                          "length_ms": 1000000,
+                          "chapters": [
+                            {
+                              "title": "Chapter 3",
+                              "start_offset_sec": 3070,
+                              "length_sec": 1000
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+            """.trimIndent()
+            Response.Builder()
+                .request(req)
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("OK")
+                .body(resp.toResponseBody("application/json".toMediaType()))
+                .build()
+        }.build()
+
+        val client = AudibleApiClient(http = http, tokensProvider = ::testTokens, clock = fixedClock)
+        val chapters = client.fetchChapters("B003ZWFO7E")
+
+        assertEquals(5, chapters.size)
+        assertEquals(AudibleChapter(0, "Opening Credits", 0L, 2_368L), chapters[0])
+        assertEquals(AudibleChapter(1, "Part One: The Mission", 2_368L, 8_840L), chapters[1])
+        assertEquals(AudibleChapter(2, "Chapter 1", 11_208L, 2_258_533L), chapters[2])
+        assertEquals(AudibleChapter(3, "Chapter 2", 2_269_741L, 800_259L), chapters[3])
+        assertEquals(AudibleChapter(4, "Part Two - Chapter 3", 3_070_000L, 1_000_000L), chapters[4])
+    }
+
+    @Test
     fun `throws AudibleApiException when signed out or HTTP 403 returned`() = runTest {
         val signedOutClient = AudibleApiClient(http = OkHttpClient(), tokensProvider = { null }, clock = fixedClock)
         assertThrows(AudibleApiException::class.java) {

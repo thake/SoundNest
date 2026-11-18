@@ -186,6 +186,31 @@ class AudibleApiClient(
             .trim()
     }
 
+    suspend fun fetchChapters(asin: String): List<AudibleChapter> = withContext(Dispatchers.IO) {
+        val cleanAsin = asin.trim()
+        require(cleanAsin.isNotEmpty()) { "ASIN must not be blank" }
+        val tokens = requireTokens()
+        val url = "${baseUrl(tokens)}/1.0/content/$cleanAsin/metadata".toHttpUrl().newBuilder()
+            .addQueryParameter("response_groups", "chapter_info,content_reference")
+            .addQueryParameter("chapter_titles_type", "Flat")
+            .addQueryParameter("quality", "High")
+            .build()
+            .toString()
+
+        val req = buildSignedRequest(tokens, "GET", url)
+        http.newCall(req).execute().use { resp ->
+            val raw = resp.body.string()
+            if (!resp.isSuccessful) {
+                throw AudibleApiException(resp.code, "Audible chapter metadata request failed (HTTP ${resp.code})")
+            }
+            val root = json.parseToJsonElement(raw).jsonObject
+            val chapterInfo = root["content_metadata"]?.jsonObject?.get("chapter_info")?.jsonObject
+                ?: root["content_license"]?.jsonObject?.get("content_metadata")?.jsonObject?.get("chapter_info")?.jsonObject
+                ?: root["chapter_info"]?.jsonObject
+            parseChapterInfo(chapterInfo)
+        }
+    }
+
     suspend fun requestStreamManifest(asin: String): AudibleStreamGrant = withContext(Dispatchers.IO) {
         val cleanAsin = asin.trim()
         require(cleanAsin.isNotEmpty()) { "ASIN must not be blank" }
@@ -198,8 +223,10 @@ class AudibleApiClient(
             put("consumption_type", "Streaming")
             put("quality", "High")
             put("use_adaptive_bit_rate", true)
-            put("response_groups", "chapter_info,content_reference,certificate,content_url")
+            put("chapter_titles_type", "Flat")
+            put("response_groups", "chapter_info,content_reference,certificate")
             put("supported_media_features", buildJsonObject {
+                put("chapter_titles_type", "Flat")
                 put("codecs", buildJsonArray {
                     add(JsonPrimitive("mp4a.40.2"))
                     add(JsonPrimitive("mp4a.40.42"))
@@ -221,28 +248,22 @@ class AudibleApiClient(
             val root = json.parseToJsonElement(raw).jsonObject
             val licenseObj = root["content_license"]?.jsonObject
                 ?: throw AudibleApiException(resp.code, "Missing content_license in licenserequest response")
+            val statusCode = licenseObj["status_code"]?.jsonPrimitive?.contentOrNull
             val drmType = licenseObj["drm_type"]?.jsonPrimitive?.contentOrNull ?: "Widevine"
             val metadata = licenseObj["content_metadata"]?.jsonObject
             val manifestUrl = metadata?.get("content_url")?.jsonObject?.let { cu ->
                 cu["offline_url"]?.jsonPrimitive?.contentOrNull
                     ?: cu["url"]?.jsonPrimitive?.contentOrNull
             }?.takeIf { it.isNotBlank() }
-                ?: throw AudibleApiException(resp.code, "Missing manifest URL in content_metadata.content_url")
-
-            val rawChapters = metadata["chapter_info"]?.jsonObject?.get("chapters") as? JsonArray
-            val chapters = rawChapters?.mapIndexedNotNull { idx, el ->
-                val ch = el as? JsonObject ?: return@mapIndexedNotNull null
-                val startMs = ch["start_offset_ms"]?.jsonPrimitive?.longOrNull ?: 0L
-                val lenMs = ch["length_ms"]?.jsonPrimitive?.longOrNull ?: 0L
-                val chTitle = ch["title"]?.jsonPrimitive?.contentOrNull?.trim()
-                    ?.takeIf { it.isNotEmpty() } ?: "Chapter ${idx + 1}"
-                AudibleChapter(
-                    index = idx,
-                    title = chTitle,
-                    startOffsetMs = startMs.coerceAtLeast(0L),
-                    lengthMs = lenMs.coerceAtLeast(0L),
+                ?: throw AudibleApiException(
+                    resp.code,
+                    buildString {
+                        append("Missing manifest URL in content_metadata.content_url")
+                        if (!statusCode.isNullOrBlank()) append(" (status_code=$statusCode)")
+                    },
                 )
-            }.orEmpty()
+
+            val chapters = parseChapterInfo(metadata["chapter_info"]?.jsonObject)
 
             val certB64 = licenseObj["license_response"]?.jsonPrimitive?.contentOrNull
                 ?: licenseObj["certificate"]?.jsonPrimitive?.contentOrNull
@@ -258,6 +279,92 @@ class AudibleApiClient(
                 serverCertificate = certBytes,
             )
         }
+    }
+
+    internal fun parseChapterInfo(chapterInfo: JsonObject?): List<AudibleChapter> {
+        if (chapterInfo == null) return emptyList()
+        val rawChapters = chapterInfo["chapters"] as? JsonArray ?: return emptyList()
+        val totalRuntimeMs = extractLongMs(chapterInfo, "runtime_length_ms", "runtime_length_sec")
+
+        data class RawNode(val title: String, val startMs: Long, val lengthMs: Long)
+
+        fun collectNodes(elements: JsonArray, parentTitle: String = ""): List<RawNode> {
+            val out = ArrayList<RawNode>()
+            for (el in elements) {
+                val ch = el as? JsonObject ?: continue
+                val startMs = extractLongMs(ch, "start_offset_ms", "start_offset_sec").coerceAtLeast(0L)
+                val lenMs = extractLongMs(ch, "length_ms", "length_sec")
+                    .let { if (it > 0L) it else extractLongMs(ch, "runtime_length_ms", "runtime_length_sec") }
+                    .coerceAtLeast(0L)
+                val rawTitle = ch["title"]?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
+                val nested = (ch["chapters"] as? JsonArray)?.takeIf { it.isNotEmpty() }
+
+                if (nested != null) {
+                    val childPrefix = when {
+                        rawTitle.isNotEmpty() && parentTitle.isNotEmpty() && !rawTitle.startsWith(parentTitle, ignoreCase = true) ->
+                            "$parentTitle - $rawTitle"
+                        rawTitle.isNotEmpty() -> rawTitle
+                        else -> parentTitle
+                    }
+                    val children = collectNodes(nested, childPrefix)
+                    val firstChildStart = children.firstOrNull()?.startMs
+                    if (firstChildStart != null && startMs < firstChildStart) {
+                        val gapMs = firstChildStart - startMs
+                        val introLen = if (lenMs > 0L) minOf(lenMs, gapMs) else gapMs
+                        out += RawNode(
+                            title = childPrefix,
+                            startMs = startMs,
+                            lengthMs = introLen.coerceAtLeast(0L),
+                        )
+                        // Children after a spoken part-intro keep their own chapter titles cleanly
+                        out += collectNodes(nested, "")
+                    } else if (children.isNotEmpty()) {
+                        out += children
+                    } else {
+                        out += RawNode(title = childPrefix, startMs = startMs, lengthMs = lenMs)
+                    }
+                } else {
+                    val effectiveTitle = when {
+                        rawTitle.isNotEmpty() && parentTitle.isNotEmpty() && !rawTitle.startsWith(parentTitle, ignoreCase = true) ->
+                            "$parentTitle - $rawTitle"
+                        rawTitle.isNotEmpty() -> rawTitle
+                        else -> parentTitle
+                    }
+                    out += RawNode(title = effectiveTitle, startMs = startMs, lengthMs = lenMs)
+                }
+            }
+            return out
+        }
+
+        val sorted = collectNodes(rawChapters).sortedBy { it.startMs }
+        if (sorted.isEmpty()) return emptyList()
+
+        return sorted.mapIndexed { idx, node ->
+            val nextStart = sorted.getOrNull(idx + 1)?.startMs
+            val resolvedLen = when {
+                node.lengthMs > 0L -> node.lengthMs
+                nextStart != null && nextStart > node.startMs -> nextStart - node.startMs
+                totalRuntimeMs > node.startMs -> totalRuntimeMs - node.startMs
+                else -> 0L
+            }
+            AudibleChapter(
+                index = idx,
+                title = node.title.ifBlank { "Chapter ${idx + 1}" },
+                startOffsetMs = node.startMs,
+                lengthMs = resolvedLen.coerceAtLeast(0L),
+            )
+        }
+    }
+
+    private fun extractLongMs(obj: JsonObject, msKey: String, secKey: String): Long {
+        val msVal = (obj[msKey] as? JsonPrimitive)?.let { prim ->
+            prim.longOrNull ?: prim.contentOrNull?.trim()?.toLongOrNull()
+        }
+        if (msVal != null) return msVal
+        val secVal = (obj[secKey] as? JsonPrimitive)?.let { prim ->
+            prim.longOrNull ?: prim.contentOrNull?.trim()?.toLongOrNull()
+        }
+        return secVal?.times(1_000L) ?: 0L
     }
 
     suspend fun exchangeWidevineChallenge(asin: String, challengeBytes: ByteArray): ByteArray = withContext(Dispatchers.IO) {

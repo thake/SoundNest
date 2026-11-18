@@ -349,7 +349,17 @@ object AudiblePlayer : io.github.thake.soundnest.core.preferences.PolicySyncedSe
                 tokensProvider = { AudibleCredentialStore.loadTokens(context) },
             )
             loadJob = scope.launch {
-                val grantResult = runCatching { client.requestStreamManifest(cleanAsin) }
+                val grantResult = runCatching {
+                    val rawGrant = client.requestStreamManifest(cleanAsin)
+                    if (rawGrant.chapters.isNotEmpty()) {
+                        rawGrant
+                    } else {
+                        val fallbackChapters = AudibleCatalogCache.chapters(context, cleanAsin)
+                            ?.takeIf { it.isNotEmpty() }
+                            ?: runCatching { client.fetchChapters(cleanAsin) }.getOrNull().orEmpty()
+                        if (fallbackChapters.isNotEmpty()) rawGrant.copy(chapters = fallbackChapters) else rawGrant
+                    }
+                }
                 withContext(Dispatchers.Main) {
                     val grant = grantResult.getOrElse { err ->
                         io.github.thake.soundnest.host.android.Logbook.log("AudiblePlayer: stream grant failed for $cleanAsin: ${err.message}")
@@ -371,11 +381,17 @@ object AudiblePlayer : io.github.thake.soundnest.core.preferences.PolicySyncedSe
         requestedPositionMs: Long?,
         savedProgress: BookProgress?,
     ) {
-        if (grant.chapters.isNotEmpty()) {
-            AudibleCatalogCache.saveChapters(context, book.asin, grant.chapters)
+        val cachedChapters = AudibleCatalogCache.chapters(context, book.asin).orEmpty()
+        val effectiveChapters = when {
+            grant.chapters.size >= cachedChapters.size && grant.chapters.isNotEmpty() -> {
+                AudibleCatalogCache.saveChapters(context, book.asin, grant.chapters)
+                grant.chapters
+            }
+            cachedChapters.isNotEmpty() -> cachedChapters
+            else -> emptyList()
         }
         val proj = AudibleChapterProjector(
-            rawChapters = grant.chapters,
+            rawChapters = effectiveChapters,
             fallbackTitle = book.title,
             fallbackTotalDurationMs = book.runtimeLengthMs,
         )
@@ -445,9 +461,11 @@ object AudiblePlayer : io.github.thake.soundnest.core.preferences.PolicySyncedSe
     private fun chapterSongModel(book: AudibleBook, chapter: AudibleChapter): SongsModel {
         val authorLine = book.authors.joinToString(", ").ifBlank { "Audible" }
         val uri = AudibleUris.chapterUri(book.asin, chapter.index)
+        val fallbackChapterTitle = resolveContext()?.getString(io.github.thake.soundnest.R.string.audible_chapter_number, chapter.index + 1)
+            ?: "Chapter ${chapter.index + 1}"
         return SongsModel(
-            id = uri.hashCode() and 0x7fffffff,
-            title = chapter.title,
+            id = ("uri:$uri").hashCode() and 0x7fffffff,
+            title = chapter.title.ifBlank { fallbackChapterTitle },
             album = book.title,
             singer = authorLine,
             coverUri = book.coverUrl,

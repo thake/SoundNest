@@ -47,6 +47,10 @@ class AudibleAuthTest {
             .encodeToByteArray()
             .joinToString("") { "%02x".format(it) }
         assertTrue("device%3A$expectedClientHex" in url || "device:$expectedClientHex" in url)
+
+        val defaultSession = AudibleAuth.createPkceSession(marketplace = AudibleMarketplace.US)
+        assertEquals(40, defaultSession.deviceSerial.length)
+        assertTrue(defaultSession.deviceSerial.all { it in '0'..'9' || it in 'A'..'Z' })
     }
 
     @Test

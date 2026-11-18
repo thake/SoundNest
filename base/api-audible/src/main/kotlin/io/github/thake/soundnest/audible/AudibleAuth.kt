@@ -24,11 +24,20 @@ import java.util.Base64
 object AudibleAuth {
     const val AUDIBLE_DEVICE_TYPE = "A2CZJZGLK2JJVM"
     private const val APP_NAME = "Audible"
-    private const val APP_VERSION = "3.74.0"
+    private const val APP_VERSION = "4.60"
+    private const val SERIAL_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    private const val SERIAL_LENGTH = 40
 
     private val secureRandom = SecureRandom()
     private val json = Json { ignoreUnknownKeys = true }
     private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
+
+    private fun generateDeviceSerial(): String =
+        buildString(SERIAL_LENGTH) {
+            repeat(SERIAL_LENGTH) {
+                append(SERIAL_ALPHABET[secureRandom.nextInt(SERIAL_ALPHABET.length)])
+            }
+        }
 
     fun createPkceSession(
         marketplace: AudibleMarketplace,
@@ -37,7 +46,7 @@ object AudibleAuth {
     ): AudiblePkceSession {
         val rawVerifier = verifierBytes ?: ByteArray(32).also(secureRandom::nextBytes)
         val codeVerifier = Base64.getUrlEncoder().withoutPadding().encodeToString(rawVerifier)
-        val serial = serialHex ?: ByteArray(16).also(secureRandom::nextBytes).joinToString("") { "%02X".format(it) }
+        val serial = serialHex ?: generateDeviceSerial()
         return AudiblePkceSession(
             marketplace = marketplace,
             deviceSerial = serial,
@@ -123,7 +132,7 @@ object AudibleAuth {
                 put("app_version", APP_VERSION)
                 put("device_type", AUDIBLE_DEVICE_TYPE)
                 put("device_name", "%FIRST_NAME%'s%DUPE_STRATEGY_1ST%SoundNest")
-                put("os_version", "15.0.0")
+                put("os_version", "26.2.0")
                 put("device_serial", session.deviceSerial)
                 put("device_model", "iPhone")
                 put("app_name", APP_NAME)

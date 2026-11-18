@@ -17,8 +17,8 @@ SoundNest enforces strict boundaries across authentication, catalog access, DRM 
    - Refresh tokens, short-lived access tokens, the 2048-bit RSA device private key, and the `adp_token` are serialized into `AudibleCredentialStore` and encrypted at rest using an Android Keystore `AES/GCM/NoPadding` master key (`soundnest_audible_master_v1`), stored inside `Context.noBackupFilesDir` (`audible_credentials.enc` with `allowBackup` excluded).
    - Secrets are never included in `soundnest-policy.json` backups or diagnostic log exports.
 4. **Fail-Closed Parental Gating & Zero Store/Plus Discovery**
-   - SoundNest calls only `GET /1.0/library` (owned library sync) and `POST /1.0/content/{asin}/licenserequest` (streaming license + Widevine challenge exchange). Store search, Plus catalog browsing, wishlists, and 1-Click purchasing endpoints are completely absent.
-   - Every Audible book is **blocked by default** in **both** `FILTERED_OPEN` and `STRICT_ALLOWLIST` modes until a parent enables `spokenWord.allowAudiobooks` and explicitly approves its ASIN in `ParentalPolicy.spokenWord.audible.allowedAsins`.
+   - SoundNest calls only `GET /1.0/library` (owned library sync), `GET /1.0/content/{asin}/metadata` (per-book chapter metadata), and `POST /1.0/content/{asin}/licenserequest` (streaming license + Widevine challenge exchange). Store search, Plus catalog browsing, wishlists, and 1-Click purchasing endpoints are completely absent.
+   - Every Audible book is **blocked by default** in **both** `FILTERED_OPEN` and `STRICT_ALLOWLIST` modes until a parent enables `spokenWord.allowAudible` and explicitly approves its ASIN in `ParentalPolicy.spokenWord.audible.allowedAsins`.
 5. **Local-Only Playback Progress**
    - Listening positions and finished-chapter marks are saved strictly on-device in `AudibleProgressStore` (`filesDir/audible/progress.json`). SoundNest never writes positions back to Amazon WhisperSync, keeping the parent's own bookmarks untouched.
 
@@ -28,7 +28,7 @@ SoundNest enforces strict boundaries across authentication, catalog access, DRM 
 
 | Layer | Location | Responsibility |
 | :--- | :--- | :--- |
-| **Pure-JVM Protocol Client** | `:api-audible` (`base/api-audible`) | Marketplace registry, OAuth 2.0 + PKCE (`S256`) URL builder, virtual device registration/refresh/deregistration, `SHA256withRSA:1.0` ADP request signing, `GET /1.0/library` parser, and Widevine `licenserequest` manifest/license exchange. |
+| **Pure-JVM Protocol Client** | `:api-audible` (`base/api-audible`) | Marketplace registry, OAuth 2.0 + PKCE (`S256`) URL builder, virtual device registration/refresh/deregistration, `SHA256withRSA:1.0` ADP request signing, `GET /1.0/library` & `GET /1.0/content/{asin}/metadata` parsers, and Widevine `licenserequest` manifest/license exchange. |
 | **Canonical URIs** | `:api` (`MediaKind`) & `:app` (`AudibleUris`) | Recognizes `audible:<asin>`, `audible:book:<asin>`, and `audible:chapter:<asin>:<index>` across `MediaKind.of`, `SongPlayer`, `Api`, and `ParentalFilterEngine`. |
 | **On-Device Stores** | `io.github.thake.soundnest.feature.spokenword.audible.data` | `AudibleCredentialStore` (Keystore AES-GCM), `AudibleCatalogCache` (synced library metadata + cached chapter tables), `AudibleProgressStore` (per-ASIN local resume & finished chapters). |
 | **Native Widevine Player** | `io.github.thake.soundnest.feature.spokenword.audible.playback` | `AudiblePlayer`, `AudibleMediaDrmCallback`, `AudibleChapterProjector`: Media3 `ExoPlayer` (`DashMediaSource` / `HlsMediaSource` + `DefaultDrmSessionManager`), single-stream-to-chapter projection, mutual exclusion with Spotify `SongPlayer` and `LocalPlayer`, and instant policy-revocation stop. |
@@ -61,7 +61,7 @@ SoundNest enforces strict boundaries across authentication, catalog access, DRM 
 ## 4. Authentication & ADP Request Signing
 
 ### 4.1 OAuth 2.0 + PKCE Virtual Device Registration (`AudibleAuth`)
-1. Generate a 32-byte random device serial (`uppercase hex`) and build `client_id = hexEncode("$serial#A2CZJZGLK2JJVM")`.
+1. Generate a 40-character random uppercase alphanumeric device serial and build `client_id = hexEncode("$serial#A2CZJZGLK2JJVM")`.
 2. Generate a RFC 7636 PKCE `code_verifier` and `S256` `code_challenge`.
 3. Open `https://www.{amazonDomain}/ap/signin` with OpenID + OAuth2 PKCE parameters redirecting to `https://www.{amazonDomain}/ap/maplanding`.
 4. Exchange `openid.oa2.authorization_code` at `POST https://api.{amazonDomain}/auth/register` with `"requested_token_type": ["bearer", "mac_dms"]` (never `"website_cookies"`).
@@ -88,8 +88,8 @@ Headers attached to signed requests:
 ### 5.1 Library Sync (`GET /1.0/library`)
 `AudibleApiClient.fetchAllLibraryBooks()` pages through `GET /1.0/library` (`num_results=500`, `response_groups=contributors,media,product_attrs,product_desc,product_extended_attrs,series`), filtering out non-playable entries without runtime metadata and caching normalized `AudibleBook` records in `AudibleCatalogCache`.
 
-### 5.2 Widevine Manifest & License Flow (`POST /1.0/content/{asin}/licenserequest`)
-1. **Manifest & Chapter Table**: `AudibleApiClient.requestStreamManifest(asin)` requests a streaming `DASH` / `HLS` manifest URL (`drm_type = "Widevine"`, `consumption_type = "Streaming"`, `quality = "High"`) and extracts `chapter_info.chapters` (`AudibleChapter`).
+### 5.2 Chapter Metadata, Widevine Manifest & License Flow (`GET /1.0/content/{asin}/metadata` & `POST /1.0/content/{asin}/licenserequest`)
+1. **Chapter Table & Manifest**: `AudibleApiClient.fetchChapters(asin)` fetches the flat chapter table via `GET /1.0/content/{asin}/metadata?response_groups=chapter_info,content_reference&chapter_titles_type=Flat&quality=High` (with recursive flattening of nested multi-part `chapters` trees) and caches it in `AudibleCatalogCache`. When playback starts, `AudibleApiClient.requestStreamManifest(asin)` requests a streaming `DASH` / `HLS` manifest URL (`drm_type = "Widevine"`, `consumption_type = "Streaming"`, `quality = "High"`, `chapter_titles_type = "Flat"`).
 2. **Widevine License Exchange**: When ExoPlayer's `DefaultDrmSessionManager` emits a `ProvisionRequest` or `KeyRequest`, `AudibleMediaDrmCallback` Base64-encodes the raw Widevine CDM challenge into `drm_token` on `licenserequest` and unwraps the returned Widevine license bytes back into Android's `MediaDrm` session in memory.
 3. **Single-Stream Chapter Projection**: Because Audible delivers an audiobook as a continuous MPEG-DASH / HLS timeline with byte/millisecond chapter markers, `AudibleChapterProjector` maps continuous player positions onto `audible:chapter:<asin>:<chapterIndex>` rows so `SongPlayer`, `PodcastPlayerScreen`, `ImmersivePodcastPlayer`, `ShowScreen`, `ImmersiveShowScreen`, and Sleep Timer ("End of chapter") operate seamlessly per chapter.
 

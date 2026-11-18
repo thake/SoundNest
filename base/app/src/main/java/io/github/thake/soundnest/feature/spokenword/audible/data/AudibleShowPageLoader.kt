@@ -58,7 +58,7 @@ object AudibleShowPageLoader {
         showId: String,
         policy: ParentalPolicy = ParentalPolicyStore.current(context),
         fetchManifestChapters: suspend (String) -> List<AudibleChapter>? = { asin ->
-            fetchChaptersFromLicense(context, asin)
+            fetchChaptersForBook(context, asin)
         },
     ): Result<ShowPage> {
         val rawAsin = AudibleUris.asinFromAny(showId)
@@ -71,9 +71,14 @@ object AudibleShowPageLoader {
             ?: return Result.failure(IllegalStateException("Approved Audible book not found in local catalog: $asin"))
 
         var chapters = AudibleCatalogCache.chapters(context, asin).orEmpty()
-        if (chapters.isEmpty()) {
-            val fetched = runCatching { fetchManifestChapters(asin) }.getOrNull().orEmpty()
-            if (fetched.isNotEmpty()) {
+        if (shouldRefreshChapters(chapters, book.runtimeLengthMs)) {
+            val fetched = runCatching { fetchManifestChapters(asin) }
+                .onFailure { err ->
+                    io.github.thake.soundnest.host.android.Logbook.log("AudibleShowPageLoader: chapter fetch failed for $asin: ${err.message}")
+                }
+                .getOrNull()
+                .orEmpty()
+            if (fetched.isNotEmpty() && (chapters.isEmpty() || fetched.size > chapters.size)) {
                 AudibleCatalogCache.saveChapters(context, asin, fetched)
                 chapters = fetched
             }
@@ -140,13 +145,35 @@ object AudibleShowPageLoader {
         )
     }
 
-    private suspend fun fetchChaptersFromLicense(context: Context, asin: String): List<AudibleChapter>? =
+    private fun shouldRefreshChapters(cached: List<AudibleChapter>, runtimeLengthMs: Long): Boolean {
+        if (cached.isEmpty()) return true
+        // Self-heal a stale single-entry header cached from an unflattened tree response
+        if (cached.size == 1 && runtimeLengthMs > 60_000L) {
+            val onlyLen = cached.first().lengthMs
+            if (onlyLen in 0L until (runtimeLengthMs / 2L)) return true
+        }
+        return false
+    }
+
+    private suspend fun fetchChaptersForBook(context: Context, asin: String): List<AudibleChapter>? =
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val tokens = AudibleCredentialStore.loadTokens(context) ?: return@withContext null
             val client = AudibleApiClient(
                 http = defaultHttp,
                 tokensProvider = { AudibleCredentialStore.loadTokens(context) ?: tokens },
             )
-            client.requestStreamManifest(asin).chapters
+            val fromMetadata = runCatching { client.fetchChapters(asin) }
+                .onFailure { err ->
+                    io.github.thake.soundnest.host.android.Logbook.log("AudibleShowPageLoader: metadata chapters failed for $asin: ${err.message}")
+                }
+                .getOrNull()
+                .orEmpty()
+            if (fromMetadata.isNotEmpty()) return@withContext fromMetadata
+
+            runCatching { client.requestStreamManifest(asin).chapters }
+                .onFailure { err ->
+                    io.github.thake.soundnest.host.android.Logbook.log("AudibleShowPageLoader: license chapters fallback failed for $asin: ${err.message}")
+                }
+                .getOrNull()
         }
 }

@@ -231,4 +231,27 @@ class AudiblePlaybackRoutingTest {
         assertFalse(AudiblePlayer.active.value)
         assertFalse(fakeBackend.playing)
     }
+
+    @Test
+    fun `AudiblePlayer uses cached chapters and populates engineQueue when stream grant omits chapter_info`() {
+        approveSampleBook()
+        AudibleCatalogCache.saveChapters(app, "B08G9PRS1K", sampleGrant.chapters)
+        AudiblePlayer.configureForTests(
+            context = app,
+            backend = fakeBackend,
+            grantLoader = { asin -> sampleGrant.copy(asin = asin, chapters = emptyList()) },
+        )
+
+        SongPlayer.playSong("audible:book:B08G9PRS1K")
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals("audible:chapter:B08G9PRS1K:0", SongPlayer.nowPlaying.value.uri)
+        assertEquals(60_000L, SongPlayer.getDuration())
+        val queue = SongPlayer.engineQueue.value
+        assertEquals("Chapter 1: Awakening", queue.current?.title)
+        assertEquals(
+            listOf("Chapter 2: Questions", "Chapter 3: Experiments"),
+            queue.nextUp.map { it.song.title },
+        )
+    }
 }
