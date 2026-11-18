@@ -135,11 +135,29 @@ private class ExoAudiblePlayerBackend(
                     }
 
                     override fun onPlayerError(error: PlaybackException) {
-                        activeListener?.onError(error.message ?: error.errorCodeName)
+                        activeListener?.onError(describePlaybackError(error))
                     }
                 })
                 exo = player
             }
+    }
+
+    private fun describePlaybackError(error: PlaybackException): String {
+        val urlRegex = Regex("""https?://([^\s/?#"']+)[^\s"']*""")
+        fun sanitize(text: String): String =
+            urlRegex.replace(text) { m -> "${m.value.substringBefore("://")}://${m.groupValues[1]}/..." }
+
+        val causes = generateSequence<Throwable>(error) { it.cause }.toList()
+        val deepest = causes.lastOrNull()
+        val base = buildString {
+            append(error.errorCodeName)
+            error.message?.takeIf { it.isNotBlank() }?.let { append(": ").append(sanitize(it)) }
+            if (deepest != null && deepest !== error) {
+                append(" <- ").append(deepest.javaClass.simpleName)
+                deepest.message?.takeIf { it.isNotBlank() }?.let { append(": ").append(sanitize(it)) }
+            }
+        }
+        return base
     }
 
     override fun load(
@@ -168,7 +186,7 @@ private class ExoAudiblePlayerBackend(
             }
             val drmManager = DefaultDrmSessionManager.Builder()
                 .setUuidAndExoMediaDrmProvider(C.WIDEVINE_UUID, mediaDrmProvider)
-                .setMultiSession(true)
+                .setMultiSession(false)
                 .build(AudibleMediaDrmCallback(grant.asin, apiClient, http))
             DrmSessionManagerProvider { drmManager }
         } else {
@@ -292,6 +310,20 @@ object AudiblePlayer : io.github.thake.soundnest.core.preferences.PolicySyncedSe
     private fun resolveContext(): Context? =
         appContextOverride ?: runCatching { Graph.app }.getOrNull()
 
+    private fun showPlaybackErrorToast(context: Context?) {
+        if (testBackend != null || context == null) return
+        val show = {
+            runCatching {
+                android.widget.Toast.makeText(
+                    context.applicationContext,
+                    io.github.thake.soundnest.R.string.audible_playback_failed,
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
+        if (Looper.myLooper() == Looper.getMainLooper()) show() else mainHandler.post { show() }
+    }
+
     private fun getOrCreateBackend(context: Context): AudiblePlayerBackend {
         testBackend?.let { return it }
         prodBackend?.let { return it }
@@ -363,6 +395,7 @@ object AudiblePlayer : io.github.thake.soundnest.core.preferences.PolicySyncedSe
                 withContext(Dispatchers.Main) {
                     val grant = grantResult.getOrElse { err ->
                         io.github.thake.soundnest.host.android.Logbook.log("AudiblePlayer: stream grant failed for $cleanAsin: ${err.message}")
+                        showPlaybackErrorToast(context)
                         stop()
                         return@withContext
                     }
@@ -450,6 +483,8 @@ object AudiblePlayer : io.github.thake.soundnest.core.preferences.PolicySyncedSe
                     io.github.thake.soundnest.host.android.Logbook.log("AudiblePlayer playback error: $message")
                     playingState = false
                     bufferingState = false
+                    mainHandler.removeCallbacks(ticker)
+                    showPlaybackErrorToast(resolveContext())
                     lastProjected?.let { projPos ->
                         syncProjectionAndPublish(projPos.absolutePositionMs, isPlaying = false, isBuffering = false, forceSave = true)
                     }

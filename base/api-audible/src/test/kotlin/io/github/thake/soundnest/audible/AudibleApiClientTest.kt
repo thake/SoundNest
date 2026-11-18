@@ -134,6 +134,55 @@ class AudibleApiClientTest {
     }
 
     @Test
+    fun `parses Widevine streaming grant where license_response holds MPD URL and certificate holds service cert`() = runTest {
+        val certBytes = byteArrayOf(0x0A, 0x10, 0x20, 0x30, 0x40)
+        val certB64 = Base64.getEncoder().encodeToString(certBytes)
+        val mpdUrl = "https://d1ecqdo8ne10p4.cloudfront.net/lic123.eyJ0eXAiOiJKV1QifQ/bk_xpot_000005/cenc/g1/manifest.master.mpd?ss_sec=20"
+        val http = OkHttpClient.Builder().addInterceptor { chain ->
+            val req = chain.request()
+            assertEquals("POST", req.method)
+            assertEquals("/1.0/content/B01M0PQY17/licenserequest", req.url.encodedPath)
+            val resp = """
+                {
+                  "content_license": {
+                    "acr": "CR!ABC123",
+                    "asin": "B01M0PQY17",
+                    "certificate": "$certB64",
+                    "content_metadata": {
+                      "chapter_info": {
+                        "chapters": [
+                          {"title": "Vorspann", "start_offset_ms": 0, "length_ms": 43179}
+                        ]
+                      },
+                      "content_reference": {"acr": "CR!ABC123"}
+                    },
+                    "drm_type": "Widevine",
+                    "license_response": "$mpdUrl",
+                    "status_code": "Granted"
+                  }
+                }
+            """.trimIndent()
+            Response.Builder()
+                .request(req)
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("OK")
+                .body(resp.toResponseBody("application/json".toMediaType()))
+                .build()
+        }.build()
+
+        val client = AudibleApiClient(http = http, tokensProvider = ::testTokens, clock = fixedClock)
+        val grant = client.requestStreamManifest("B01M0PQY17")
+
+        assertEquals(mpdUrl, grant.manifestUrl)
+        assertEquals("Widevine", grant.drmType)
+        assertEquals("CR!ABC123", grant.acr)
+        assertEquals(1, grant.chapters.size)
+        assertEquals("Vorspann", grant.chapters[0].title)
+        assertArrayEquals(certBytes, grant.serverCertificate)
+    }
+
+    @Test
     fun `requests Widevine DASH stream manifest and chapter table without WhisperSync writes`() = runTest {
         var sentPayload = ""
         val certBytes = byteArrayOf(1, 2, 3, 4, 5)
@@ -151,7 +200,8 @@ class AudibleApiClientTest {
                   "content_license": {
                     "asin": "B08G9PRS1K",
                     "drm_type": "Widevine",
-                    "license_response": "$certB64",
+                    "status_code": "Granted",
+                    "certificate": "$certB64",
                     "content_metadata": {
                       "content_url": {
                         "offline_url": "https://cdn.audible.de/books/B08G9PRS1K/manifest.mpd"
@@ -195,26 +245,52 @@ class AudibleApiClientTest {
     }
 
     @Test
-    fun `exchanges Widevine CDM challenge bytes via Base64 JSON license request`() = runTest {
-        val challenge = byteArrayOf(0x08, 0x01, 0x12, 0x10, 0x77, 0x69, 0x64, 0x65)
-        val expectedLicense = byteArrayOf(0x4C, 0x49, 0x43, 0x45, 0x4E, 0x53, 0x45)
-        val expectedLicenseB64 = Base64.getEncoder().encodeToString(expectedLicense)
-        var capturedChallengeB64 = ""
-
+    fun `throws AudibleApiException when licenserequest returns Denied status_code`() = runTest {
         val http = OkHttpClient.Builder().addInterceptor { chain ->
-            val req = chain.request()
-            val buf = Buffer()
-            req.body?.writeTo(buf)
-            val bodyObj = Json.parseToJsonElement(buf.readUtf8()).jsonObject
-            capturedChallengeB64 = bodyObj["drm_challenge"]?.jsonPrimitive?.content.orEmpty()
-
             val resp = """
                 {
                   "content_license": {
                     "asin": "B08G9PRS1K",
-                    "drm_type": "Widevine",
-                    "license_response": "$expectedLicenseB64"
+                    "status_code": "Denied",
+                    "message": "Device limit exceeded"
                   }
+                }
+            """.trimIndent()
+            Response.Builder()
+                .request(chain.request())
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("OK")
+                .body(resp.toResponseBody("application/json".toMediaType()))
+                .build()
+        }.build()
+
+        val client = AudibleApiClient(http = http, tokensProvider = ::testTokens, clock = fixedClock)
+        val err = assertThrows(AudibleApiException::class.java) {
+            kotlinx.coroutines.runBlocking { client.requestStreamManifest("B08G9PRS1K") }
+        }
+        assertTrue(err.message.orEmpty().contains("Denied"))
+        assertTrue(err.message.orEmpty().contains("Device limit exceeded"))
+    }
+
+    @Test
+    fun `exchanges Widevine CDM challenge bytes via Base64 JSON drmlicense endpoint`() = runTest {
+        val challenge = byteArrayOf(0x08, 0x01, 0x12, 0x10, 0x77, 0x69, 0x64, 0x65)
+        val expectedLicense = byteArrayOf(0x4C, 0x49, 0x43, 0x45, 0x4E, 0x53, 0x45)
+        val expectedLicenseB64 = Base64.getEncoder().encodeToString(expectedLicense)
+        var capturedPath = ""
+        var capturedBodyJson: kotlinx.serialization.json.JsonObject? = null
+
+        val http = OkHttpClient.Builder().addInterceptor { chain ->
+            val req = chain.request()
+            capturedPath = req.url.encodedPath
+            val buf = Buffer()
+            req.body?.writeTo(buf)
+            capturedBodyJson = Json.parseToJsonElement(buf.readUtf8()).jsonObject
+
+            val resp = """
+                {
+                  "license": "$expectedLicenseB64"
                 }
             """.trimIndent()
             Response.Builder()
@@ -229,7 +305,13 @@ class AudibleApiClientTest {
         val client = AudibleApiClient(http = http, tokensProvider = ::testTokens, clock = fixedClock)
         val licenseBytes = client.exchangeWidevineChallenge("B08G9PRS1K", challenge)
 
-        assertEquals(Base64.getEncoder().encodeToString(challenge), capturedChallengeB64)
+        val bodyJson = capturedBodyJson ?: error("Missing request body")
+        assertEquals("/1.0/content/B08G9PRS1K/drmlicense", capturedPath)
+        assertEquals("B08G9PRS1K", bodyJson["asin"]!!.jsonPrimitive.content)
+        assertEquals("Streaming", bodyJson["consumption_type"]!!.jsonPrimitive.content)
+        assertEquals("Widevine", bodyJson["drm_type"]!!.jsonPrimitive.content)
+        assertEquals("Audible", bodyJson["tenant_id"]!!.jsonPrimitive.content)
+        assertEquals(Base64.getEncoder().encodeToString(challenge), bodyJson["licenseChallenge"]!!.jsonPrimitive.content)
         assertArrayEquals(expectedLicense, licenseBytes)
     }
 

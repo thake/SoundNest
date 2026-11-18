@@ -913,6 +913,7 @@
     <string name="audible_picker_empty">No Audible books found.</string>
     <string name="audible_sync_toast_success">Audible library synced (%1$d books)</string>
     <string name="audible_sync_toast_failed">Could not sync Audible library</string>
+    <string name="audible_playback_failed">Could not play Audible audiobook</string>
     <string name="menu_parental_controls_title">Parental Controls</string>
     <string name="menu_parental_controls_detail">Content filters, Home sections, features, speakers &amp; backup</string>
     <string name="parental_controls_detail_unlocked">Parent Mode active · Tap to edit rules</string>

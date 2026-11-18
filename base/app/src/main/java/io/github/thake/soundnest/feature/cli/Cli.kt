@@ -95,6 +95,7 @@ object CliParser {
 
     private val ID = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
     private val URI = Regex("spotify:[a-z]+(:[A-Za-z0-9_.-]+)+")
+    private val AUDIBLE_URI = Regex("audible:(?:(?:book|chapter):)?[A-Za-z0-9_.-]+(?::\\d+)?")
 
     /** The arguments the script sends: a JSON array of strings, base64 in [args64] (no shell quoting). */
     fun args(args: String?, args64: String?): List<String> {
@@ -108,12 +109,13 @@ object CliParser {
     fun parse(cmd: String, args: List<String>): CliCommand {
         fun arg(i: Int, what: String): String = args.getOrNull(i)?.takeIf { it.isNotBlank() } ?: throw CliError("$cmd: missing <$what>")
         fun most(n: Int) { if (args.size > n) throw CliError("$cmd: too many arguments (${args.size}, at most $n)") }
+        fun isPlayableUri(value: String): Boolean = URI.matches(value) || AUDIBLE_URI.matches(value)
         return when (cmd.trim()) {
             "status" -> CliCommand.Status.also { most(0) }
             "play" -> {
                 most(2)
-                val uri = arg(0, "spotify uri").also { if (!URI.matches(it)) throw CliError("play: not a spotify: uri") }
-                CliCommand.Play(uri, args.getOrNull(1)?.takeIf { it.isNotBlank() }?.also { if (!URI.matches(it)) throw CliError("play: the context is not a spotify: uri") })
+                val uri = arg(0, "spotify or audible uri").also { if (!isPlayableUri(it)) throw CliError("play: not a spotify: or audible: uri") }
+                CliCommand.Play(uri, args.getOrNull(1)?.takeIf { it.isNotBlank() }?.also { if (!isPlayableUri(it)) throw CliError("play: the context is not a spotify: or audible: uri") })
             }
             "automix" -> CliCommand.AutoMixSet(when (args.getOrNull(0)) { null -> null; "on" -> true; "off" -> false; else -> throw CliError("automix: on or off") }).also { most(1) }
             "automix.segue" -> CliCommand.AutoMixSegue(when (args.getOrNull(0)) { null -> null; "on" -> true; "off" -> false; else -> throw CliError("automix.segue: on or off") }).also { most(1) }

@@ -54,6 +54,7 @@ data class AudibleStreamGrant(
     val drmType: String,
     val chapters: List<AudibleChapter>,
     val serverCertificate: ByteArray? = null,
+    val acr: String? = null,
 )
 
 class AudibleApiException(

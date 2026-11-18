@@ -904,6 +904,7 @@
     <string name="audible_picker_empty">Keine Audible-Bücher gefunden.</string>
     <string name="audible_sync_toast_success">Audible-Bibliothek synchronisiert (%1$d Bücher)</string>
     <string name="audible_sync_toast_failed">Audible-Bibliothek konnte nicht synchronisiert werden</string>
+    <string name="audible_playback_failed">Audible-Hörbuch konnte nicht abgespielt werden</string>
     <string name="menu_parental_controls_title">Kindersicherung</string>
     <string name="menu_parental_controls_detail">Inhaltsfilter, Startseite, Funktionen, Lautsprecher &amp; Sicherung</string>
     <string name="parental_controls_detail_unlocked">Elternmodus aktiv · Tippen, um Regeln zu bearbeiten</string>

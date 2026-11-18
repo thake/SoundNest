@@ -224,7 +224,9 @@ class AudibleApiClient(
             put("quality", "High")
             put("use_adaptive_bit_rate", true)
             put("chapter_titles_type", "Flat")
-            put("response_groups", "chapter_info,content_reference,certificate")
+            put("tenant_id", "Audible")
+            put("spatial", false)
+            put("response_groups", "chapter_info,content_reference,certificate,content_url")
             put("supported_media_features", buildJsonObject {
                 put("chapter_titles_type", "Flat")
                 put("codecs", buildJsonArray {
@@ -243,33 +245,78 @@ class AudibleApiClient(
         http.newCall(req).execute().use { resp ->
             val raw = resp.body.string()
             if (!resp.isSuccessful) {
-                throw AudibleApiException(resp.code, "Audible stream manifest request failed (HTTP ${resp.code})")
+                val detail = extractSafeErrorDetail(raw)
+                throw AudibleApiException(
+                    resp.code,
+                    buildString {
+                        append("Audible stream manifest request failed (HTTP ${resp.code})")
+                        if (!detail.isNullOrBlank()) append(": $detail")
+                    },
+                )
             }
             val root = json.parseToJsonElement(raw).jsonObject
             val licenseObj = root["content_license"]?.jsonObject
                 ?: throw AudibleApiException(resp.code, "Missing content_license in licenserequest response")
-            val statusCode = licenseObj["status_code"]?.jsonPrimitive?.contentOrNull
-            val drmType = licenseObj["drm_type"]?.jsonPrimitive?.contentOrNull ?: "Widevine"
-            val metadata = licenseObj["content_metadata"]?.jsonObject
-            val manifestUrl = metadata?.get("content_url")?.jsonObject?.let { cu ->
-                cu["offline_url"]?.jsonPrimitive?.contentOrNull
-                    ?: cu["url"]?.jsonPrimitive?.contentOrNull
-            }?.takeIf { it.isNotBlank() }
-                ?: throw AudibleApiException(
+            val statusCode = licenseObj["status_code"]?.jsonPrimitive?.contentOrNull?.trim()
+            if (!statusCode.isNullOrBlank() && !statusCode.equals("Granted", ignoreCase = true)) {
+                val detail = extractLicenseDenialDetail(licenseObj)
+                throw AudibleApiException(
                     resp.code,
                     buildString {
-                        append("Missing manifest URL in content_metadata.content_url")
-                        if (!statusCode.isNullOrBlank()) append(" (status_code=$statusCode)")
+                        append("Audible stream license denied (status_code=$statusCode)")
+                        if (!detail.isNullOrBlank()) append(": $detail")
                     },
                 )
-
-            val chapters = parseChapterInfo(metadata["chapter_info"]?.jsonObject)
-
-            val certB64 = licenseObj["license_response"]?.jsonPrimitive?.contentOrNull
-                ?: licenseObj["certificate"]?.jsonPrimitive?.contentOrNull
-            val certBytes = certB64?.takeIf { it.isNotBlank() }?.let {
-                runCatching { Base64.getDecoder().decode(it) }.getOrNull()
             }
+
+            val drmType = licenseObj["drm_type"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() } ?: "Widevine"
+            val metadata = licenseObj["content_metadata"]?.jsonObject
+            val licenseResponseStr = licenseObj["license_response"]?.jsonPrimitive?.contentOrNull
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+
+            val contentUrlFromMetadata = when (val cuEl = metadata?.get("content_url")) {
+                is JsonObject -> {
+                    cuEl["streaming_url"]?.jsonPrimitive?.contentOrNull
+                        ?: cuEl["offline_url"]?.jsonPrimitive?.contentOrNull
+                        ?: cuEl["url"]?.jsonPrimitive?.contentOrNull
+                }
+                is JsonPrimitive -> cuEl.contentOrNull
+                else -> null
+            }?.trim()?.takeIf { it.isNotEmpty() }
+
+            val manifestUrl = contentUrlFromMetadata
+                ?: when {
+                    licenseResponseStr != null && (
+                        licenseResponseStr.startsWith("https://", ignoreCase = true) ||
+                            licenseResponseStr.startsWith("http://", ignoreCase = true)
+                        ) -> licenseResponseStr
+                    licenseResponseStr != null && licenseResponseStr.startsWith("<MPD", ignoreCase = true) ->
+                        "data:application/dash+xml;base64," + Base64.getEncoder().encodeToString(licenseResponseStr.encodeToByteArray())
+                    else -> null
+                }
+                ?: throw AudibleApiException(
+                    resp.code,
+                    "Missing manifest URL in licenserequest response (status_code=${statusCode ?: "unknown"}, drm_type=$drmType)",
+                )
+
+            val chapters = parseChapterInfo(metadata?.get("chapter_info")?.jsonObject)
+
+            // Widevine streaming grants put the service certificate protobuf in `certificate`
+            // while `license_response` carries the signed CloudFront manifest URL.
+            val explicitCertB64 = licenseObj["certificate"]?.jsonPrimitive?.contentOrNull
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+            val certB64 = explicitCertB64 ?: licenseResponseStr?.takeIf {
+                !it.startsWith("http://", ignoreCase = true) &&
+                    !it.startsWith("https://", ignoreCase = true) &&
+                    !it.startsWith("<")
+            }
+            val certBytes = certB64?.let {
+                runCatching { Base64.getMimeDecoder().decode(it) }.getOrNull()
+            }
+            val acr = licenseObj["acr"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+                ?: metadata?.get("content_reference")?.jsonObject?.get("acr")?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
 
             AudibleStreamGrant(
                 asin = cleanAsin,
@@ -277,6 +324,7 @@ class AudibleApiClient(
                 drmType = drmType,
                 chapters = chapters,
                 serverCertificate = certBytes,
+                acr = acr,
             )
         }
     }
@@ -371,39 +419,65 @@ class AudibleApiClient(
         val cleanAsin = asin.trim()
         require(cleanAsin.isNotEmpty()) { "ASIN must not be blank" }
         val tokens = requireTokens()
-        val url = "${baseUrl(tokens)}/1.0/content/$cleanAsin/licenserequest"
+        val url = "${baseUrl(tokens)}/1.0/content/$cleanAsin/drmlicense"
         val challengeB64 = Base64.getEncoder().encodeToString(challengeBytes)
 
         val bodyObj = buildJsonObject {
+            put("asin", cleanAsin)
             put("consumption_type", "Streaming")
             put("drm_type", "Widevine")
-            put("drm_challenge", challengeB64)
-            put("quality", "High")
-            put("use_adaptive_bit_rate", true)
-            put("supported_media_features", buildJsonObject {
-                put("codecs", buildJsonArray {
-                    add(JsonPrimitive("mp4a.40.2"))
-                    add(JsonPrimitive("mp4a.40.42"))
-                })
-                put("drm_types", buildJsonArray {
-                    add(JsonPrimitive("Widevine"))
-                })
-            })
+            put("tenant_id", "Audible")
+            put("licenseChallenge", challengeB64)
         }
 
         val req = buildSignedRequest(tokens, "POST", url, bodyObj.toString())
         http.newCall(req).execute().use { resp ->
             val raw = resp.body.string()
             if (!resp.isSuccessful) {
-                throw AudibleApiException(resp.code, "Widevine license exchange failed (HTTP ${resp.code})")
+                val detail = extractSafeErrorDetail(raw)
+                throw AudibleApiException(
+                    resp.code,
+                    buildString {
+                        append("Widevine license exchange failed (HTTP ${resp.code})")
+                        if (!detail.isNullOrBlank()) append(": $detail")
+                    },
+                )
             }
             val root = json.parseToJsonElement(raw).jsonObject
-            val licenseB64 = root["content_license"]
-                ?.jsonObject?.get("license_response")
-                ?.jsonPrimitive?.contentOrNull
-                ?.takeIf { it.isNotBlank() }
-                ?: throw AudibleApiException(resp.code, "Missing content_license.license_response")
-            Base64.getDecoder().decode(licenseB64)
+            val licenseB64 = root["license"]?.jsonPrimitive?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+                ?: root["drm_license"]?.jsonPrimitive?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+                ?: root["content_license"]?.jsonObject?.get("license_response")?.jsonPrimitive?.contentOrNull
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() && !it.startsWith("http", ignoreCase = true) }
+            if (licenseB64 == null) {
+                val errMsg = root["message"]?.jsonPrimitive?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+                    ?: root["reason"]?.jsonPrimitive?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+                throw AudibleApiException(
+                    resp.code,
+                    buildString {
+                        append("Missing license in drmlicense response")
+                        if (!errMsg.isNullOrBlank()) append(": ${errMsg.take(200)}")
+                    },
+                )
+            }
+            Base64.getMimeDecoder().decode(licenseB64)
         }
+    }
+
+    private fun extractSafeErrorDetail(raw: String): String? {
+        val obj = runCatching { json.parseToJsonElement(raw).jsonObject }.getOrNull() ?: return null
+        val msg = (obj["message"] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+        val reason = (obj["reason"] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+        return listOfNotNull(msg, reason).distinct().joinToString(" — ").take(200).ifBlank { null }
+    }
+
+    private fun extractLicenseDenialDetail(licenseObj: JsonObject): String? {
+        val msg = (licenseObj["message"] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+        val reasons = (licenseObj["license_denial_reasons"] as? JsonArray)?.mapNotNull { el ->
+            val obj = el as? JsonObject ?: return@mapNotNull null
+            (obj["message"] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+                ?: (obj["validationType"] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+        }?.takeIf { it.isNotEmpty() }?.joinToString("; ")
+        return listOfNotNull(reasons, msg).distinct().joinToString(" — ").take(200).ifBlank { null }
     }
 }

@@ -58,7 +58,7 @@ class AudibleMediaDrmCallbackTest {
                     .code(200)
                     .message("OK")
                     .body(
-                        """{"content_license":{"license_response":"$licenseB64"}}"""
+                        """{"license":"$licenseB64"}"""
                             .toResponseBody("application/json".toMediaType()),
                     )
                     .build()
@@ -80,9 +80,9 @@ class AudibleMediaDrmCallbackTest {
         val actual = callback.executeKeyRequest(C.WIDEVINE_UUID, keyRequest)
 
         assertArrayEquals(expectedLicense, actual)
-        assertEquals("/1.0/content/B08G9PRS1K/licenserequest", capturedPath)
+        assertEquals("/1.0/content/B08G9PRS1K/drmlicense", capturedPath)
         assertTrue(hasAdpSignature)
-        assertTrue(capturedBody.contains(Base64.getEncoder().encodeToString(challenge)))
+        assertTrue(capturedBody.contains(""""licenseChallenge":"${Base64.getEncoder().encodeToString(challenge)}""""))
     }
 
     @Test

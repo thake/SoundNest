@@ -2926,8 +2926,12 @@ object SongPlayer {
         runOnMainImmediate {
             playing = false
             bufferingState.value = false
-            if (_nowPlaying.value.uri.startsWith("audible:")) {
+            val wasAudible = _nowPlaying.value.uri.startsWith("audible:")
+            if (wasAudible) {
                 _nowPlaying.value = NowPlaying()
+                boundState?.updateSongState("", "", "", false, 0, 0, "")
+            } else {
+                boundState?.updatePlayingState(false)
             }
             if (_queue.value.current?.url?.startsWith("audible:") == true ||
                 _queue.value.nextUp.any { it.provider == AUDIBLE }
@@ -2935,7 +2939,6 @@ object SongPlayer {
                 _queue.value = EngineQueue()
                 runCatching { applyQueue(apiQueue) }
             }
-            boundState?.updatePlayingState(false)
             runCatching { pushNotification(null, false) }
         }
     }

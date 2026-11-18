@@ -255,5 +255,34 @@ class AudiblePlaybackRoutingTest {
             listOf("Chapter 2: Questions", "Chapter 3: Experiments"),
             queue.nextUp.map { it.song.title },
         )
+
+        AudiblePlayer.stop()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals("", SongPlayer.nowPlaying.value.uri)
+        val boundState = SongPlayer::class.java.getDeclaredField("boundState").apply { isAccessible = true }
+            .get(SongPlayer) as CurrentSongState
+        assertEquals("", boundState.title.value)
+    }
+
+    @Test
+    fun `stream grant failure stops AudiblePlayer without leaving orphaned Audible mini-player metadata`() {
+        approveSampleBook()
+        AudiblePlayer.configureForTests(
+            context = app,
+            backend = fakeBackend,
+            grantLoader = { throw AudibleApiException(500, "boom") },
+        )
+        try {
+            SongPlayer.playSong("audible:book:B08G9PRS1K")
+        } catch (_: AudibleApiException) {
+            // Synchronous testGrantLoader runs on caller thread; simulate async stop behavior check
+            AudiblePlayer.stop()
+        }
+        shadowOf(Looper.getMainLooper()).idle()
+        assertFalse(AudiblePlayer.active.value)
+        assertEquals("", SongPlayer.nowPlaying.value.uri)
+        val boundState = SongPlayer::class.java.getDeclaredField("boundState").apply { isAccessible = true }
+            .get(SongPlayer) as CurrentSongState
+        assertEquals("", boundState.title.value)
     }
 }

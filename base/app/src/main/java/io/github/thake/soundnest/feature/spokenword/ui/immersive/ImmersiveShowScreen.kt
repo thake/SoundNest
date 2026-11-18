@@ -125,6 +125,10 @@ fun ImmersiveShowScreen(navController: NavController, showId: String, showName: 
 
     fun playAt(index: Int, positionMs: Long? = null) {
         val song = items.getOrNull(index) ?: return
+        if (isAudible || io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.isAudibleUri(song.url)) {
+            SongPlayer.playSong(song.url, context, contextUri = contextUri, positionMs = positionMs)
+            return
+        }
         vm.updateQueue(items)
         SongPlayer.playSong(song.url, context, contextUri = contextUri, positionMs = positionMs)
         vm.updateSongState(song.coverUri, song.title, song.singer, true, song.id, index, song.album)

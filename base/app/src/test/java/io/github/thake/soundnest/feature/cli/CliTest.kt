@@ -25,6 +25,8 @@ class CliTest {
     @Test fun parsesEachCommand() {
         assertEquals(CliCommand.Status, CliParser.parse("status", emptyList()))
         assertEquals(CliCommand.Play("spotify:track:4uLU6hMCjMI75M1A2tKUQC", null), CliParser.parse("play", listOf("spotify:track:4uLU6hMCjMI75M1A2tKUQC")))
+        assertEquals(CliCommand.Play("audible:book:B01M0PQY17", null), CliParser.parse("play", listOf("audible:book:B01M0PQY17")))
+        assertEquals(CliCommand.Play("audible:chapter:B01M0PQY17:2", "audible:book:B01M0PQY17"), CliParser.parse("play", listOf("audible:chapter:B01M0PQY17:2", "audible:book:B01M0PQY17")))
         assertEquals(CliCommand.Nav("settings"), CliParser.parse("nav", listOf("settings")))
         assertEquals(CliCommand.AutoMixSettings(), CliParser.parse("automix.settings", emptyList()))
         assertEquals(CliCommand.AutoMixSettings("style", "blend"), CliParser.parse("automix.settings", listOf("style", "blend")))

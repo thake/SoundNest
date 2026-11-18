@@ -78,9 +78,19 @@ class CliReceiver : BroadcastReceiver() {
                 put("context", np.contextUri)
                 put("positionMs", SongPlayer.getCurrentPosition())
                 put("durationMs", SongPlayer.getDuration())
+                val audiblePlayer = io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer
+                val audible = audiblePlayer.active.value
                 val local = io.github.thake.soundnest.core.playback.LocalPlayer.active.value
-                put("player", if (local) "local" else "account")
-                if (local) {
+                put("player", when {
+                    audible -> "audible"
+                    local -> "local"
+                    else -> "account"
+                })
+                if (audible) {
+                    put("buffering", audiblePlayer.isBuffering())
+                    audiblePlayer.currentAsin()?.let { put("asin", it) }
+                    put("chapterIndex", audiblePlayer.currentChapterIndex())
+                } else if (local) {
                     put("playWhenReady", io.github.thake.soundnest.core.playback.LocalPlayer.playWhenReady())
                     put("playbackState", io.github.thake.soundnest.core.playback.LocalPlayer.playbackState())
                     io.github.thake.soundnest.core.playback.LocalPlayer.current()?.let { t ->
@@ -103,11 +113,11 @@ class CliReceiver : BroadcastReceiver() {
           }
         }
         is CliCommand.Play -> {
-            val page = c.context?.let { pageOf(it) }
+            val page = c.context?.takeUnless { it.startsWith("audible:") }?.let { pageOf(it) }
             val songs = page?.tracks?.takeIf { it.isNotEmpty() }
             onMain {
                 page?.let { SongPlayer.registerContextName(it.uri, it.name) }
-                SongPlayer.playSong(c.uri, contextUri = c.context, songs = songs)
+                SongPlayer.playSong(c.uri, ctx, contextUri = c.context, songs = songs)
             }
             val id = c.uri.substringAfterLast(':')
             if (c.context == null) JsonNull else buildJsonObject { put("songs", songs?.takeIf { l -> l.any { it.spotifyTrackId == id } }?.size ?: 0) }
