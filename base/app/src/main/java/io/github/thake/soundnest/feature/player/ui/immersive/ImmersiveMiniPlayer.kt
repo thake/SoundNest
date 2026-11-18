@@ -87,7 +87,13 @@ fun ImmersiveMiniPlayer(modifier: Modifier = Modifier) {
     val outgoing = blend?.takeIf { it.outgoingWords }?.song
     val title = outgoing?.title ?: vm.currentSongTitle.value
     if (title.isBlank()) return
-    val singer = outgoing?.artist ?: vm.currentSongSinger.value
+    val rawSinger = outgoing?.artist ?: vm.currentSongSinger.value
+    val bookTitle = vm.currentSongAlbum.value
+    val singer = if (outgoing == null && SongPlayer.isAudiobook && bookTitle.isNotBlank()) {
+        if (rawSinger.isNotBlank() && rawSinger != bookTitle) "$bookTitle • $rawSinger" else bookTitle
+    } else {
+        rawSinger
+    }
     val cover = vm.currentSongCoverUri.value
     val playing = vm.currentSongPlayingState.value
     val adPlaying = SongPlayer.adPlaying

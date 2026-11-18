@@ -22,6 +22,10 @@ data class PodcastModel(
     val narrators: List<String> = emptyList(),
     /** The page is a book: its items are chapters, not episodes. */
     val audiobook: Boolean = false,
+    /** Audiobooks: optional series/subtitle metadata, total duration, and book release date. */
+    val subtitle: String = "",
+    val runtimeMs: Long = 0L,
+    val releaseDate: String = "",
 ) {
     constructor() : this("", "", "", "")
 

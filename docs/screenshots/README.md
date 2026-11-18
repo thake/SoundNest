@@ -2,15 +2,15 @@
 
 Auto-generated deterministically by `./gradlew :app:generateDocScreenshots` ([`DocScreenshotTest.kt`](../../base/app/src/test/java/io/github/thake/soundnest/ui/DocScreenshotTest.kt)).
 
-Total captured screens, panels, dialogs & sheets: **135**.
+Total captured screens, panels, dialogs & sheets: **141**.
 
 ## Contents
 - [Hero Overview (6)](#hero-overview)
 - [Onboarding & Session (9)](#onboarding-session)
 - [Parental Controls & Security (17)](#parental-controls-security)
-- [Classic Look (42)](#classic-look)
-- [Immersive Look (48)](#immersive-look)
-- [Sheets & Modals (13)](#sheets-modals)
+- [Classic Look (44)](#classic-look)
+- [Immersive Look (50)](#immersive-look)
+- [Sheets & Modals (15)](#sheets-modals)
 
 ## Hero Overview
 
@@ -105,6 +105,8 @@ Total captured screens, panels, dialogs & sheets: **135**.
 | **Settings: Library** (`CLASSIC`) | <img src="classic/40-settings-library.png" width="180" alt="Settings: Library" /> | [`classic/40-settings-library.png`](classic/40-settings-library.png)<br/>Classic Settings Library tab. |
 | **Menu: About SoundNest** (`CLASSIC`) | <img src="classic/41-about-soundnest.png" width="180" alt="Menu: About SoundNest" /> | [`classic/41-about-soundnest.png`](classic/41-about-soundnest.png)<br/>Full-screen Classic About page with GPL-3.0 credits and upstream attributions. |
 | **Menu: Switch Account (PIN-Unlocked)** (`CLASSIC`) | <img src="classic/42-switch-account.png" width="180" alt="Menu: Switch Account (PIN-Unlocked)" /> | [`classic/42-switch-account.png`](classic/42-switch-account.png)<br/>Full-screen Classic Switch Account page opened from the menu drawer. |
+| **Audible Audiobook Chapters** (`CLASSIC`) | <img src="classic/43-audible-audiobook-chapters.png" width="180" alt="Audible Audiobook Chapters" /> | [`classic/43-audible-audiobook-chapters.png`](classic/43-audible-audiobook-chapters.png)<br/>Classic Audible book page showing flattened chapters, local progress, and mini-player state. |
+| **Full-Screen Audiobook Player** (`CLASSIC`) | <img src="classic/44-player-audible-chapter.png" width="180" alt="Full-Screen Audiobook Player" /> | [`classic/44-player-audible-chapter.png`](classic/44-player-audible-chapter.png)<br/>Classic audiobook player while streaming an Audible audiobook chapter. |
 
 ## Immersive Look
 
@@ -158,6 +160,8 @@ Total captured screens, panels, dialogs & sheets: **135**.
 | **Settings: About SoundNest** (`IMMERSIVE`) | <img src="immersive/46-settings-app-about.png" width="180" alt="Settings: About SoundNest" /> | [`immersive/46-settings-app-about.png`](immersive/46-settings-app-about.png)<br/>Immersive Settings App version, diagnostics, and credits sub-page. |
 | **Menu: About SoundNest** (`IMMERSIVE`) | <img src="immersive/47-about-soundnest.png" width="180" alt="Menu: About SoundNest" /> | [`immersive/47-about-soundnest.png`](immersive/47-about-soundnest.png)<br/>Full-screen Immersive About page with GPL-3.0 credits and upstream attributions. |
 | **Menu: Switch Account (PIN-Unlocked)** (`IMMERSIVE`) | <img src="immersive/48-switch-account.png" width="180" alt="Menu: Switch Account (PIN-Unlocked)" /> | [`immersive/48-switch-account.png`](immersive/48-switch-account.png)<br/>Full-screen Immersive Switch Account page opened from the menu drawer. |
+| **Audible Audiobook Chapters** (`IMMERSIVE`) | <img src="immersive/49-audible-audiobook-chapters.png" width="180" alt="Audible Audiobook Chapters" /> | [`immersive/49-audible-audiobook-chapters.png`](immersive/49-audible-audiobook-chapters.png)<br/>Immersive Audible book page with cover glow, chapter rows, and floating mini-player. |
+| **Full-Screen Audiobook Player** (`IMMERSIVE`) | <img src="immersive/50-player-audible-chapter.png" width="180" alt="Full-Screen Audiobook Player" /> | [`immersive/50-player-audible-chapter.png`](immersive/50-player-audible-chapter.png)<br/>Immersive audiobook player while streaming an Audible audiobook chapter. |
 
 ## Sheets & Modals
 
@@ -176,4 +180,6 @@ Total captured screens, panels, dialogs & sheets: **135**.
 | **Playlist Options Sheet** (`CLASSIC`) | <img src="sheets/11-playlist-options-sheet.png" width="180" alt="Playlist Options Sheet" /> | [`sheets/11-playlist-options-sheet.png`](sheets/11-playlist-options-sheet.png)<br/>Playlist actions sheet (shuffle, sort, share, library controls). |
 | **Podcast Episode Options Sheet** (`CLASSIC`) | <img src="sheets/12-episode-options-sheet.png" width="180" alt="Podcast Episode Options Sheet" /> | [`sheets/12-episode-options-sheet.png`](sheets/12-episode-options-sheet.png)<br/>Episode actions sheet (save, mark played, share). |
 | **Classic Menu Navigation Drawer** (`CLASSIC`) | <img src="sheets/13-classic-menu-drawer.png" width="180" alt="Classic Menu Navigation Drawer" /> | [`sheets/13-classic-menu-drawer.png`](sheets/13-classic-menu-drawer.png)<br/>90%-width Material 3 left-sliding drawer in Classic look with 10% Home peek on the right. |
+| **Audible Chapter Options Sheet** (`CLASSIC`) | <img src="sheets/14-audible-chapter-options-sheet.png" width="180" alt="Audible Chapter Options Sheet" /> | [`sheets/14-audible-chapter-options-sheet.png`](sheets/14-audible-chapter-options-sheet.png)<br/>Chapter overflow sheet for an Audible audiobook chapter. |
+| **Audiobook Chapters Sheet** (`CLASSIC`) | <img src="sheets/15-audiobook-chapters-sheet.png" width="180" alt="Audiobook Chapters Sheet" /> | [`sheets/15-audiobook-chapters-sheet.png`](sheets/15-audiobook-chapters-sheet.png)<br/>Table-of-contents bottom sheet opened from the audiobook player. |
 

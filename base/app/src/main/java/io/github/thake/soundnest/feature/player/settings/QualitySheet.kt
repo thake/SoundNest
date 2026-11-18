@@ -39,6 +39,11 @@ private val SheetColor: Color get() = tone(0xFF282828)
 @Composable
 fun playingSourceLabel(): String {
     val uri = SongPlayer.nowPlaying.value.uri
+    if (io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value ||
+        io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.isAudibleUri(uri)
+    ) {
+        return stringResource(R.string.player_source_audible)
+    }
     if (SongPlayer.routing) return ""
     if (!LocalPlayer.active.value) return spotifyQualityLabel(uri)
     val t = LocalPlayer.current() ?: return ""

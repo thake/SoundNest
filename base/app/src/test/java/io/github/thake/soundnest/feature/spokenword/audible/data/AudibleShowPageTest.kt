@@ -168,6 +168,7 @@ class AudibleShowPageTest {
         assertEquals(listOf("Ray Porter"), page.show.narrators)
         assertEquals("Ryland Grace wakes up alone.", page.show.description)
         assertFalse(page.show.saved)
+        assertEquals(90_000L, page.show.runtimeMs)
 
         assertEquals(3, page.items.size)
         // Chapter 0: marked finished
@@ -184,6 +185,7 @@ class AudibleShowPageTest {
         assertEquals("audible:chapter:B08G9PRS1K:2", page.items[2].url)
         assertFalse(page.items[2].played)
         assertEquals(0, page.items[2].playedPositionMs)
+        assertTrue(page.items.all { it.releaseDate.isEmpty() })
     }
 
     @Test
@@ -286,5 +288,63 @@ class AudibleShowPageTest {
         assertEquals(3, page.items.size)
         assertEquals(listOf("Chapter 1", "Chapter 2", "Chapter 3"), page.items.map { it.title })
         assertEquals(3, AudibleCatalogCache.chapters(app, "B08G9PRS1K")?.size)
+    }
+
+    @Test
+    fun `ShowViewModel observes AudibleProgressStore revision and refreshes page state`() {
+        connectAudible()
+        AudibleCatalogCache.saveBooks(app, listOf(sampleBook()))
+        AudibleCatalogCache.saveChapters(app, "B08G9PRS1K", sampleChapters())
+        ParentalPolicyStore.update(app) {
+            it.copy(
+                spokenWord = SpokenWordParentalPolicy(
+                    allowAudiobooks = false,
+                    allowAudible = true,
+                    audible = AudibleParentalPolicy(allowedAsins = setOf("B08G9PRS1K")),
+                ),
+            )
+        }
+        io.github.thake.soundnest.core.di.Graph::class.java
+            .getDeclaredField("app")
+            .apply { isAccessible = true }
+            .set(null, app)
+
+        val api = Api(app)
+        val vm = ShowViewModel(
+            repository = AppRepository(api),
+            api = api,
+            currentSongState = CurrentSongState(),
+        )
+        vm.loadShow("audible:B08G9PRS1K")
+
+        val deadline1 = System.currentTimeMillis() + 5_000
+        while (vm.page.value !is Response.Success && System.currentTimeMillis() < deadline1) {
+            Thread.sleep(20)
+            org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        }
+        val initial = (vm.page.value as Response.Success<io.github.thake.soundnest.core.model.ShowPage>).data
+        assertFalse(initial.items[0].played)
+        assertEquals(0L, initial.items[1].playedPositionMs)
+
+        // Let the AudibleProgressStore.revision collector subscribe before triggering external updates.
+        Thread.sleep(50)
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+
+        AudibleProgressStore.setChapterFinished(app, "B08G9PRS1K", chapterIndex = 0, finished = true)
+        AudibleProgressStore.savePosition(app, "B08G9PRS1K", positionMs = 45_000L, chapterIndex = 1)
+
+        val deadline2 = System.currentTimeMillis() + 5_000
+        while (System.currentTimeMillis() < deadline2) {
+            org.robolectric.shadows.ShadowLooper.idleMainLooper()
+            val refreshed = (vm.page.value as? Response.Success<io.github.thake.soundnest.core.model.ShowPage>)?.data
+            if (refreshed != null && refreshed.items[0].played && refreshed.items[1].playedPositionMs == 15_000L) {
+                break
+            }
+            Thread.sleep(20)
+        }
+        val refreshed = (vm.page.value as Response.Success<io.github.thake.soundnest.core.model.ShowPage>).data
+        assertTrue(refreshed.items[0].played)
+        assertTrue(vm.isFinished(refreshed.items[0]))
+        assertEquals(15_000L, refreshed.items[1].playedPositionMs)
     }
 }

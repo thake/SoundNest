@@ -107,14 +107,16 @@ fun PlayerOverlay(navController: NavController) {
         },
     ) {
         CompositionLocalProvider(LocalPageSettled provides settled, LocalPlayerReveal provides reveal) {
-            // A podcast episode gets the podcast player (±15 s, speed, sleep timer, no shuffle);
-            // everything else keeps the music player.
+            // An audiobook chapter gets AudiobookPlayerScreen, a podcast episode gets PodcastPlayerScreen,
+            // and everything else keeps the music player.
             // The player's bare texts use the body style as it is (no app-wide letter spacing).
             androidx.compose.material3.ProvideTextStyle(io.github.thake.soundnest.core.ui.classic.Typography.bodyLarge) {
-                if (io.github.thake.soundnest.core.playback.SongPlayer.isEpisode) {
-                    io.github.thake.soundnest.feature.spokenword.ui.classic.PodcastPlayerScreen(navController)
-                } else {
-                    PlayerScreen(navController)
+                when {
+                    io.github.thake.soundnest.core.playback.SongPlayer.isAudiobook ->
+                        io.github.thake.soundnest.feature.spokenword.audiobooks.ui.classic.AudiobookPlayerScreen(navController)
+                    io.github.thake.soundnest.core.playback.SongPlayer.isEpisode ->
+                        io.github.thake.soundnest.feature.spokenword.ui.classic.PodcastPlayerScreen(navController)
+                    else -> PlayerScreen(navController)
                 }
             }
         }

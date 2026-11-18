@@ -110,7 +110,10 @@ fun SleepTimerSheet(onDismiss: () -> Unit) {
                 color = AppText, fontSize = 20.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
             )
-            val endOfTrack = stringResource(R.string.context_menu_sleep_timer_end_of_track)
+            val endOfTrack = stringResource(
+                if (io.github.thake.soundnest.core.playback.SongPlayer.isAudiobook) R.string.sleep_timer_end_of_chapter
+                else R.string.context_menu_sleep_timer_end_of_track,
+            )
             val options = buildList {
                 for (m in listOf(5, 10, 15, 30, 45)) add(stringResource(R.string.sleep_minutes, m) to m)
                 add(stringResource(R.string.mute_chat_duration_one_hour) to 60)

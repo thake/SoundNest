@@ -646,6 +646,7 @@ class Api constructor(
             return@flow
         }
         SongPlayer.registerContext(rows.map { it.url }, uri)
+        if (audiobook) SongPlayer.markAudiobookContext(uri)
         emit(Response.Success(finalPage))
     }
 
@@ -671,6 +672,7 @@ class Api constructor(
             authors = book?.authors.orEmpty(),
             narrators = book?.narrators.orEmpty(),
             audiobook = audiobook,
+            runtimeMs = if (audiobook) rows.sumOf { it.durationMs.toLong().coerceAtLeast(0L) } else 0L,
         )
         return ShowPage(model, rows, audiobook, cover)
     }

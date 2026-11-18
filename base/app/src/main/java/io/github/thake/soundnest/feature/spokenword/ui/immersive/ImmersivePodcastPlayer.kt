@@ -110,16 +110,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** The height of the line holding the title, the show and the round glyphs. */
-private val TITLE_HEIGHT = 68.dp
-private val ART_TITLE_GAP = 20.dp
-private val ART_TOP_PAD = 8.dp
-private val ArtCorner = RoundedCornerShape(8.dp)
+internal val PODCAST_TITLE_HEIGHT = 68.dp
+internal val PODCAST_ART_TITLE_GAP = 20.dp
+internal val PODCAST_ART_TOP_PAD = 8.dp
+internal val PodcastArtCorner = RoundedCornerShape(8.dp)
 
 /** The cover is always decoded at the size of the largest cover, whatever the box measures. */
-private const val COVER_DECODE_PX = 640
+internal const val PODCAST_COVER_DECODE_PX = 640
 
 /** A podcast skip, in milliseconds. */
-private const val SKIP_MS = 15_000L
+internal const val PODCAST_SKIP_MS = 15_000L
 
 /**
  * The player of a podcast episode in the Immersive look, in the music player's frame: the
@@ -138,12 +138,11 @@ fun ImmersivePodcastPlayer(navController: NavController) {
     val title = state.title
     val showName = state.artist.ifBlank { np.contextName }
     val cover = Graph.currentSongState.coverUri.value
-    val isAudible = io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.isAudibleUri(np.uri)
     val episodeId = np.uri.removePrefix("spotify:episode:")
-    val uri = if (isAudible) np.uri else "spotify:episode:$episodeId"
-    val saved = !isAudible && SongPlayer.library[uri] == true
-    LaunchedEffect(uri, isAudible) {
-        if (!isAudible) SongPlayer.requestSaved(uri)
+    val uri = "spotify:episode:$episodeId"
+    val saved = SongPlayer.library[uri] == true
+    LaunchedEffect(uri) {
+        SongPlayer.requestSaved(uri)
     }
 
     var showSpeed by remember { mutableStateOf(false) }
@@ -173,7 +172,7 @@ fun ImmersivePodcastPlayer(navController: NavController) {
                     scaleX = scale
                     scaleY = scale
                     shadowElevation = 10.dp.toPx()
-                    shape = ArtCorner
+                    shape = PodcastArtCorner
                     clip = true
                 }
                 .background(Color.Black.copy(alpha = 0.18f))
@@ -186,7 +185,7 @@ fun ImmersivePodcastPlayer(navController: NavController) {
                 loading = placeholder(R.drawable.placeholder),
                 failure = placeholder(R.drawable.placeholder),
                 modifier = Modifier.fillMaxSize(),
-                requestBuilderTransform = { it.override(COVER_DECODE_PX) },
+                requestBuilderTransform = { it.override(PODCAST_COVER_DECODE_PX) },
             )
         }
     }
@@ -206,7 +205,7 @@ fun ImmersivePodcastPlayer(navController: NavController) {
                 onTextLayout = { if (it.hasVisualOverflow) titleOverflows = true },
                 modifier = Modifier
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                        if (isAudible) openShow() else navController.navigate(episodeRoute(episodeId, title))
+                        navController.navigate(episodeRoute(episodeId, title))
                     }
                     .overflowRightFade(titleOverflows)
                     .titleMarquee(iterations = Int.MAX_VALUE),
@@ -238,15 +237,13 @@ fun ImmersivePodcastPlayer(navController: NavController) {
             )
         }
         Spacer(Modifier.width(10.dp))
-        if (!isAudible) {
-            CircleGlyph(
-                icon = if (saved) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                contentDescription = stringResource(if (saved) R.string.immersive_player_unlike else R.string.immersive_player_like),
-                onClick = { SongPlayer.setSaved(uri, !saved) },
-                active = saved,
-            )
-            Spacer(Modifier.width(8.dp))
-        }
+        CircleGlyph(
+            icon = if (saved) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+            contentDescription = stringResource(if (saved) R.string.immersive_player_unlike else R.string.immersive_player_like),
+            onClick = { SongPlayer.setSaved(uri, !saved) },
+            active = saved,
+        )
+        Spacer(Modifier.width(8.dp))
         CircleGlyph(
             icon = Icons.Rounded.MoreHoriz,
             contentDescription = stringResource(R.string.episode_options),
@@ -260,9 +257,9 @@ fun ImmersivePodcastPlayer(navController: NavController) {
         PodcastTransportRow(
             isPlaying = state.playing,
             isLoading = state.buffering,
-            onBack = { SongPlayer.skipBy(-SKIP_MS) },
+            onBack = { SongPlayer.skipBy(-PODCAST_SKIP_MS) },
             onPlayPause = actions.playPause,
-            onForward = { SongPlayer.skipBy(SKIP_MS) },
+            onForward = { SongPlayer.skipBy(PODCAST_SKIP_MS) },
         )
         Spacer(Modifier.height(12.dp))
         Row(
@@ -328,7 +325,7 @@ fun ImmersivePodcastPlayer(navController: NavController) {
                                     modifier = Modifier.titleMarquee(),
                                 )
                             }
-                            Row(Modifier.fillMaxWidth().height(TITLE_HEIGHT), verticalAlignment = Alignment.CenterVertically) { credits() }
+                            Row(Modifier.fillMaxWidth().height(PODCAST_TITLE_HEIGHT), verticalAlignment = Alignment.CenterVertically) { credits() }
                             Spacer(Modifier.height(8.dp))
                             controls()
                         }
@@ -365,17 +362,17 @@ fun ImmersivePodcastPlayer(navController: NavController) {
 
                 BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                     val contentWidth = minOf(maxWidth - PLAYER_GUTTER * 2, PLAYER_MAX_WIDTH)
-                    val art = minOf(contentWidth, maxHeight - ART_TOP_PAD - ART_TITLE_GAP - TITLE_HEIGHT - 16.dp).coerceAtLeast(96.dp)
+                    val art = minOf(contentWidth, maxHeight - PODCAST_ART_TOP_PAD - PODCAST_ART_TITLE_GAP - PODCAST_TITLE_HEIGHT - 16.dp).coerceAtLeast(96.dp)
                     Column(
-                        modifier = Modifier.fillMaxSize().padding(top = ART_TOP_PAD),
+                        modifier = Modifier.fillMaxSize().padding(top = PODCAST_ART_TOP_PAD),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
                     ) {
                         coverArt(art)
-                        Spacer(Modifier.height(ART_TITLE_GAP))
+                        Spacer(Modifier.height(PODCAST_ART_TITLE_GAP))
                         // The episode and its show, the star of the saved episodes and the episode's menu.
                         Row(
-                            modifier = Modifier.width(contentWidth).height(TITLE_HEIGHT).dragToClose(),
+                            modifier = Modifier.width(contentWidth).height(PODCAST_TITLE_HEIGHT).dragToClose(),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             credits()
@@ -409,31 +406,19 @@ fun ImmersivePodcastPlayer(navController: NavController) {
             album = showName,
             singer = showName,
             coverUri = cover,
-            url = if (isAudible) np.uri else "episode:$episodeId",
+            url = "episode:$episodeId",
             durationMs = state.durationMs.toInt(),
         )
         EpisodeOptionsSheet(
             song = song,
-            finished = if (isAudible) {
-                val asin = io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.asinFromAny(np.uri)
-                val chIdx = io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.chapterIndexFromUri(np.uri)
-                asin != null && chIdx != null && io.github.thake.soundnest.feature.spokenword.audible.data.AudibleProgressStore.get(Graph.app, asin)?.finishedChapters?.contains(chIdx) == true
-            } else false,
+            finished = false,
             onPlay = { SongPlayer.play() },
             onMarkFinished = { played ->
-                if (isAudible) {
-                    val asin = io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.asinFromAny(np.uri)
-                    val chIdx = io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.chapterIndexFromUri(np.uri)
-                    if (asin != null && chIdx != null) {
-                        io.github.thake.soundnest.feature.spokenword.audible.data.AudibleProgressStore.setChapterFinished(Graph.app, asin, chIdx, played)
-                    }
-                } else {
-                    scope.launch {
-                        withContext(Dispatchers.IO) { runCatching { Graph.api.setEpisodePlayed(uri, played) } }
-                    }
+                scope.launch {
+                    withContext(Dispatchers.IO) { runCatching { Graph.api.setEpisodePlayed(uri, played) } }
                 }
             },
-            onOpen = if (isAudible) null else ({ navController.navigate(episodeRoute(episodeId, title)) }),
+            onOpen = { navController.navigate(episodeRoute(episodeId, title)) },
             onDismiss = { showMenu = false },
         )
     }
@@ -475,13 +460,18 @@ private fun PodcastTransportRow(
 
 /** The circular arrow with the number inside, as the official player draws a 15 s skip. */
 @Composable
-private fun SkipButton(back: Boolean, onClick: () -> Unit) {
+internal fun SkipButton(
+    back: Boolean,
+    onClick: () -> Unit,
+    iconSize: Dp = 56.dp,
+    touchSize: Dp = 72.dp,
+) {
     Box(contentAlignment = Alignment.Center) {
         TransportButton(
             icon = if (back) Icons.Rounded.RotateLeft else Icons.Rounded.RotateRight,
             contentDescription = stringResource(if (back) R.string.player_back_15 else R.string.player_forward_15),
-            size = 56.dp,
-            touchSize = 72.dp,
+            size = iconSize,
+            touchSize = touchSize,
             onClick = onClick,
         )
         Text(
@@ -495,7 +485,7 @@ private fun SkipButton(back: Boolean, onClick: () -> Unit) {
 
 /** A transport glyph: the touch target takes the press, the icon is never clipped. */
 @Composable
-private fun TransportButton(icon: ImageVector, contentDescription: String, size: androidx.compose.ui.unit.Dp, touchSize: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
+internal fun TransportButton(icon: ImageVector, contentDescription: String, size: Dp, touchSize: Dp, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .size(touchSize)
@@ -512,7 +502,7 @@ private fun TransportButton(icon: ImageVector, contentDescription: String, size:
 
 /** The speed, in a capsule: a tap opens the speeds. */
 @Composable
-private fun SpeedChip(label: String, onClick: () -> Unit) {
+internal fun SpeedChip(label: String, onClick: () -> Unit) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
@@ -533,7 +523,7 @@ private val BOTTOM_GLYPH_SIZE = 44.dp
 
 /** One of the bottom row's round glyphs; lit while what it controls is on (a sleep timer, another device). */
 @Composable
-private fun BottomGlyph(icon: ImageVector, contentDescription: String, onClick: () -> Unit, highlighted: Boolean = false) {
+internal fun BottomGlyph(icon: ImageVector, contentDescription: String, onClick: () -> Unit, highlighted: Boolean = false) {
     Box(
         modifier = Modifier
             .size(BOTTOM_GLYPH_SIZE)

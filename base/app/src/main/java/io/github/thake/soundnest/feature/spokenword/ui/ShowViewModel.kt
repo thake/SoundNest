@@ -18,9 +18,12 @@ import io.github.thake.soundnest.core.di.Graph
 import io.github.thake.soundnest.core.playback.SongPlayer
 import io.github.thake.soundnest.core.catalog.AppRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * A show page (podcast) or a book page (audiobook): one flow for the header and the rows, plus
@@ -73,10 +76,13 @@ class ShowViewModel constructor(
     fun isNew(episode: SongsModel): Boolean = !isFinished(episode) && PodcastSettings.releasedAfter(episode.releaseDate, previousOpened.value)
 
     private var showKey: String? = null
+    private var audibleSyncJob: Job? = null
 
     fun loadShow(showId: String) {
         if (showKey == showId) return
         showKey = showId
+        audibleSyncJob?.cancel()
+        audibleSyncJob = null
         previousOpened.value = PodcastSettings.lastOpened(showId)
         filter.value = PodcastSettings.filter(showId)
         viewModelScope.launch(Dispatchers.IO) {
@@ -111,7 +117,24 @@ class ShowViewModel constructor(
                 }
             }
         }
-        if (!io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.isAudibleUri(showId)) {
+        if (io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.isAudibleUri(showId)) {
+            audibleSyncJob = viewModelScope.launch(Dispatchers.IO) {
+                io.github.thake.soundnest.feature.spokenword.audible.data.AudibleProgressStore.revision
+                    .drop(1)
+                    .collect {
+                        io.github.thake.soundnest.feature.spokenword.audible.data.AudibleShowPageLoader.load(
+                            context = Graph.app,
+                            showId = showId,
+                            fetchManifestChapters = { null },
+                        ).onSuccess { refreshed ->
+                            withContext(Dispatchers.Main) {
+                                refreshed.items.forEach { item -> finished[item.url] = item.played }
+                            }
+                            _page.value = Response.Success(refreshed)
+                        }
+                    }
+            }
+        } else {
             // The page's own "finished" marks are a separate set: read once, then the rows carry
             // Spotify's playedState.
             viewModelScope.launch(Dispatchers.IO) {

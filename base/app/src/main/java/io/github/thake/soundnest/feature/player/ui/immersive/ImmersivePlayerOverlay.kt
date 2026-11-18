@@ -179,12 +179,17 @@ fun ImmersivePlayerOverlay(navController: NavController) {
             LocalBackdropSourceAlpha provides { if (primed) 1f else 0f },
         ) {
             Box(Modifier.fillMaxSize().then(if (playerPage != null) Modifier.layerBackdrop(playerPage) else Modifier)) {
-                // A podcast episode gets the podcast player (15 s skips, speed); everything else the music one.
-                if (SongPlayer.isEpisode) {
-                    ImmersivePodcastPlayer(navController)
-                } else {
-                    val bridge = rememberImmersivePlayer(navController)
-                    ImmersivePlayer(bridge.state, bridge.actions, navController = navController)
+                // An audiobook gets ImmersiveAudiobookPlayer, a podcast episode gets ImmersivePodcastPlayer,
+                // and everything else gets ImmersivePlayer.
+                when {
+                    SongPlayer.isAudiobook ->
+                        io.github.thake.soundnest.feature.spokenword.audiobooks.ui.immersive.ImmersiveAudiobookPlayer(navController)
+                    SongPlayer.isEpisode ->
+                        ImmersivePodcastPlayer(navController)
+                    else -> {
+                        val bridge = rememberImmersivePlayer(navController)
+                        ImmersivePlayer(bridge.state, bridge.actions, navController = navController)
+                    }
                 }
             }
         }

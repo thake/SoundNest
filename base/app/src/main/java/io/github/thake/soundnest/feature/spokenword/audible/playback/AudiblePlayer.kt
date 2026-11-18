@@ -458,7 +458,12 @@ object AudiblePlayer : io.github.thake.soundnest.core.preferences.PolicySyncedSe
         )
     }
 
-    private fun chapterSongModel(book: AudibleBook, chapter: AudibleChapter): SongsModel {
+    private fun chapterSongModel(
+        book: AudibleBook,
+        chapter: AudibleChapter,
+        played: Boolean = false,
+        playedPositionMs: Long = 0L,
+    ): SongsModel {
         val authorLine = book.authors.joinToString(", ").ifBlank { "Audible" }
         val uri = AudibleUris.chapterUri(book.asin, chapter.index)
         val fallbackChapterTitle = resolveContext()?.getString(io.github.thake.soundnest.R.string.audible_chapter_number, chapter.index + 1)
@@ -472,9 +477,28 @@ object AudiblePlayer : io.github.thake.soundnest.core.preferences.PolicySyncedSe
             url = uri,
             durationMs = chapter.lengthMs.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
             description = book.description,
-            releaseDate = book.releaseDate.orEmpty(),
+            releaseDate = "",
+            playedPositionMs = playedPositionMs,
+            played = played,
             showId = AudibleUris.showId(book.asin),
         )
+    }
+
+    /** Full chapter list for the currently active Audible book (including earlier chapters and local progress). */
+    fun currentChapters(context: Context? = resolveContext()): List<SongsModel> {
+        val book = currentBook ?: return emptyList()
+        val proj = projector ?: return emptyList()
+        val progress = context?.let { AudibleProgressStore.get(it, book.asin) }
+        val curProj = lastProjected
+        return proj.chapters.map { ch ->
+            val finished = progress?.finishedChapters?.contains(ch.index) == true
+            val pos = when {
+                finished -> ch.lengthMs
+                curProj?.chapter?.index == ch.index -> curProj.chapterPositionMs
+                else -> 0L
+            }
+            chapterSongModel(book, ch, played = finished, playedPositionMs = pos)
+        }
     }
 
     private fun syncProjectionAndPublish(

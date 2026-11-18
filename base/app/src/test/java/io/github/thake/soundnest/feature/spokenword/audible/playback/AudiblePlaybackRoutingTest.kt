@@ -176,6 +176,7 @@ class AudiblePlaybackRoutingTest {
         assertTrue(SongPlayer.isPlaying())
         assertEquals("audible:chapter:B08G9PRS1K:1", SongPlayer.nowPlaying.value.uri)
         assertTrue("Expected spoken-word controls enabled for Audible chapters", SongPlayer.isEpisode)
+        assertTrue("Expected audiobook player routing for Audible chapters", SongPlayer.isAudiobook)
         assertFalse("Audible chapters must not expose Spotify Like action", SongPlayer.canLike)
 
         // Chapter-relative duration (120_000 ms) and position (15_000 ms into Chapter 2)
@@ -230,6 +231,7 @@ class AudiblePlaybackRoutingTest {
         shadowOf(Looper.getMainLooper()).idle()
         assertFalse(AudiblePlayer.active.value)
         assertFalse(fakeBackend.playing)
+        assertFalse(SongPlayer.isAudiobook)
     }
 
     @Test

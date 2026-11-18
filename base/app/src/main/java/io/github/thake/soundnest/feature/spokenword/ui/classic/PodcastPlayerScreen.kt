@@ -81,7 +81,7 @@ import kotlinx.coroutines.launch
  * and only this part of the player follows it (as [ElapsedLabel] does for the music player).
  */
 @Composable
-private fun PodcastProgress(playing: Boolean, uri: String, duration: Long) {
+internal fun PodcastProgress(playing: Boolean, uri: String, duration: Long) {
     // Tapping the time flips it, as in the official player (it opens on what is left).
     var showRemaining by remember { mutableStateOf(true) }
     var drag by remember { mutableStateOf<Float?>(null) }
@@ -150,12 +150,11 @@ fun PodcastPlayerScreen(navController: NavController) {
     val showName = state.singer.value.ifBlank { np.contextName }
     val cover = state.coverUri.value
     val playing = state.playingState.value
-    val isAudible = io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.isAudibleUri(np.uri)
     val episodeId = np.uri.removePrefix("spotify:episode:")
-    val uri = if (isAudible) np.uri else "spotify:episode:$episodeId"
-    val saved = !isAudible && SongPlayer.library[uri] == true
-    androidx.compose.runtime.LaunchedEffect(uri, isAudible) {
-        if (!isAudible) SongPlayer.requestSaved(uri)
+    val uri = "spotify:episode:$episodeId"
+    val saved = SongPlayer.library[uri] == true
+    androidx.compose.runtime.LaunchedEffect(uri) {
+        SongPlayer.requestSaved(uri)
     }
 
     var showSpeed by remember { mutableStateOf(false) }
@@ -172,7 +171,7 @@ fun PodcastPlayerScreen(navController: NavController) {
         album = showName,
         singer = showName,
         coverUri = cover,
-        url = if (isAudible) np.uri else "episode:$episodeId",
+        url = "episode:$episodeId",
         durationMs = duration.toInt(),
     )
 
@@ -182,28 +181,16 @@ fun PodcastPlayerScreen(navController: NavController) {
     if (showQueue) QueueSheet(contextName = showName) { showQueue = false }
     if (showMenu) EpisodeOptionsSheet(
         song = song,
-        finished = if (isAudible) {
-            val asin = io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.asinFromAny(np.uri)
-            val chIdx = io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.chapterIndexFromUri(np.uri)
-            asin != null && chIdx != null && io.github.thake.soundnest.feature.spokenword.audible.data.AudibleProgressStore.get(context, asin)?.finishedChapters?.contains(chIdx) == true
-        } else false,
+        finished = false,
         onPlay = { SongPlayer.play() },
         onMarkFinished = { played ->
-            if (isAudible) {
-                val asin = io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.asinFromAny(np.uri)
-                val chIdx = io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.chapterIndexFromUri(np.uri)
-                if (asin != null && chIdx != null) {
-                    io.github.thake.soundnest.feature.spokenword.audible.data.AudibleProgressStore.setChapterFinished(context, asin, chIdx, played)
-                }
-            } else {
-                scope.launch {
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        runCatching { Graph.api.setEpisodePlayed(uri, played) }
-                    }
+            scope.launch {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    runCatching { Graph.api.setEpisodePlayed(uri, played) }
                 }
             }
         },
-        onOpen = if (isAudible) null else ({ navController.navigate(io.github.thake.soundnest.core.ui.navigation.episodeRoute(episodeId, title)) }),
+        onOpen = { navController.navigate(io.github.thake.soundnest.core.ui.navigation.episodeRoute(episodeId, title)) },
         onDismiss = { showMenu = false },
     )
 
@@ -317,9 +304,7 @@ fun PodcastPlayerScreen(navController: NavController) {
                         }.titleMarquee(iterations = 3),
                     )
                 }
-                if (!isAudible) {
-                    LikeButton(liked = saved, size = 28.dp) { SongPlayer.setSaved(uri, !saved) }
-                }
+                LikeButton(liked = saved, size = 28.dp) { SongPlayer.setSaved(uri, !saved) }
             }
 
             PodcastProgress(playing = playing, uri = np.uri, duration = duration)
@@ -388,7 +373,7 @@ fun PodcastPlayerScreen(navController: NavController) {
 
 /** ±15 s: the circular arrow with the number inside, as the official player draws it. */
 @Composable
-private fun SkipIcon(back: Boolean) {
+internal fun SkipIcon(back: Boolean) {
     Box(contentAlignment = Alignment.Center, modifier = Modifier.size(40.dp).pressable(0.9f) {
         SongPlayer.skipBy(if (back) -15_000L else 15_000L)
     }) {
@@ -413,6 +398,7 @@ internal fun episodeShowId(contextUri: String): String = when {
     io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.isAudibleUri(contextUri) ->
         io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.asinFromAny(contextUri)?.let(io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris::showId).orEmpty()
     contextUri.startsWith("spotify:show:") -> contextUri.removePrefix("spotify:show:")
+    contextUri.startsWith("spotify:audiobook:") -> contextUri.removePrefix("spotify:audiobook:")
     else -> ""
 }
 

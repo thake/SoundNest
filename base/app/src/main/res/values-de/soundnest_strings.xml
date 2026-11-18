@@ -1143,4 +1143,22 @@
     <string name="parent_pin_recovery_instructions">Zur Sicherheit des Kindes gibt es in SoundNest kein Zurücksetzen der PIN aus der Ferne. Verwende die biometrische Entsperrung, falls aktiviert, oder lösche die App-Daten von SoundNest in den Android-Einstellungen (auf beaufsichtigten Geräten durch Google Family Link geschützt), melde Dich erneut an, richte eine neue PIN ein und importiere Dein soundnest-policy.json-Backup.</string>
     <string name="parent_pin_session_unlocked_hint">Tippe auf Jetzt sperren, bevor Du das Telefon an Dein Kind zurückgibst.</string>
     <string name="parent_pin_session_locked_hint">Tippe auf Entsperren, um Filter, Startseiten-Bereiche, Lautsprecher oder Konten zu bearbeiten.</string>
+
+    <string name="audiobook_playing_from">Wiedergabe aus dem Hörbuch</string>
+    <string name="audiobook_resume">Fortsetzen</string>
+    <string name="audiobook_resume_chapter">Fortsetzen · Kap. %1$d</string>
+    <string name="player_source_audible">Audible · Hörbuch</string>
+    <string name="sleep_timer_end_of_chapter">Ende des Kapitels</string>
+    <string name="audiobook_chapters_sheet_title">Kapitel</string>
+    <string name="audiobook_chapter_of">Kapitel %1$d von %2$d</string>
+    <string name="show_chapters_count">%1$d Kapitel</string>
+    <string name="show_chapters_filter_all">Alle Kapitel</string>
+    <string name="show_filter_all_chapters_played">Alle Kapitel gehört.</string>
+    <string name="chapter_played_short">Gehört</string>
+    <string name="chapter_restart">Von Anfang an abspielen</string>
+    <string name="chapter_options">Kapiteloptionen</string>
+    <string name="audiobook_open_book">Zum Hörbuch</string>
+    <string name="audiobook_previous_chapter">Vorheriges Kapitel</string>
+    <string name="audiobook_next_chapter">Nächstes Kapitel</string>
+    <string name="audiobook_released_date">Erschienen %1$s</string>
 </resources>

@@ -74,12 +74,11 @@ fun EpisodeOptionsSheet(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    val isAudible = io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.isAudibleUri(song.url)
     // The + / ✓ follows Spotify's library: ask once for this episode's saved state.
-    androidx.compose.runtime.LaunchedEffect(song.url, isAudible) {
-        if (!isAudible) SongPlayer.requestSaved(song.spotifyUri)
+    androidx.compose.runtime.LaunchedEffect(song.url) {
+        SongPlayer.requestSaved(song.spotifyUri)
     }
-    val saved = !isAudible && SongPlayer.library[song.spotifyUri] == true
+    val saved = SongPlayer.library[song.spotifyUri] == true
     io.github.thake.soundnest.core.ui.look.LookSheet(onDismissRequest = onDismiss, containerColor = Sheet) {
         Column(Modifier.navigationBarsPadding().padding(bottom = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(20.dp, 4.dp, 20.dp, 16.dp)) {
@@ -99,10 +98,10 @@ fun EpisodeOptionsSheet(
             val parentTargets = androidx.compose.runtime.remember(song) {
                 io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.targetsForSong(song)
             }
-            if (!isAudible && adminUnlocked && parentTargets.isNotEmpty()) {
+            if (adminUnlocked && parentTargets.isNotEmpty()) {
                 parentTargets.forEachIndexed { idx, target ->
                     val blocked = io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.isBlocked(target, policy)
-                    SheetAction(
+                    SpokenWordSheetAction(
                         icon = if (blocked) Icons.Default.Check else androidx.compose.material.icons.Icons.Outlined.Block,
                         label = io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.actionLabel(
                             target,
@@ -121,44 +120,40 @@ fun EpisodeOptionsSheet(
                     modifier = Modifier.padding(vertical = 4.dp),
                 )
             }
-            if (!isAudible) {
-                SheetAction(Icons.Outlined.Share, stringResource(R.string.a11y_share)) {
-                    onDismiss()
-                    shareEpisode(context, song)
-                }
-                SheetAction(
-                    if (saved) Icons.Default.Check else Icons.Outlined.Add,
-                    stringResource(if (saved) R.string.episode_unsave else R.string.episode_save),
-                ) {
-                    SongPlayer.setSaved(song.spotifyUri, !saved)
-                    onDismiss()
-                }
+            SpokenWordSheetAction(Icons.Outlined.Share, stringResource(R.string.a11y_share)) {
+                onDismiss()
+                shareEpisode(context, song)
+            }
+            SpokenWordSheetAction(
+                if (saved) Icons.Default.Check else Icons.Outlined.Add,
+                stringResource(if (saved) R.string.episode_unsave else R.string.episode_save),
+            ) {
+                SongPlayer.setSaved(song.spotifyUri, !saved)
+                onDismiss()
             }
             // The mark the official episode menu carries and the music menu does not.
             if (finished) {
-                SheetAction(Icons.Outlined.Undo, stringResource(R.string.episode_mark_unplayed)) {
+                SpokenWordSheetAction(Icons.Outlined.Undo, stringResource(R.string.episode_mark_unplayed)) {
                     onMarkFinished(false)
                     Toast.makeText(context, context.getString(R.string.episode_marked_unplayed), Toast.LENGTH_SHORT).show()
                     onDismiss()
                 }
             } else {
-                SheetAction(Icons.Outlined.Done, stringResource(R.string.episode_mark_played)) {
+                SpokenWordSheetAction(Icons.Outlined.Done, stringResource(R.string.episode_mark_played)) {
                     onMarkFinished(true)
                     Toast.makeText(context, context.getString(R.string.episode_marked_played), Toast.LENGTH_SHORT).show()
                     onDismiss()
                 }
             }
-            if (!isAudible) {
-                SheetAction(Icons.Outlined.PlaylistAdd, stringResource(R.string.episode_add_queue)) {
-                    SongPlayer.addEpisodeToQueue(song.url)
-                    onDismiss()
-                }
+            SpokenWordSheetAction(Icons.Outlined.PlaylistAdd, stringResource(R.string.episode_add_queue)) {
+                SongPlayer.addEpisodeToQueue(song.url)
+                onDismiss()
             }
-            SheetAction(Icons.Default.PlayArrow, stringResource(R.string.episode_play)) {
+            SpokenWordSheetAction(Icons.Default.PlayArrow, stringResource(R.string.episode_play)) {
                 onDismiss()
                 onPlay()
             }
-            if (onOpen != null && !isAudible) SheetAction(Icons.Outlined.Info, stringResource(R.string.episode_open)) {
+            if (onOpen != null) SpokenWordSheetAction(Icons.Outlined.Info, stringResource(R.string.episode_open)) {
                 onDismiss()
                 onOpen()
             }
@@ -167,7 +162,7 @@ fun EpisodeOptionsSheet(
 }
 
 @Composable
-private fun SheetAction(icon: ImageVector, label: String, tint: Color? = null, onClick: () -> Unit) {
+internal fun SpokenWordSheetAction(icon: ImageVector, label: String, tint: Color? = null, onClick: () -> Unit) {
     val fg = tint ?: AppText
     Row(
         verticalAlignment = Alignment.CenterVertically,

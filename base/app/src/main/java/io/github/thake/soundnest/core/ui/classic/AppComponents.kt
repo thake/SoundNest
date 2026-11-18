@@ -287,7 +287,13 @@ fun MiniPlayer() {
                 // new song is already on screen (the page swiped to): no fade then, or the page
                 // jumped back to would show the old song fading out.
                 // Through a crossfade the blend below is the transition: no fade of its own.
-                val shown = MiniSong(s?.title ?: outgoing?.title ?: songTitle, s?.singer ?: outgoing?.artist ?: songSinger, s?.coverUri ?: songCoverUri)
+                val bookTitle = vm.currentSongAlbum.value
+                val baseSinger = if (SongPlayer.isAudiobook && bookTitle.isNotBlank()) {
+                    if (songSinger.isNotBlank() && songSinger != bookTitle) "$bookTitle • $songSinger" else bookTitle
+                } else {
+                    songSinger
+                }
+                val shown = MiniSong(s?.title ?: outgoing?.title ?: songTitle, s?.singer ?: outgoing?.artist ?: baseSinger, s?.coverUri ?: songCoverUri)
                 androidx.compose.animation.Crossfade(
                     targetState = shown,
                     animationSpec = androidx.compose.animation.core.tween(if (page == 1 && pager.currentPage == 1 && blend == null) 220 else 0),

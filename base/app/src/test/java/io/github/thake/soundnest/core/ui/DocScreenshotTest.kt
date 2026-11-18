@@ -177,6 +177,10 @@ import io.github.thake.soundnest.feature.player.ui.immersive.ImmersivePlayerStat
 import io.github.thake.soundnest.feature.spokenword.ui.immersive.ImmersivePodcastPlayer
 import io.github.thake.soundnest.feature.player.ui.immersive.ImmersiveRepeat
 import io.github.thake.soundnest.feature.player.ui.immersive.Panel
+import io.github.thake.soundnest.feature.spokenword.audiobooks.ui.AudiobookChaptersSheet
+import io.github.thake.soundnest.feature.spokenword.audiobooks.ui.ChapterOptionsSheet
+import io.github.thake.soundnest.feature.spokenword.audiobooks.ui.classic.AudiobookPlayerScreen
+import io.github.thake.soundnest.feature.spokenword.audiobooks.ui.immersive.ImmersiveAudiobookPlayer
 import io.github.thake.soundnest.feature.spokenword.ui.immersive.ImmersiveShowScreen
 import io.github.thake.soundnest.feature.library.ui.immersive.ImmersiveArtistReleasesScreen
 import io.github.thake.soundnest.feature.library.ui.immersive.ImmersiveArtistScreen
@@ -286,6 +290,7 @@ class DocScreenshotTest {
     private lateinit var outputDir: File
     private lateinit var covers: Map<String, String>
     private var spotifyJob: kotlinx.coroutines.CompletableJob? = null
+    private var lastAudibleShowPage: ShowPage? = null
 
     private val approvedPlaylists = setOf("ghibli", "roadtrip", "curious")
     private val approvedAlbums = setOf("planets", "dragon")
@@ -311,6 +316,8 @@ class DocScreenshotTest {
         hostActivity = rule.activity
         val app = RuntimeEnvironment.getApplication()
         Graph::class.java.getDeclaredField("app").apply { isAccessible = true }.set(null, app)
+        SongPlayer::class.java.getDeclaredField("boundState").apply { isAccessible = true }
+            .set(SongPlayer, Graph.currentSongState)
 
         val dirProp = System.getProperty("soundnest.docScreenshotsDir")
         outputDir = (if (!dirProp.isNullOrBlank()) File(dirProp) else File("../docs/screenshots")).apply { mkdirs() }
@@ -330,9 +337,13 @@ class DocScreenshotTest {
     fun tearDown() {
         val app = RuntimeEnvironment.getApplication()
         SongPlayer.setSleepTimer(null)
+        io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.resetForTests()
         io.github.thake.soundnest.feature.spokenword.audible.settings.AudibleCredentialStore.clear(app)
+        io.github.thake.soundnest.feature.spokenword.audible.settings.AudibleCredentialStore.resetMemoryForTests()
         io.github.thake.soundnest.feature.spokenword.audible.data.AudibleCatalogCache.clear(app)
+        io.github.thake.soundnest.feature.spokenword.audible.data.AudibleCatalogCache.resetMemoryForTests()
         io.github.thake.soundnest.feature.spokenword.audible.data.AudibleProgressStore.clearAll(app)
+        io.github.thake.soundnest.feature.spokenword.audible.data.AudibleProgressStore.resetMemoryForTests()
         ParentSecurityManager.dismissPrompt()
         ParentSecurityManager.resetForTests(app)
         ParentalPolicyStore.resetForTests(app)
@@ -455,9 +466,16 @@ class DocScreenshotTest {
         LookPref.set(app, look)
         setLibraryGridView(app, false)
         SongPlayer.setSleepTimer(null)
+        lastAudibleShowPage = null
+        io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.resetForTests()
+        SongPlayer.clearAudiobookContextsForTests()
         io.github.thake.soundnest.feature.spokenword.audible.settings.AudibleCredentialStore.clear(app)
+        io.github.thake.soundnest.feature.spokenword.audible.settings.AudibleCredentialStore.resetMemoryForTests()
         io.github.thake.soundnest.feature.spokenword.audible.data.AudibleCatalogCache.clear(app)
+        io.github.thake.soundnest.feature.spokenword.audible.data.AudibleCatalogCache.resetMemoryForTests()
         io.github.thake.soundnest.feature.spokenword.audible.data.AudibleProgressStore.clearAll(app)
+        io.github.thake.soundnest.feature.spokenword.audible.data.AudibleProgressStore.resetMemoryForTests()
+        ShadowLooper.idleMainLooper()
         ParentSecurityManager.resetForTests(app)
         ParentSecurityManager.setupInitialPin(app, "246810")
         ParentSecurityManager.lockNow(app)
@@ -505,6 +523,7 @@ class DocScreenshotTest {
 
         seedFeedAndLibraryCache()
         seedMusicNowPlaying()
+        seedDefaultMusicQueue()
     }
 
     private fun buildCompleteCatalog(): List<ShotSpec> {
@@ -956,6 +975,16 @@ class DocScreenshotTest {
         add("Classic Look", "classic/42-switch-account.png", "Menu: Switch Account (PIN-Unlocked)", "Full-screen Classic Switch Account page opened from the menu drawer.", Look.CLASSIC, parentAdminPrep) {
             ClassicShell("detail", capped = true) { nav -> AccountsScreen(nav) }
         }
+        add("Classic Look", "classic/43-audible-audiobook-chapters.png", "Audible Audiobook Chapters", "Classic Audible book page showing flattened chapters, local progress, and mini-player state.", Look.CLASSIC, prepare = { app ->
+            seedAudibleChapterView(app)
+        }) {
+            ClassicShell("detail", capped = true) { nav -> ShowScreen(nav, showId = "audible:B08G9PRS1K", showName = "Project Hail Mary") }
+        }
+        add("Classic Look", "classic/44-player-audible-chapter.png", "Full-Screen Audiobook Player", "Classic audiobook player while streaming an Audible audiobook chapter.", Look.CLASSIC, prepare = { app ->
+            seedAudibleChapterView(app)
+        }) {
+            AudiobookPlayerScreen(rememberNavController())
+        }
 
         // ── 5. Immersive Look — Complete Screen, Player & Settings Catalog ──
         add("Immersive Look", "immersive/01-home-filtered-open.png", "Home (Filtered Open)", "Immersive Home with glass pills, shortcuts, and curated shelves.", Look.IMMERSIVE, filteredOpenPrep) {
@@ -1116,6 +1145,16 @@ class DocScreenshotTest {
         add("Immersive Look", "immersive/48-switch-account.png", "Menu: Switch Account (PIN-Unlocked)", "Full-screen Immersive Switch Account page opened from the menu drawer.", Look.IMMERSIVE, parentAdminPrep) {
             ImmersiveShell("detail", capped = true) { nav -> AccountsScreen(nav) }
         }
+        add("Immersive Look", "immersive/49-audible-audiobook-chapters.png", "Audible Audiobook Chapters", "Immersive Audible book page with cover glow, chapter rows, and floating mini-player.", Look.IMMERSIVE, prepare = { app ->
+            seedAudibleChapterView(app)
+        }) {
+            ImmersiveShell("detail", capped = true) { nav -> ImmersiveShowScreen(nav, showId = "audible:B08G9PRS1K", showName = "Project Hail Mary") }
+        }
+        add("Immersive Look", "immersive/50-player-audible-chapter.png", "Full-Screen Audiobook Player", "Immersive audiobook player while streaming an Audible audiobook chapter.", Look.IMMERSIVE, prepare = { app ->
+            seedAudibleChapterView(app)
+        }) {
+            ImmersiveAudiobookPlayer(rememberNavController())
+        }
 
         // ── 6. Bottom Sheets, Modals & Overlays ──
         add("Sheets & Modals", "sheets/01-classic-song-options.png", "Classic Song Options Sheet", "Track context menu in Classic look (read-only library aware).", Look.CLASSIC) {
@@ -1206,6 +1245,40 @@ class DocScreenshotTest {
                     HomeScreen(innerNav)
                 }
             }
+        }
+        add("Sheets & Modals", "sheets/14-audible-chapter-options-sheet.png", "Audible Chapter Options Sheet", "Chapter overflow sheet for an Audible audiobook chapter.", Look.CLASSIC, prepare = { app ->
+            seedAudibleChapterView(app)
+        }) {
+            ClassicShell("detail", capped = true) { nav ->
+                ShowScreen(nav, showId = "audible:B08G9PRS1K", showName = "Project Hail Mary")
+                lastAudibleShowPage?.items?.getOrNull(2)?.let { chapterSong ->
+                    ChapterOptionsSheet(
+                        chapter = chapterSong,
+                        bookTitle = "Project Hail Mary",
+                        finished = chapterSong.played,
+                        started = chapterSong.playedPositionMs > 0L,
+                        onPlay = {},
+                        onRestart = {},
+                        onMarkFinished = {},
+                        onOpenBook = null,
+                        onDismiss = {},
+                    )
+                }
+            }
+        }
+        add("Sheets & Modals", "sheets/15-audiobook-chapters-sheet.png", "Audiobook Chapters Sheet", "Table-of-contents bottom sheet opened from the audiobook player.", Look.CLASSIC, prepare = { app ->
+            seedAudibleChapterView(app)
+        }) {
+            AudiobookPlayerScreen(rememberNavController())
+            AudiobookChaptersSheet(
+                bookTitle = lastAudibleShowPage?.show?.name ?: "Project Hail Mary",
+                chapters = lastAudibleShowPage?.items ?: emptyList(),
+                currentUri = SongPlayer.nowPlaying.value.uri,
+                playing = SongPlayer.isPlaying(),
+                isFinished = { it.played },
+                onSelectChapter = { _, _ -> },
+                onDismiss = {},
+            )
         }
 
         return shots
@@ -1422,11 +1495,7 @@ class DocScreenshotTest {
         tracks = sampleTrackSongs(),
     )
 
-    private fun seedAllStoresAndViewModels(app: Application) {
-        seedFeedAndLibraryCache()
-        seedMusicNowPlaying()
-
-        // Queue (for Classic QueueScreen, ImmersiveQueueScreen & ImmersivePlayer Queue panel)
+    private fun seedDefaultMusicQueue() {
         val tracks = sampleTrackSongs()
         SongPlayer.showProbeQueue(
             SongPlayer.EngineQueue(
@@ -1440,6 +1509,15 @@ class DocScreenshotTest {
                 },
             ),
         )
+    }
+
+    private fun seedAllStoresAndViewModels(app: Application) {
+        seedFeedAndLibraryCache()
+        seedMusicNowPlaying()
+
+        // Queue (for Classic QueueScreen, ImmersiveQueueScreen & ImmersivePlayer Queue panel)
+        val tracks = sampleTrackSongs()
+        seedDefaultMusicQueue()
 
         // Context pages (Playlist, Album, Liked Songs)
         seedVm<ContextViewModel>("playlist:ghibli").apply {
@@ -1650,6 +1728,9 @@ class DocScreenshotTest {
             audiobook = false,
         )
         seedVm<ShowViewModel>().apply {
+            finished.clear()
+            filter.value = io.github.thake.soundnest.feature.spokenword.podcasts.settings.EpisodeFilter.ALL
+            previousOpened.value = 0L
             poke("showKey", "brainson")
             following.value = true
             poke("_page", Response.Success(ShowPage(show = show, items = sampleEpisodes(), audiobook = false, coverUri = show.coverUri)))
@@ -1675,9 +1756,150 @@ class DocScreenshotTest {
             SongsModel(203, "Chapter 3 • Asteroid B-612", "The Little Prince", "Antoine de Saint-Exupery", covers.getValue("bedtime"), "episode:ch3", "ch3", durationMs = 840_000, description = "Learning where the Little Prince came from.", releaseDate = "2024-01-01", played = false, playedPositionMs = 0L, showId = "littleprince"),
         )
         seedVm<ShowViewModel>().apply {
+            finished.clear()
+            filter.value = io.github.thake.soundnest.feature.spokenword.podcasts.settings.EpisodeFilter.ALL
+            previousOpened.value = 0L
             poke("showKey", "littleprince")
             following.value = true
             poke("_page", Response.Success(ShowPage(show = book, items = chapters, audiobook = true, coverUri = book.coverUri)))
+        }
+    }
+
+    private class FakeDocAudibleBackend :
+        io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayerBackend {
+        private var playing = false
+        private var buffering = false
+        private var positionMs = 0L
+        private var listener: io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayerBackend.Listener? = null
+
+        override fun load(
+            grant: io.github.thake.soundnest.audible.AudibleStreamGrant,
+            initialPositionMs: Long,
+            speed: Float,
+            playWhenReady: Boolean,
+            listener: io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayerBackend.Listener,
+        ) {
+            this.positionMs = initialPositionMs
+            this.playing = playWhenReady
+            this.buffering = false
+            this.listener = listener
+            listener.onPlaybackChanged(playWhenReady, false, initialPositionMs)
+        }
+
+        override fun resume() {
+            playing = true
+            listener?.onPlaybackChanged(true, false, positionMs)
+        }
+
+        override fun pause() {
+            playing = false
+            listener?.onPlaybackChanged(false, false, positionMs)
+        }
+
+        override fun stop() {
+            playing = false
+        }
+
+        override fun seekToAbsolute(positionMs: Long) {
+            this.positionMs = positionMs
+            listener?.onPlaybackChanged(playing, false, positionMs)
+        }
+
+        override fun setSpeed(speed: Float) {}
+        override fun setGain(gain: Float) {}
+        override fun isPlaying(): Boolean = playing
+        override fun isBuffering(): Boolean = buffering
+        override fun currentPositionMs(): Long = positionMs
+        override fun release() {
+            playing = false
+        }
+    }
+
+    private fun seedAudibleChapterView(app: Application) {
+        ParentSecurityManager.lockNow(app)
+        io.github.thake.soundnest.feature.spokenword.audible.settings.AudibleCredentialStore.save(
+            app,
+            io.github.thake.soundnest.audible.AudibleSessionTokens(
+                marketplace = io.github.thake.soundnest.audible.AudibleMarketplace.DE,
+                deviceSerial = "DOCSHOTSERIAL1",
+                adpToken = "DOC_ADP_TOKEN",
+                devicePrivateKeyPem = "DOC_PEM",
+                refreshToken = "DOC_REFRESH",
+                accessToken = "DOC_ACCESS",
+                customerName = "Family Account",
+            ),
+        )
+        val book = io.github.thake.soundnest.audible.AudibleBook(
+            asin = "B08G9PRS1K",
+            title = "Project Hail Mary",
+            subtitle = "A Novel",
+            authors = listOf("Andy Weir"),
+            narrators = listOf("Ray Porter"),
+            seriesTitle = "Hail Mary",
+            seriesSequence = "1",
+            runtimeLengthMs = 58_200_000L,
+            coverUrl = covers.getValue("planets"),
+            description = "Ryland Grace is the sole survivor on a desperate, last-chance mission—and if he fails, humanity and the earth itself will perish.",
+            releaseDate = "2021-05-04",
+        )
+        val chapters = listOf(
+            io.github.thake.soundnest.audible.AudibleChapter(0, "Opening Credits", 0L, 2_368L),
+            io.github.thake.soundnest.audible.AudibleChapter(1, "Part One: The Mission", 2_368L, 8_840L),
+            io.github.thake.soundnest.audible.AudibleChapter(2, "Chapter 1", 11_208L, 2_258_533L),
+            io.github.thake.soundnest.audible.AudibleChapter(3, "Chapter 2", 2_269_741L, 1_440_000L),
+            io.github.thake.soundnest.audible.AudibleChapter(4, "Part Two - Chapter 3", 3_709_741L, 1_020_000L),
+        )
+        io.github.thake.soundnest.feature.spokenword.audible.data.AudibleCatalogCache.saveBooks(app, listOf(book))
+        io.github.thake.soundnest.feature.spokenword.audible.data.AudibleCatalogCache.saveChapters(app, "B08G9PRS1K", chapters)
+        ParentalPolicyStore.update(app) {
+            it.copy(
+                spokenWord = it.spokenWord.copy(
+                    allowAudiobooks = true,
+                    allowAudible = true,
+                    audible = AudibleParentalPolicy(
+                        allowedAsins = setOf("B08G9PRS1K"),
+                        pinnedAsins = setOf("B08G9PRS1K"),
+                    ),
+                ),
+            )
+        }
+        io.github.thake.soundnest.feature.spokenword.audible.data.AudibleProgressStore.setChapterFinished(app, "B08G9PRS1K", 0, true)
+        io.github.thake.soundnest.feature.spokenword.audible.data.AudibleProgressStore.savePosition(
+            app,
+            asin = "B08G9PRS1K",
+            positionMs = 11_208L + 918_000L,
+            chapterIndex = 2,
+        )
+        io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.configureForTests(
+            context = app,
+            backend = FakeDocAudibleBackend(),
+            grantLoader = { asin ->
+                io.github.thake.soundnest.audible.AudibleStreamGrant(
+                    asin = asin,
+                    manifestUrl = "https://cdn.audible.de/$asin/manifest.mpd",
+                    drmType = "Widevine",
+                    chapters = chapters,
+                )
+            },
+        )
+        SongPlayer.playSong("audible:book:B08G9PRS1K")
+        ShadowLooper.idleMainLooper()
+
+        val page = kotlinx.coroutines.runBlocking {
+            io.github.thake.soundnest.feature.spokenword.audible.data.AudibleShowPageLoader.load(
+                context = app,
+                showId = "audible:B08G9PRS1K",
+                policy = ParentalPolicyStore.current(app),
+            ).getOrThrow()
+        }
+        lastAudibleShowPage = page
+        seedVm<ShowViewModel>().apply {
+            finished.clear()
+            filter.value = io.github.thake.soundnest.feature.spokenword.podcasts.settings.EpisodeFilter.ALL
+            previousOpened.value = 0L
+            following.value = false
+            poke("showKey", "audible:B08G9PRS1K")
+            poke("_page", Response.Success(page))
         }
     }
 

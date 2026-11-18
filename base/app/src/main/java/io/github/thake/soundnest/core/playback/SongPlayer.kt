@@ -1809,13 +1809,37 @@ object SongPlayer {
         command { api.player.addToQueue(listOf("spotify:episode:$id")) }
     }
 
+    private val audiobookContextUris = ConcurrentHashMap.newKeySet<String>()
+
+    /** Records [contextUri] as an audiobook context so [isAudiobook] routes its player UI cleanly. */
+    fun markAudiobookContext(contextUri: String) {
+        if (contextUri.isNotBlank()) audiobookContextUris.add(contextUri)
+    }
+
+    internal fun clearAudiobookContextsForTests() {
+        audiobookContextUris.clear()
+    }
+
     /**
-     * What plays is a podcast episode or Audible audiobook chapter: the player shows spoken-word
-     * controls (±15s skips, speed, sleep timer, no shuffle), not the music ones.
+     * What plays is a podcast episode or Audible audiobook chapter: the notification keeps spoken-word
+     * controls (±15s skips), while [isAudiobook] routes the in-app player sheet to the dedicated
+     * audiobook player.
      */
     val isEpisode: Boolean
         get() = _nowPlaying.value.uri.startsWith("spotify:episode:") ||
             _nowPlaying.value.uri.startsWith("audible:chapter:")
+
+    /** True when the playing item is an Audible or Spotify audiobook chapter. */
+    val isAudiobook: Boolean
+        get() {
+            val np = _nowPlaying.value
+            return io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value ||
+                np.uri.startsWith("audible:") ||
+                np.contextUri.startsWith("audible:") ||
+                np.uri.startsWith("spotify:chapter:") ||
+                np.contextUri.startsWith("spotify:audiobook:") ||
+                (np.contextUri.isNotBlank() && np.contextUri in audiobookContextUris)
+        }
 
     fun lyricsTrack(s: SongsModel) = io.github.thake.soundnest.feature.lyrics.data.LyricsApi.Track(
         trackId = s.spotifyTrackId, title = s.title, artist = s.singer, album = s.album,

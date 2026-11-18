@@ -115,12 +115,22 @@ object AudibleShowPageLoader {
                 coverUri = book.coverUrl,
                 url = chapterUri,
                 durationMs = durationInt,
-                releaseDate = book.releaseDate.orEmpty(),
+                releaseDate = "",
                 playedPositionMs = playedPosLong,
                 played = isFinished,
                 showId = AudibleUris.showId(asin),
             )
         }
+
+        val seriesPart = book.seriesTitle?.trim()?.takeIf { it.isNotEmpty() }?.let { series ->
+            val seq = book.seriesSequence?.trim()?.takeIf { it.isNotEmpty() }
+            if (seq != null) "$series #$seq" else series
+        }.orEmpty()
+        val rawSubtitle = book.subtitle.trim()
+        val bookSubtitle = listOf(seriesPart, rawSubtitle)
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .joinToString(" · ")
 
         val showModel = PodcastModel(
             id = AudibleUris.showId(asin),
@@ -133,6 +143,9 @@ object AudibleShowPageLoader {
             authors = book.authors,
             narrators = book.narrators,
             audiobook = true,
+            subtitle = bookSubtitle,
+            runtimeMs = book.runtimeLengthMs.takeIf { it > 0L } ?: projector.totalDurationMs,
+            releaseDate = book.releaseDate.orEmpty(),
         )
 
         return Result.success(

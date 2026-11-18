@@ -33,6 +33,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
@@ -42,6 +44,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -67,6 +70,9 @@ import io.github.thake.soundnest.core.catalog.Response
 import io.github.thake.soundnest.core.model.PodcastModel
 import io.github.thake.soundnest.core.model.SongsModel
 import io.github.thake.soundnest.core.playback.SongPlayer
+import io.github.thake.soundnest.feature.spokenword.audiobooks.ui.ChapterOptionsSheet
+import io.github.thake.soundnest.feature.spokenword.audiobooks.ui.classic.ChapterRow
+import io.github.thake.soundnest.feature.spokenword.audiobooks.ui.formatBookRuntime
 import io.github.thake.soundnest.feature.spokenword.ui.EpisodeOptionsSheet
 import io.github.thake.soundnest.core.ui.classic.Loader
 import io.github.thake.soundnest.core.ui.look.pressable
@@ -107,6 +113,9 @@ fun ShowScreen(navController: NavController, showId: String, showName: String = 
     } else {
         "spotify:show:$showId"
     }
+    LaunchedEffect(contextUri, audiobook) {
+        if (audiobook && contextUri.isNotBlank()) SongPlayer.markAudiobookContext(contextUri)
+    }
     val items = remember(rawItems, policy, showId, audiobook, isAudible) {
         if (isAudible) rawItems else rawItems.filter {
             io.github.thake.soundnest.feature.parental.filter.ParentalFilterEngine.isTrackAllowed(
@@ -118,32 +127,78 @@ fun ShowScreen(navController: NavController, showId: String, showName: String = 
         }
     }
 
-    fun playAt(index: Int) {
+    fun playAt(index: Int, positionMs: Long? = null) {
         val song = items.getOrNull(index) ?: return
         vm.updateQueue(items)
-        SongPlayer.playSong(song.url, context, contextUri = contextUri)
+        SongPlayer.playSong(song.url, context, contextUri = contextUri, positionMs = positionMs)
         vm.updateSongState(song.coverUri, song.title, song.singer, true, song.id, index, song.album)
     }
 
     val filter = vm.filter.value
-    val rows by remember(items, oldestFirst, filter) {
-        derivedStateOf { filter.apply(if (oldestFirst) items.reversed() else items) { vm.isFinished(it) } }
+    val rows by remember(items, oldestFirst, filter, audiobook) {
+        derivedStateOf {
+            val base = if (!audiobook && oldestFirst) items.reversed() else items
+            filter.apply(base) { vm.isFinished(it) }
+        }
+    }
+    val chapterNumberOf = remember(items) {
+        items.mapIndexed { idx, s -> s.url to (idx + 1) }.toMap()
+    }
+
+    val bookActive = audiobook && contextUri.isNotBlank() && np.contextUri == contextUri && np.uri.isNotBlank()
+    val bookPlaying = bookActive && SongPlayer.isPlaying()
+    val resumeIdx by remember(items, audiobook) {
+        derivedStateOf {
+            if (!audiobook) null
+            else items.indexOfFirst { !vm.isFinished(it) && it.playedPositionMs > 0L }.takeIf { it >= 0 }
+                ?: items.indexOfFirst { !vm.isFinished(it) }.takeIf { it > 0 }
+        }
+    }
+    var livePosMs by remember { mutableLongStateOf(SongPlayer.getCurrentPosition()) }
+    LaunchedEffect(audiobook, bookPlaying, np.uri) {
+        if (!audiobook) return@LaunchedEffect
+        livePosMs = SongPlayer.getCurrentPosition()
+        while (bookPlaying) {
+            kotlinx.coroutines.delay(1_000L)
+            livePosMs = SongPlayer.getCurrentPosition()
+        }
     }
 
     menuSong?.let { sel ->
-        EpisodeOptionsSheet(
-            song = sel,
-            finished = vm.isFinished(sel),
-            onPlay = {
-                val index = items.indexOfFirst { it.url == sel.url }
-                if (index >= 0) playAt(index)
-            },
-            onMarkFinished = { vm.setFinished(sel, it) },
-            onOpen = if (isAudible || io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.isAudibleUri(sel.url)) null else ({
-                navController.navigate(episodeRoute(sel.url.removePrefix("episode:"), sel.title))
-            }),
-            onDismiss = { menuSong = null },
-        )
+        val selIsAudible = isAudible || io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.isAudibleUri(sel.url)
+        val selPlayUri = if (selIsAudible) sel.url else "spotify:episode:${sel.url.removePrefix("episode:")}"
+        val selLivePos = if (np.uri == selPlayUri) livePosMs.coerceAtLeast(sel.playedPositionMs) else sel.playedPositionMs
+        if (audiobook) {
+            ChapterOptionsSheet(
+                chapter = sel,
+                bookTitle = show?.name?.takeIf { it.isNotBlank() } ?: showName,
+                finished = vm.isFinished(sel),
+                started = selLivePos > 0L,
+                onPlay = {
+                    val index = items.indexOfFirst { it.url == sel.url }
+                    if (index >= 0) playAt(index)
+                },
+                onRestart = {
+                    val index = items.indexOfFirst { it.url == sel.url }
+                    if (index >= 0) playAt(index, positionMs = 0L)
+                },
+                onMarkFinished = { vm.setFinished(sel, it) },
+                onOpenBook = null,
+                onDismiss = { menuSong = null },
+            )
+        } else {
+            EpisodeOptionsSheet(
+                song = sel,
+                finished = vm.isFinished(sel),
+                onPlay = {
+                    val index = items.indexOfFirst { it.url == sel.url }
+                    if (index >= 0) playAt(index)
+                },
+                onMarkFinished = { vm.setFinished(sel, it) },
+                onOpen = { navController.navigate(episodeRoute(sel.url.removePrefix("episode:"), sel.title)) },
+                onDismiss = { menuSong = null },
+            )
+        }
     }
 
     Box(Modifier.fillMaxSize().background(AppBackground)) {
@@ -152,6 +207,12 @@ fun ShowScreen(navController: NavController, showId: String, showName: String = 
             modifier = Modifier.fillMaxSize(),
         ) {
             item {
+                val primaryPlayLabel = when {
+                    bookPlaying -> stringResource(R.string.notif_action_pause)
+                    bookActive -> stringResource(R.string.audiobook_resume)
+                    resumeIdx != null -> stringResource(R.string.audiobook_resume_chapter, resumeIdx!! + 1)
+                    else -> stringResource(R.string.episode_play)
+                }
                 Header(
                     navController = navController,
                     showId = showId,
@@ -162,6 +223,16 @@ fun ShowScreen(navController: NavController, showId: String, showName: String = 
                     showFollow = !isAudible,
                     following = vm.following.value,
                     onFollow = { vm.setFollow(showId, it) },
+                    showPlayButton = audiobook && items.isNotEmpty(),
+                    playButtonLabel = primaryPlayLabel,
+                    playButtonPlaying = bookPlaying,
+                    onPlayBook = {
+                        when {
+                            bookActive -> if (bookPlaying) SongPlayer.pause() else SongPlayer.play()
+                            isAudible -> SongPlayer.playSong(contextUri, context, contextUri = contextUri)
+                            else -> playAt(resumeIdx ?: 0)
+                        }
+                    },
                 )
             }
             item {
@@ -183,37 +254,42 @@ fun ShowScreen(navController: NavController, showId: String, showName: String = 
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { oldestFirst = !oldestFirst }
-                                .padding(vertical = 12.dp),
-                        ) {
-                            Icon(Icons.Default.Tune, contentDescription = null, tint = AppText.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(10.dp))
+                        if (audiobook) {
                             Text(
-                                text = stringResource(
-                                    when {
-                                        audiobook && oldestFirst -> R.string.show_sort_chapters_oldest
-                                        audiobook -> R.string.show_sort_chapters_newest
-                                        oldestFirst -> R.string.show_sort_oldest
-                                        else -> R.string.show_sort_newest
-                                    },
-                                ),
-                                color = AppText.copy(alpha = 0.8f),
+                                text = stringResource(R.string.show_chapters_count, items.size),
+                                color = AppText.copy(alpha = 0.65f),
                                 fontSize = 13.sp,
+                                modifier = Modifier.weight(1f).padding(vertical = 10.dp),
                             )
+                        } else {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { oldestFirst = !oldestFirst }
+                                    .padding(vertical = 12.dp),
+                            ) {
+                                Icon(Icons.Default.Tune, contentDescription = null, tint = AppText.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    text = stringResource(if (oldestFirst) R.string.show_sort_oldest else R.string.show_sort_newest),
+                                    color = AppText.copy(alpha = 0.8f),
+                                    fontSize = 13.sp,
+                                )
+                            }
                         }
                         Text(
-                            text = stringResource(episodeFilterLabel(filter)),
+                            text = stringResource(
+                                if (audiobook && filter == EpisodeFilter.ALL) R.string.show_chapters_filter_all
+                                else episodeFilterLabel(filter),
+                            ),
                             color = if (filter == EpisodeFilter.ALL) AppText.copy(alpha = 0.8f) else AppAccent,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(50))
                                 .clickable { vm.setFilter(showId, filter.next()) }
-                                .padding(horizontal = 10.dp, vertical = 12.dp),
+                                .padding(horizontal = 10.dp, vertical = 10.dp),
                         )
                     }
                 }
@@ -225,7 +301,7 @@ fun ShowScreen(navController: NavController, showId: String, showName: String = 
             if (tab == 1) item { About(show) }
             if (tab == 0 && items.isNotEmpty() && rows.isEmpty()) item {
                 Text(
-                    stringResource(R.string.show_filter_all_played),
+                    stringResource(if (audiobook) R.string.show_filter_all_chapters_played else R.string.show_filter_all_played),
                     color = AppText.copy(alpha = 0.6f),
                     fontSize = 14.sp,
                     modifier = Modifier.padding(16.dp),
@@ -242,25 +318,42 @@ fun ShowScreen(navController: NavController, showId: String, showName: String = 
             if (tab == 0) items(rows, key = { it.url }) { ep ->
                 val epIsAudible = io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.isAudibleUri(ep.url)
                 val epPlayUri = if (epIsAudible) ep.url else "spotify:episode:${ep.url.removePrefix("episode:")}"
-                EpisodeRow(
-                    episode = ep,
-                    playing = np.uri == epPlayUri && SongPlayer.isPlaying(),
-                    finished = vm.isFinished(ep),
-                    isNew = vm.isNew(ep),
-                    onPlay = {
-                        val index = items.indexOfFirst { it.url == ep.url }
-                        if (index >= 0) playAt(index)
-                    },
-                    onOpen = {
-                        if (isAudible || epIsAudible) {
+                val isCurrentRow = np.uri == epPlayUri
+                val isPlayingRow = isCurrentRow && SongPlayer.isPlaying()
+                if (audiobook) {
+                    ChapterRow(
+                        chapterNumber = chapterNumberOf[ep.url] ?: 1,
+                        chapter = ep,
+                        current = isCurrentRow,
+                        playing = isPlayingRow,
+                        finished = vm.isFinished(ep),
+                        livePositionMs = if (isCurrentRow) livePosMs.coerceAtLeast(ep.playedPositionMs) else ep.playedPositionMs,
+                        onClick = {
+                            if (isCurrentRow) {
+                                if (isPlayingRow) SongPlayer.pause() else SongPlayer.play()
+                            } else {
+                                val index = items.indexOfFirst { it.url == ep.url }
+                                if (index >= 0) playAt(index)
+                            }
+                        },
+                        onMenu = { menuSong = ep },
+                    )
+                } else {
+                    EpisodeRow(
+                        episode = ep,
+                        playing = isPlayingRow,
+                        finished = vm.isFinished(ep),
+                        isNew = vm.isNew(ep),
+                        onPlay = {
                             val index = items.indexOfFirst { it.url == ep.url }
                             if (index >= 0) playAt(index)
-                        } else {
+                        },
+                        onOpen = {
                             navController.navigate(episodeRoute(ep.url.removePrefix("episode:"), ep.title))
-                        }
-                    },
-                    onMenu = { menuSong = ep },
-                )
+                        },
+                        onMenu = { menuSong = ep },
+                    )
+                }
             }
         }
     }
@@ -278,6 +371,10 @@ private fun Header(
     showFollow: Boolean = true,
     following: Boolean,
     onFollow: (Boolean) -> Unit,
+    showPlayButton: Boolean = false,
+    playButtonLabel: String = "",
+    playButtonPlaying: Boolean = false,
+    onPlayBook: () -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -329,6 +426,14 @@ private fun Header(
                     Spacer(Modifier.height(6.dp))
                     Text(show.publisher, color = AppText.copy(alpha = 0.8f), fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
+                if (!show?.subtitle.isNullOrBlank()) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(show!!.subtitle, color = AppText.copy(alpha = 0.65f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                if (audiobook && show != null && show.runtimeMs > 0L) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(formatBookRuntime(show.runtimeMs), color = AppText.copy(alpha = 0.65f), fontSize = 12.sp)
+                }
             }
         }
         // Rating, as the official header shows it under the cover.
@@ -347,7 +452,7 @@ private fun Header(
                 )
             }
         }
-        if (showFollow) {
+        if (showFollow || showPlayButton) {
             val resolvedName = show?.name?.takeIf { it.isNotBlank() } ?: fallbackName
             val showTarget = remember(showId, resolvedName, show?.publisher, cover) {
                 io.github.thake.soundnest.feature.parental.ui.ParentBlockTarget(
@@ -363,9 +468,39 @@ private fun Header(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
             ) {
-                FollowPill(following) { onFollow(!following) }
-                if (!audiobook) {
-                    io.github.thake.soundnest.feature.parental.ui.ParentInlineBlockPill(target = showTarget)
+                if (showPlayButton) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .height(36.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(AppAccent)
+                            .pressable(0.96f, onClick = onPlayBook)
+                            .padding(horizontal = 18.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = if (playButtonPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                tint = Color.Black,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = playButtonLabel,
+                                color = Color.Black,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+                if (showFollow) {
+                    FollowPill(following) { onFollow(!following) }
+                    if (!audiobook) {
+                        io.github.thake.soundnest.feature.parental.ui.ParentInlineBlockPill(target = showTarget)
+                    }
                 }
             }
         } else {
@@ -426,6 +561,7 @@ private fun TabLabel(text: String, selected: Boolean, modifier: Modifier = Modif
 private fun About(show: PodcastModel?) {
     val authors = show?.authors.orEmpty().joinToString(", ")
     val narrators = show?.narrators.orEmpty().joinToString(", ")
+    val released = formatReleaseDate(show?.releaseDate.orEmpty())
     Column(Modifier.fillMaxWidth().padding(16.dp)) {
         Text(
             text = io.github.thake.soundnest.core.ui.look.rememberLinkedText(show?.description.orEmpty(), AppAccent),
@@ -440,7 +576,21 @@ private fun About(show: PodcastModel?) {
             Spacer(Modifier.height(4.dp))
             Text(stringResource(R.string.show_narrators, narrators), color = AppText.copy(alpha = 0.6f), fontSize = 13.sp)
         }
+        if (released.isNotBlank()) {
+            Spacer(Modifier.height(4.dp))
+            Text(stringResource(R.string.audiobook_released_date, released), color = AppText.copy(alpha = 0.6f), fontSize = 13.sp)
+        }
     }
+}
+
+internal fun formatReleaseDate(raw: String): String {
+    if (raw.isBlank()) return ""
+    val locale = io.github.thake.soundnest.feature.appearance.settings.AppLanguage.effectiveLocale
+    return runCatching {
+        java.time.LocalDate.parse(raw.take(10)).format(
+            java.time.format.DateTimeFormatter.ofLocalizedDate(java.time.format.FormatStyle.MEDIUM).withLocale(locale),
+        )
+    }.getOrDefault(raw)
 }
 
 /** One episode (or chapter): cover, title, snippet, date • length, then its own controls. */
