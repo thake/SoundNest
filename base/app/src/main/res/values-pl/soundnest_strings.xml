@@ -351,9 +351,6 @@
     <string name="share_as_image">Udostępnij jako obraz</string>
     <string name="settings_autoplay_title">Autoodtwarzanie</string>
     <string name="settings_autoplay_detail">Gdy Twoja muzyka się skończy, odtwarzaj dalej podobne utwory</string>
-    <string name="myspoti_shuffle_title">Losowanie SoundNest</string>
-    <string name="myspoti_shuffle_detail">Gdy odtwarzanie losowe jest włączone, playlista, album lub polubione utwory odtwarzają każdy utwór raz, w losowej kolejności, zanim zaczną od nowa. Wyłączone: odtwarzanie losowe Spotify. Darmowe konto może zachować odtwarzanie losowe Spotify na niektórych listach.</string>
-    <string name="myspoti_shuffle_imposed">Spotify zachowuje na tej liście własne odtwarzanie losowe dla Twojego konta: losowanie SoundNest jest dla niej wyłączone.</string>
     <string name="settings_crossfade_title">Płynne przejścia (utwory cichną, ale się nie nakładają)</string>
     <string name="settings_crossfade_detail">Utwór cichnie przez ostatnie sekundy, a następny narasta. Nigdy nie grają naraz: jeden odtwarzacz, jeden strumień audio.</string>
     <string name="settings_crossfade_off">Wyłączone</string>

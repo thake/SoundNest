@@ -342,9 +342,6 @@
     <string name="share_as_image">以图片分享</string>
     <string name="settings_autoplay_title">自动播放</string>
     <string name="settings_autoplay_detail">音乐播放完后，继续播放类似的歌曲</string>
-    <string name="myspoti_shuffle_title">SoundNest 随机播放</string>
-    <string name="myspoti_shuffle_detail">开启随机播放后，播放列表、专辑或“已点赞的歌曲”会以随机顺序将每首歌播放一次，然后重新开始。关闭：使用 Spotify 的随机播放。免费账号在某些列表中可能仍使用 Spotify 的随机播放。</string>
-    <string name="myspoti_shuffle_imposed">Spotify 在此列表中为你的账号保留了它自己的随机播放：此列表已关闭 SoundNest 随机播放。</string>
     <string name="settings_crossfade_title">淡入淡出（曲目淡入淡出，不重叠）</string>
     <string name="settings_crossfade_detail">一首歌在最后几秒淡出，下一首淡入。它们不会同时播放：一个播放器，一路音频流。</string>
     <string name="settings_crossfade_off">关</string>

@@ -73,12 +73,6 @@ object PlaybackSettingsUi {
             immersivePage = "Playback",
             isVisible = { it.effectiveAllowAutoplayAndRadio },
         ),
-        SettingsEntry(
-            title = R.string.myspoti_shuffle_title,
-            detail = R.string.myspoti_shuffle_detail,
-            classicPlace = "0",
-            immersivePage = "Playback",
-        ),
         *EqualizerSettingsUi.settingsEntries.toTypedArray(),
         SettingsEntry(
             title = R.string.settings_keep_playing_title,
@@ -221,12 +215,12 @@ object PlaybackSettingsUi {
                 }
             }
 
-            m3SettingsSection(
-                key = "playback:queue",
-                palette = palette,
-                header = ctx.getString(R.string.settings_playback_section_queue),
-            ) {
-                if (policy.effectiveAllowAutoplayAndRadio) {
+            if (policy.effectiveAllowAutoplayAndRadio) {
+                m3SettingsSection(
+                    key = "playback:queue",
+                    palette = palette,
+                    header = ctx.getString(R.string.settings_playback_section_queue),
+                ) {
                     row {
                         M3SettingsSwitchRow(
                             title = stringResource(R.string.settings_autoplay_title),
@@ -236,15 +230,6 @@ object PlaybackSettingsUi {
                             onCheckedChange = { AutoplayPref.set(ctx, it) },
                         )
                     }
-                }
-                row {
-                    M3SettingsSwitchRow(
-                        title = stringResource(R.string.myspoti_shuffle_title),
-                        detail = stringResource(R.string.myspoti_shuffle_detail),
-                        checked = AppShufflePref.on,
-                        palette = palette,
-                        onCheckedChange = { AppShufflePref.set(ctx, it) },
-                    )
                 }
             }
 

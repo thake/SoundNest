@@ -28,7 +28,7 @@ interface AccountAudio {
      * never repairs, pauses or follows it (a skip chain paused it, and the mirror's song with it).
      */
     val mirrors: Boolean get() = false
-    /** [order]: the context's songs in an order of the app's (a sorted list, its own shuffle), null for the list's own. */
+    /** [order]: the context's songs in an order of the app's (a sorted list, a smart shuffle), null for the list's own. */
     /** [shuffle]: the shuffle the play starts with (the user's last choice); null leaves the account's. */
     suspend fun play(contextUri: String, trackUri: String?, index: Int?, positionMs: Long?, order: List<String>?, shuffle: Boolean? = null)
     suspend fun pause()

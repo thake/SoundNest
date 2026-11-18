@@ -351,9 +351,6 @@
     <string name="share_as_image">Поделиться изображением</string>
     <string name="settings_autoplay_title">Автовоспроизведение</string>
     <string name="settings_autoplay_detail">Когда ваша музыка закончится, продолжать воспроизведение похожих треков</string>
-    <string name="myspoti_shuffle_title">Перемешивание SoundNest</string>
-    <string name="myspoti_shuffle_detail">Если перемешивание включено, плейлист, альбом или «Любимые треки» воспроизводят каждый трек один раз в случайном порядке, а затем начинают заново. Выключено: перемешивание Spotify. Бесплатный аккаунт может сохранять перемешивание Spotify в некоторых списках.</string>
-    <string name="myspoti_shuffle_imposed">Spotify сохраняет для вашего аккаунта собственное перемешивание в этом списке: перемешивание SoundNest для него выключено.</string>
     <string name="settings_crossfade_title">Плавный переход (треки затихают, но не накладываются)</string>
     <string name="settings_crossfade_detail">Трек затихает в последние секунды, следующий плавно нарастает. Они никогда не звучат одновременно: один плеер, один аудиопоток.</string>
     <string name="settings_crossfade_off">Выкл.</string>

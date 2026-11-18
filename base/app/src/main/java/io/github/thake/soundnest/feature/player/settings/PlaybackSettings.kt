@@ -7,7 +7,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import io.github.thake.soundnest.core.di.Graph
-import io.github.thake.soundnest.core.playback.AppShuffle
 import io.github.thake.soundnest.core.playback.LocalPlayer
 import io.github.thake.soundnest.core.preferences.PolicySyncedSetting
 import io.github.thake.soundnest.core.preferences.ProfilePrefs
@@ -24,7 +23,6 @@ private const val KEY_STREAMING = "streaming_quality"
 private const val KEY_CHOSEN = "quality_chosen"
 private const val KEY_STREAMING_CELL = "streaming_quality_cellular"
 private const val KEY_AUTOPLAY = "autoplay"
-private const val KEY_APP_SHUFFLE = "app_shuffle"
 private const val KEY_CROSSFADE = "crossfade_seconds"
 private const val KEY_SOURCE_LINE = "source_line"
 private const val KEY_IMMERSIVE_CAPSULE = "immersive_capsule"
@@ -41,7 +39,6 @@ object PlaybackSettings : PolicySyncedSetting {
     fun init(context: Context) {
         val p = playerPrefs(context)
         AutoplayPref.syncFromPrefs(p)
-        AppShufflePref.syncFromPrefs(p)
         CrossfadePref.syncFromPrefs(p)
         PlayerSourceLinePref.syncFromPrefs(p)
         PlayerCapsulePref.syncFromPrefs(p)
@@ -111,25 +108,6 @@ object AutoplayPref {
     fun set(c: Context, value: Boolean) {
         on = value
         playerPrefs(c).edit().putBoolean(KEY_AUTOPLAY, value).apply()
-    }
-}
-
-/**
- * App-level true shuffle (on by default): with shuffle on, a list plays every one of its songs once
- * before it starts over, instead of Spotify's shuffle (see [AppShuffle]).
- */
-object AppShufflePref {
-    var on by mutableStateOf(safePlayerPrefs()?.getBoolean(KEY_APP_SHUFFLE, true) ?: true)
-        private set
-
-    internal fun syncFromPrefs(p: SharedPreferences) {
-        on = p.getBoolean(KEY_APP_SHUFFLE, true)
-    }
-
-    fun set(c: Context, value: Boolean) {
-        on = value
-        playerPrefs(c).edit().putBoolean(KEY_APP_SHUFFLE, value).apply()
-        if (!value) AppShuffle.forget()
     }
 }
 

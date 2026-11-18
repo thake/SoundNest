@@ -301,9 +301,6 @@
     <string name="share_as_image">Condividi come immagine</string>
     <string name="settings_autoplay_title">Riproduzione automatica</string>
     <string name="settings_autoplay_detail">Quando la musica finisce, continua con brani simili</string>
-    <string name="myspoti_shuffle_title">Casuale di SoundNest</string>
-    <string name="myspoti_shuffle_detail">Con la riproduzione casuale attiva, una playlist, un album o i Brani che ti piacciono riproduce ogni brano una volta, in ordine casuale, prima di ricominciare. Disattivata: la riproduzione casuale di Spotify. Un account gratuito può mantenere quella di Spotify su alcune liste.</string>
-    <string name="myspoti_shuffle_imposed">Spotify mantiene la propria riproduzione casuale su questa lista per il tuo account: quella di SoundNest è disattivata.</string>
     <string name="settings_rotation_title">Rotazione dello schermo</string>
     <string name="settings_rotation_portrait">Verticale</string>
     <string name="settings_rotation_auto">Automatica</string>

@@ -301,9 +301,6 @@
     <string name="share_as_image">Als Bild teilen</string>
     <string name="settings_autoplay_title">Autoplay</string>
     <string name="settings_autoplay_detail">Wenn deine Musik endet, werden ähnliche Songs weitergespielt</string>
-    <string name="myspoti_shuffle_title">SoundNest-Zufallswiedergabe</string>
-    <string name="myspoti_shuffle_detail">Bei aktivierter Zufallswiedergabe spielt eine Playlist, ein Album oder Lieblingssongs jeden Song einmal in zufälliger Reihenfolge, bevor es von vorn beginnt. Aus: Zufallswiedergabe von Spotify. Ein kostenloses Konto behält bei manchen Listen die Zufallswiedergabe von Spotify.</string>
-    <string name="myspoti_shuffle_imposed">Spotify behält für dein Konto bei dieser Liste die eigene Zufallswiedergabe: Die SoundNest-Zufallswiedergabe ist dafür aus.</string>
     <string name="settings_rotation_title">Bildschirmdrehung</string>
     <string name="settings_rotation_portrait">Hochformat</string>
     <string name="settings_rotation_auto">Automatisch</string>
@@ -1177,7 +1174,7 @@
     <string name="settings_app_row_detail">Player-Reparatur, Diagnosebericht und Über SoundNest</string>
     <string name="settings_equalizer_off">Aus</string>
     <string name="settings_playback_section_quality">Streaming-Qualität</string>
-    <string name="settings_playback_section_queue">Warteschlange &amp; Zufallswiedergabe</string>
+    <string name="settings_playback_section_queue">Warteschlange</string>
     <string name="settings_display_section_theme">Design &amp; Farben</string>
     <string name="settings_display_section_player">Player-Oberfläche</string>
     <string name="settings_display_section_layout">Layout &amp; Sprache</string>

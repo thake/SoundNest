@@ -130,7 +130,7 @@ internal object Bodies {
     }
 
     /**
-     * [order]: the context's songs in an order of the caller's (a sorted list, the app's own
+     * [order]: the context's songs in an order of the caller's (a sorted list, a smart
      * shuffle), sent as the context's one page; the context then plays as that page, with the
      * account's shuffle off for it, instead of the list the server would read itself.
      * [shuffle]: the shuffle the play starts with (the user's, sent with it so a set_shuffling sent

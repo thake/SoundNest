@@ -301,9 +301,6 @@
     <string name="share_as_image">Κοινοποίηση ως εικόνα</string>
     <string name="settings_autoplay_title">Αυτόματη αναπαραγωγή</string>
     <string name="settings_autoplay_detail">Όταν τελειώνει η μουσική σου, συνεχίζει με παρόμοια τραγούδια</string>
-    <string name="myspoti_shuffle_title">Τυχαία σειρά SoundNest</string>
-    <string name="myspoti_shuffle_detail">Με ενεργή την τυχαία σειρά, μια λίστα αναπαραγωγής, ένα άλμπουμ ή τα τραγούδια που σου αρέσουν παίζει κάθε τραγούδι μία φορά, με τυχαία σειρά, πριν ξεκινήσει ξανά. Ανενεργή: η τυχαία σειρά του Spotify. Ένας δωρεάν λογαριασμός μπορεί να κρατά την τυχαία σειρά του Spotify σε ορισμένες λίστες.</string>
-    <string name="myspoti_shuffle_imposed">Το Spotify κρατά τη δική του τυχαία σειρά σε αυτή τη λίστα για τον λογαριασμό σου: η τυχαία σειρά SoundNest είναι ανενεργή γι\' αυτήν.</string>
     <string name="settings_rotation_title">Περιστροφή οθόνης</string>
     <string name="settings_rotation_portrait">Κατακόρυφη</string>
     <string name="settings_rotation_auto">Αυτόματη</string>

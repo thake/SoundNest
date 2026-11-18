@@ -301,9 +301,6 @@
     <string name="share_as_image">Compartilhar como imagem</string>
     <string name="settings_autoplay_title">Reprodução automática</string>
     <string name="settings_autoplay_detail">Quando sua música acabar, continua com músicas semelhantes</string>
-    <string name="myspoti_shuffle_title">Aleatório do SoundNest</string>
-    <string name="myspoti_shuffle_detail">Com o modo aleatório ativado, uma playlist, um álbum ou as Músicas apreciadas tocam cada música uma vez, em ordem aleatória, antes de recomeçar. Desativado: o modo aleatório do Spotify. Uma conta gratuita pode manter o modo aleatório do Spotify em algumas listas.</string>
-    <string name="myspoti_shuffle_imposed">O Spotify mantém o próprio modo aleatório nesta lista para a sua conta: o aleatório do SoundNest fica desativado nela.</string>
     <string name="settings_rotation_title">Rotação da tela</string>
     <string name="settings_rotation_portrait">Retrato</string>
     <string name="settings_rotation_auto">Automática</string>

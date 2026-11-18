@@ -373,9 +373,6 @@
     <string name="share_as_image">Compartilhar como imagem</string>
     <string name="settings_autoplay_title">Reprodução automática</string>
     <string name="settings_autoplay_detail">Quando sua música acabar, continuar tocando músicas semelhantes</string>
-    <string name="myspoti_shuffle_title">Modo aleatório do SoundNest</string>
-    <string name="myspoti_shuffle_detail">Com o modo aleatório ativado, uma playlist, álbum ou Músicas Curtidas toca todas as músicas uma vez, em ordem aleatória, antes de recomeçar. Desativado: modo aleatório do Spotify. Uma conta gratuita pode manter o modo aleatório do Spotify em algumas listas.</string>
-    <string name="myspoti_shuffle_imposed">O Spotify mantém o próprio modo aleatório nesta lista para a sua conta: o modo aleatório do SoundNest fica desativado nela.</string>
     <string name="settings_crossfade_title">Crossfade</string>
     <string name="settings_crossfade_detail">As músicas de extensões, downloads e arquivos locais se sobrepõem: o fim de uma some aos poucos enquanto a próxima surge. Os streams do Spotify não podem se sobrepor (um único fluxo de áudio): eles apenas somem e surgem aos poucos.</string>
     <string name="settings_crossfade_off">Desativado</string>
