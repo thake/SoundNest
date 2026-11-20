@@ -134,4 +134,106 @@ class ClusterAliasesTest {
         assertEquals("Sonos One SL", byId.getValue("sonos-dedup").name)
         assertEquals("TV", byId.getValue("unnamed-tv").name)
     }
+
+    @Test
+    fun `Cluster parse handles live Amazon Echo dealer payload with numeric alias id and UUID name`() {
+        val raw = """
+            {
+              "cluster": {
+                "active_device_id": "28fa3b85-4e54-4429-9383-0bad54fa70e8",
+                "devices": {
+                  "28fa3b85-4e54-4429-9383-0bad54fa70e8": {
+                    "can_play": true,
+                    "volume": 5242,
+                    "name": "28fa3b85-4e54-4429-9383-0bad54fa70e8",
+                    "device_id": "28fa3b85-4e54-4429-9383-0bad54fa70e8",
+                    "device_type": "SPEAKER",
+                    "brand": "Amazon",
+                    "model": "Echo",
+                    "selected_alias_id": 1,
+                    "device_aliases": {
+                      "1": {
+                        "id": 1,
+                        "display_name": "Thorstens Echo"
+                      }
+                    },
+                    "is_offline": true,
+                    "is_dynamic_device": true
+                  }
+                }
+              }
+            }
+        """.trimIndent()
+
+        val cluster = Cluster.parse(Json.parseToJsonElement(raw).jsonObject)
+        assertNotNull(cluster)
+        val dev = cluster!!.devices.single()
+        assertEquals("28fa3b85-4e54-4429-9383-0bad54fa70e8", dev.id)
+        assertEquals("Thorstens Echo", dev.name)
+        assertEquals("1", dev.selectedAliasId)
+        assertEquals(true, dev.offline)
+        assertEquals(listOf(DeviceAlias("1", "Thorstens Echo", false)), dev.deviceAliases)
+    }
+
+    @Test
+    fun `ConnectDeviceId parses Harmony composite aliases and matches _amzn_1 with a_1`() {
+        val harmony = ConnectDeviceId.parse("28fa3b85-4e54-4429-9383-0bad54fa70e8::a_1")
+        assertEquals("28fa3b85-4e54-4429-9383-0bad54fa70e8", harmony.baseId)
+        assertEquals("1", harmony.aliasId)
+        assertEquals("28fa3b85-4e54-4429-9383-0bad54fa70e8", harmony.wireDeviceId)
+        assertEquals(1, harmony.wireAliasInt)
+
+        val hobs = ConnectDeviceId.parse("28fa3b85-4e54-4429-9383-0bad54fa70e8_amzn_1")
+        assertEquals("28fa3b85-4e54-4429-9383-0bad54fa70e8", hobs.baseId)
+        assertEquals("1", hobs.aliasId)
+        assertEquals("28fa3b85-4e54-4429-9383-0bad54fa70e8_amzn_1", hobs.wireDeviceId)
+        assertEquals(null, hobs.wireAliasInt)
+
+        org.junit.jupiter.api.Assertions.assertTrue(
+            ConnectDeviceId.sameDevice("28fa3b85-4e54-4429-9383-0bad54fa70e8_amzn_1", "28fa3b85-4e54-4429-9383-0bad54fa70e8::a_1")
+        )
+        org.junit.jupiter.api.Assertions.assertFalse(
+            ConnectDeviceId.sameDevice("041525f1-3974-44e9-95f9-ad6b258e3ac4_amzn_1", "041525f1-3974-44e9-95f9-ad6b258e3ac4::a_2")
+        )
+        org.junit.jupiter.api.Assertions.assertTrue(
+            ConnectDeviceId.matchesActiveClusterDevice("28fa3b85-4e54-4429-9383-0bad54fa70e8", "28fa3b85-4e54-4429-9383-0bad54fa70e8::a_1")
+        )
+        assertEquals("28fa3b85-4e54-4429-9383-0bad54fa70e8::a_1", ConnectDeviceId.harmonyTargetId("28fa3b85-4e54-4429-9383-0bad54fa70e8", "1"))
+    }
+
+    @Test
+    fun `NativeEngine transferTo strips composite alias suffix from URL and sends integer target_alias_id`() = kotlinx.coroutines.test.runTest {
+        val rig = Rig(backgroundScope)
+        val status = rig.engine.transferTo("28fa3b85-4e54-4429-9383-0bad54fa70e8::a_1", restorePaused = "restore")
+        assertEquals(200, status)
+
+        val lastReq = rig.http.requests.lastOrNull { it.url.contains("/connect/transfer/") }
+        assertNotNull(lastReq)
+        val url = lastReq!!.url
+        org.junit.jupiter.api.Assertions.assertTrue(
+            url.endsWith("/connect/transfer/from/${rig.engine.deviceId}/to/28fa3b85-4e54-4429-9383-0bad54fa70e8"),
+            "Expected base device ID in transfer URL, got: $url",
+        )
+        val body = Json.parseToJsonElement(lastReq.body!!.decodeToString()).jsonObject
+        val alias = body["target_alias_id"]?.jsonPrimitive
+        assertNotNull(alias, "Expected target_alias_id in transfer body: $body")
+        assertEquals("1", alias!!.content)
+        org.junit.jupiter.api.Assertions.assertFalse(alias.isString, "Expected numeric target_alias_id, got string: $body")
+    }
+
+    @Test
+    fun `NativeEngine transferTo retries _amzn_N target with base UUID and target_alias_id on 410`() = kotlinx.coroutines.test.runTest {
+        val rig = Rig(backgroundScope)
+        rig.http.failNext("/to/28fa3b85-4e54-4429-9383-0bad54fa70e8_amzn_1", 410)
+        val status = rig.engine.transferTo("28fa3b85-4e54-4429-9383-0bad54fa70e8_amzn_1", restorePaused = "restore")
+        assertEquals(200, status)
+
+        val transferReqs = rig.http.requests.filter { it.url.contains("/connect/transfer/") }
+        assertEquals(2, transferReqs.size)
+        org.junit.jupiter.api.Assertions.assertTrue(transferReqs[0].url.endsWith("/to/28fa3b85-4e54-4429-9383-0bad54fa70e8_amzn_1"))
+        org.junit.jupiter.api.Assertions.assertTrue(transferReqs[1].url.endsWith("/to/28fa3b85-4e54-4429-9383-0bad54fa70e8"))
+        val retryBody = Json.parseToJsonElement(transferReqs[1].body!!.decodeToString()).jsonObject
+        assertEquals("1", retryBody["target_alias_id"]?.jsonPrimitive?.content)
+        org.junit.jupiter.api.Assertions.assertFalse(retryBody["target_alias_id"]!!.jsonPrimitive.isString)
+    }
 }

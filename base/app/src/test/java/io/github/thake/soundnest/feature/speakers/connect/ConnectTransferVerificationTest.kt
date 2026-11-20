@@ -55,4 +55,40 @@ class ConnectTransferVerificationTest {
         assertEquals("alias-lr", device.aliasId)
         assertFalse(device.local)
     }
+
+    @Test
+    fun echoDeviceMatchesAcrossAmznAndHarmonyCompositeIds() {
+        val picked = SongPlayer.ConnectDevice(
+            id = "28fa3b85-4e54-4429-9383-0bad54fa70e8_amzn_1",
+            name = "Thorstens Echo",
+            type = "SPEAKER",
+            isSelf = false,
+            isActive = false,
+        )
+        val dealerDevice = Device(
+            id = "28fa3b85-4e54-4429-9383-0bad54fa70e8::a_1",
+            name = "Thorstens Echo",
+            type = "speaker",
+            active = true,
+            volume = 0.2,
+            local = false,
+            aliasId = "1",
+        )
+        val otherAlias = Device(
+            id = "28fa3b85-4e54-4429-9383-0bad54fa70e8::a_2",
+            name = "Everywhere",
+            type = "speaker",
+            active = true,
+            volume = 0.2,
+            local = false,
+            aliasId = "2",
+        )
+
+        assertTrue(ConnectTransferMatcher.matchesDevice(picked, dealerDevice))
+        assertFalse(ConnectTransferMatcher.matchesDevice(picked, otherAlias))
+        assertTrue(ConnectTransferMatcher.matchesChosenRemote("28fa3b85-4e54-4429-9383-0bad54fa70e8::a_1", picked.id))
+        assertEquals(ConnectTransferMatcher.dedupeKey(picked), ConnectTransferMatcher.dedupeKey(
+            picked.copy(id = "28fa3b85-4e54-4429-9383-0bad54fa70e8::a_1", aliasId = "1")
+        ))
+    }
 }

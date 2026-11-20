@@ -278,15 +278,37 @@ class NativeEngine(
     }
 
     /** Transfers the account's playback from this device to [targetDeviceId]. Returns the HTTP response status. */
-    suspend fun transferTo(targetDeviceId: String, restorePaused: String = "restore"): Int {
+    suspend fun transferTo(targetDeviceId: String, restorePaused: String = "restore", aliasId: String? = null): Int {
+        val parsed = ConnectDeviceId.parse(targetDeviceId, aliasId)
+        val first = sendTransfer(parsed.wireDeviceId, restorePaused, parsed.wireAliasInt, parsed.wireAliasRaw)
+        if (first in 200..299) return first
+        val alt = parsed.alternateWire
+        if ((first == 404 || first == 410) && alt != null) {
+            return sendTransfer(alt.first, restorePaused, alt.second, alt.second?.toString())
+        }
+        return first
+    }
+
+    private suspend fun sendTransfer(
+        wireDeviceId: String,
+        restorePaused: String,
+        targetAliasInt: Int?,
+        targetAliasRaw: String?,
+    ): Int {
         val id = env.randomHex(32)
         val t0 = env.nowMs()
-        val r = sp.send(
-            "POST", "$spclient/connect-state/v1/connect/transfer/from/$deviceId/to/$targetDeviceId", HeaderProfile.PLAYER,
-            body = Bodies.transfer(restorePaused, id).toString().encodeToByteArray(), contentType = "application/json",
-        )
-        lock.withLock { pendingCommands.addLast(SentCommand("transfer", id, t0, env.nowMs() - t0, r.status)) }
-        return r.status
+        val status = try {
+            val r = sp.send(
+                "POST", "$spclient/connect-state/v1/connect/transfer/from/$deviceId/to/$wireDeviceId", HeaderProfile.PLAYER,
+                body = Bodies.transfer(restorePaused, id, targetAliasInt, targetAliasRaw).toString().encodeToByteArray(),
+                contentType = "application/json",
+            )
+            r.status
+        } catch (e: EngineException.HttpStatus) {
+            e.status
+        }
+        lock.withLock { pendingCommands.addLast(SentCommand("transfer", id, t0, env.nowMs() - t0, status)) }
+        return status
     }
 
     /** Stops local playback and clears state when playback moves to another Connect device. */

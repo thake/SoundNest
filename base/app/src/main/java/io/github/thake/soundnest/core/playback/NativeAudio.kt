@@ -172,11 +172,11 @@ object NativeAudio : io.github.thake.soundnest.spotify.AccountAudio, io.github.t
     override suspend fun next() { commandAtMs = System.currentTimeMillis(); ready().skipNext() }
     override suspend fun previous() { ready().previous() }
 
-    override suspend fun transferTo(deviceId: String, play: Boolean): Boolean {
+    override suspend fun transferTo(deviceId: String, play: Boolean, aliasId: String?): Boolean {
         val e = engine ?: return false
         val restorePaused = if (play) "restore" else "pause"
-        log("transferTo: from ${e.deviceId} to $deviceId (restore_paused=$restorePaused)")
-        val status = runCatching { e.transferTo(deviceId, restorePaused) }.getOrElse { -1 }
+        log("transferTo: from ${e.deviceId} to $deviceId (alias=$aliasId, restore_paused=$restorePaused)")
+        val status = runCatching { e.transferTo(deviceId, restorePaused, aliasId) }.getOrElse { -1 }
         if (status !in 200..299) {
             log("transferTo: status=$status failed")
             return false
@@ -184,7 +184,13 @@ object NativeAudio : io.github.thake.soundnest.spotify.AccountAudio, io.github.t
         // Wait briefly for dealer playsElsewhere or cluster takeover
         val takeover = kotlinx.coroutines.withTimeoutOrNull(2_500L) {
             while (true) {
-                if (e.playsElsewhere.value || e.cluster.value?.activeDeviceId == deviceId) {
+                if (e.playsElsewhere.value ||
+                    io.github.thake.soundnest.engine.ConnectDeviceId.matchesActiveClusterDevice(
+                        e.cluster.value?.activeDeviceId,
+                        deviceId,
+                        aliasId,
+                    )
+                ) {
                     return@withTimeoutOrNull true
                 }
                 kotlinx.coroutines.delay(50)
@@ -192,11 +198,24 @@ object NativeAudio : io.github.thake.soundnest.spotify.AccountAudio, io.github.t
             false
         } ?: false
 
-        if (takeover || e.cluster.value?.activeDeviceId == deviceId || holdsPlayback) {
+        if (takeover ||
+            io.github.thake.soundnest.engine.ConnectDeviceId.matchesActiveClusterDevice(
+                e.cluster.value?.activeDeviceId,
+                deviceId,
+                aliasId,
+            ) ||
+            holdsPlayback
+        ) {
             log("remote takeover for $deviceId (or stopping local engine); yielding local playback")
             runCatching { e.yieldLocalPlayback() }
         }
         return true
+    }
+
+    override suspend fun yieldPlayback() {
+        val e = engine ?: return
+        log("yieldPlayback: stopping local engine for remote playback")
+        runCatching { e.yieldLocalPlayback() }
     }
 
     override suspend fun pullHere(play: Boolean): Boolean {

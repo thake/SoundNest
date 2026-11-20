@@ -465,14 +465,17 @@ object TrustedNetworkGate {
     /** `LanLogin` (`addUser` Zeroconf token provisioning) is strictly blocked unless the current network is trusted. */
     fun canProvisionLanDevices(context: Context): Boolean = isNetworkTrusted(context)
 
+    private fun matchesAnyId(deviceId: String, ids: Set<String>): Boolean =
+        deviceId in ids || ids.any { io.github.thake.soundnest.engine.ConnectDeviceId.sameDevice(deviceId, it) }
+
     fun isDeviceAllowed(context: Context, deviceId: String, isSelf: Boolean): Boolean {
         if (isSelf) return true
         if (!isNetworkTrusted(context)) return false
         val id = deviceId.trim()
-        if (id in hiddenDeviceIds(context)) return false
+        if (matchesAnyId(id, hiddenDeviceIds(context))) return false
         return when (speakerVisibilityMode(context)) {
             SpeakerVisibilityMode.ALLOW_ALL_EXCEPT_HIDDEN -> true
-            SpeakerVisibilityMode.ONLY_ALLOWED -> id in allowedDeviceIds(context)
+            SpeakerVisibilityMode.ONLY_ALLOWED -> matchesAnyId(id, allowedDeviceIds(context))
         }
     }
 
@@ -485,10 +488,10 @@ object TrustedNetworkGate {
         return devices.filter { d ->
             if (d.isSelf) true
             else if (!trusted) false
-            else if (d.id in hidden) false
+            else if (matchesAnyId(d.id, hidden)) false
             else when (mode) {
                 SpeakerVisibilityMode.ALLOW_ALL_EXCEPT_HIDDEN -> true
-                SpeakerVisibilityMode.ONLY_ALLOWED -> d.id in allowed
+                SpeakerVisibilityMode.ONLY_ALLOWED -> matchesAnyId(d.id, allowed)
             }
         }
     }

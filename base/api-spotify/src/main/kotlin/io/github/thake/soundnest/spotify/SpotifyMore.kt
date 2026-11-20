@@ -540,6 +540,8 @@ class SpotifyDevices(
             val id = (d.str("id") ?: d.str("connectStateId") ?: d.str("deviceId"))?.trim()?.takeIf { it.isNotEmpty() }
                 ?: return@mapNotNull null
             val type = (d.str("type") ?: d.str("deviceType"))?.trim()?.takeIf { it.isNotEmpty() } ?: "unknown"
+            val explicitAlias = (d.str("aliasId") ?: d.str("targetAliasId"))?.trim()?.takeIf { it.isNotEmpty() }
+            val parsed = io.github.thake.soundnest.engine.ConnectDeviceId.parse(id, explicitAlias)
             Device(
                 id = id,
                 name = ConnectDeviceLabels.resolveName(d, type),
@@ -547,14 +549,18 @@ class SpotifyDevices(
                 active = d.bool("isActive") ?: false,
                 volume = d.double("volume"),
                 local = d.bool("isLocal") ?: false || (own != null && id == own),
-                aliasId = (d.str("aliasId") ?: d.str("targetAliasId"))?.trim()?.takeIf { it.isNotEmpty() },
+                aliasId = parsed.aliasId,
             )
         }
+        val anyLocalActive = all.any { it.local && it.active }
         var localSeen = false
-        _devices.value = all.filter { dev ->
+        _devices.value = all.mapNotNull { dev ->
             if (dev.local) {
-                if (localSeen) false else { localSeen = true; true }
-            } else true
+                if (localSeen) null else {
+                    localSeen = true
+                    if (anyLocalActive && !dev.active) dev.copy(active = true) else dev
+                }
+            } else dev
         }
     }
 
@@ -563,21 +569,35 @@ class SpotifyDevices(
     }
 
     override suspend fun transfer(deviceId: String, play: Boolean, aliasId: String?) {
+        val targetAlias = aliasId ?: _devices.value.firstOrNull {
+            io.github.thake.soundnest.engine.ConnectDeviceId.sameDevice(it.id, deviceId, it.aliasId)
+        }?.aliasId
         val a = audio
         val handled = if (a != null && a.holdsPlayback) {
-            runCatching { a.transferTo(deviceId, play) }.getOrDefault(false)
+            runCatching { a.transferTo(deviceId, play, targetAlias) }.getOrDefault(false)
         } else false
 
         if (!handled) {
-            val targetAlias = aliasId ?: _devices.value.firstOrNull { it.id == deviceId }?.aliasId
-            val opts = mutableMapOf<String, Any>("playOnTransfer" to play)
-            if (targetAlias != null) {
-                opts["targetAliasId"] = targetAlias
+            val harmonyTarget = io.github.thake.soundnest.engine.ConnectDeviceId.harmonyTargetId(deviceId, targetAlias)
+            val args = buildMap<String, Any> {
+                put("deviceId", deviceId)
+                put("play", play)
+                if (targetAlias != null) put("aliasId", targetAlias)
             }
-            runCatching {
-                bridge.service("ConnectTransferAPI", "transferPlayback", JsonPrimitive(deviceId), json(opts))
-            }.onFailure {
-                bridge.call("connect.transfer", json(mapOf("deviceId" to deviceId, "play" to play) + (if (targetAlias != null) mapOf("aliasId" to targetAlias) else emptyMap())) as kotlinx.serialization.json.JsonObject)
+            val result = try {
+                bridge.call("connect.transfer", json(args) as kotlinx.serialization.json.JsonObject)
+            } catch (e: io.github.thake.soundnest.spotify.bridge.BridgeException) {
+                if (e.message?.contains("unknown command", ignoreCase = true) == true) {
+                    bridge.service("ConnectTransferAPI", "transferPlayback", JsonPrimitive(harmonyTarget), json(emptyMap<String, Any>()))
+                } else {
+                    throw e
+                }
+            }
+            if (result.bool("ok") == false) {
+                throw IllegalStateException("Spotify Connect transfer rejected for $deviceId")
+            }
+            if (a != null && a.holdsPlayback) {
+                runCatching { a.yieldPlayback() }
             }
         }
         // The transfer is done: a list that cannot be read now is not a failed transfer.
@@ -606,6 +626,12 @@ class SpotifyDevices(
         ownDeviceId() ?: _devices.value.firstOrNull { it.local }?.id
             ?: runCatching { refresh(); _devices.value.firstOrNull { it.local }?.id }.getOrNull()
 
+    private fun aliasFieldJson(aliasInt: Int?, aliasRaw: String?): String? = when {
+        aliasInt != null -> aliasInt.toString()
+        !aliasRaw.isNullOrBlank() -> JsonPrimitive(aliasRaw).toString()
+        else -> null
+    }
+
     /**
      * The volume of another device, as the Web Player's own slider sets it while that device plays
      * (connect-state `volume`, 0 to 65535), sent from this app's device. The page's own volume call
@@ -613,21 +639,35 @@ class SpotifyDevices(
      */
     override suspend fun setVolume(deviceId: String, level: Double): Boolean {
         val from = resolveLocalConnectId() ?: return false
-        if (from == deviceId) return false
+        val parsed = io.github.thake.soundnest.engine.ConnectDeviceId.parse(deviceId)
+        if (from == parsed.wireDeviceId) return false
         val v = (level.coerceIn(0.0, 1.0) * 65535).toInt()
-        val (code, _) = sendHttp("PUT", "https://spclient.wg.spotify.com/connect-state/v1/connect/volume/from/$from/to/$deviceId", """{"volume":$v}""") ?: return false
-        return code in 200..299
+        suspend fun send(targetId: String, aliasInt: Int?, aliasRaw: String?): Int {
+            val aliasVal = aliasFieldJson(aliasInt, aliasRaw)
+            val body = if (aliasVal != null) """{"volume":$v,"command_options":{"target_alias_id":$aliasVal}}""" else """{"volume":$v}"""
+            return sendHttp("PUT", "https://spclient.wg.spotify.com/connect-state/v1/connect/volume/from/$from/to/$targetId", body)?.first ?: -1
+        }
+        val code = send(parsed.wireDeviceId, parsed.wireAliasInt, parsed.wireAliasRaw)
+        if (code in 200..299) return true
+        val alt = parsed.alternateWire ?: return false
+        if (code != 404 && code != 410) return false
+        return send(alt.first, alt.second, alt.second?.toString()) in 200..299
     }
 
     override suspend fun pause(deviceId: String): Boolean {
         if (deviceId.isBlank()) return false
         val from = resolveLocalConnectId() ?: return false
-        val (code, _) = sendHttp(
-            "POST",
-            "https://spclient.wg.spotify.com/connect-state/v1/player/command/from/$from/to/$deviceId",
-            """{"command":{"endpoint":"pause"}}""",
-        ) ?: return false
-        return code in 200..299
+        val parsed = io.github.thake.soundnest.engine.ConnectDeviceId.parse(deviceId)
+        suspend fun send(targetId: String, aliasInt: Int?, aliasRaw: String?): Int {
+            val aliasVal = aliasFieldJson(aliasInt, aliasRaw)
+            val body = if (aliasVal != null) """{"command":{"endpoint":"pause"},"target_alias_id":$aliasVal}""" else """{"command":{"endpoint":"pause"}}"""
+            return sendHttp("POST", "https://spclient.wg.spotify.com/connect-state/v1/player/command/from/$from/to/$targetId", body)?.first ?: -1
+        }
+        val code = send(parsed.wireDeviceId, parsed.wireAliasInt, parsed.wireAliasRaw)
+        if (code in 200..299) return true
+        val alt = parsed.alternateWire ?: return false
+        if (code != 404 && code != 410) return false
+        return send(alt.first, alt.second, alt.second?.toString()) in 200..299
     }
 }
 

@@ -66,4 +66,32 @@ class ConnectSpeakerCustomizationTest {
         assertEquals(0, playerPauseCalled)
         assertTrue(!directCalled)
     }
+
+    @Test
+    fun `custom speaker names and TrustedNetworkGate match Echo across _amzn_1 and Harmony a_1 ids`() {
+        CustomSpeakerNames.clearAll(context)
+        TrustedNetworkGate.resetForTests(context)
+
+        val amznId = "28fa3b85-4e54-4429-9383-0bad54fa70e8_amzn_1"
+        val harmonyId = "28fa3b85-4e54-4429-9383-0bad54fa70e8::a_1"
+        val otherAliasId = "28fa3b85-4e54-4429-9383-0bad54fa70e8::a_2"
+
+        CustomSpeakerNames.setCustomName(context, amznId, "Thorsten's Study Echo")
+        assertEquals("Thorsten's Study Echo", CustomSpeakerNames.resolve(context, harmonyId, "Thorstens Echo"))
+        assertEquals("Everywhere", CustomSpeakerNames.resolve(context, otherAliasId, "Everywhere"))
+
+        TrustedNetworkGate.replaceConfiguration(
+            context = context,
+            requireTrustedNetwork = false,
+            ssids = emptySet(),
+            bssids = emptySet(),
+            lanFingerprints = emptySet(),
+            visibilityMode = SpeakerVisibilityMode.ONLY_ALLOWED,
+            hiddenDevices = emptySet(),
+            allowedDevices = setOf(amznId),
+            allowJam = true,
+        )
+        assertTrue(TrustedNetworkGate.isDeviceAllowed(context, harmonyId, isSelf = false))
+        assertTrue(!TrustedNetworkGate.isDeviceAllowed(context, otherAliasId, isSelf = false))
+    }
 }

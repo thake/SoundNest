@@ -641,10 +641,12 @@
           }
         } else {
           const firstAlias = aliases[0];
+          const compositeMatch = id.match(/::a_([^:]+)$/) || id.match(/_amzn_(\d+)$/);
+          const extractedAliasId = (firstAlias && firstAlias.id) || (compositeMatch ? compositeMatch[1] : null);
           result.push({
             ...baseDevice,
             id,
-            aliasId: firstAlias ? firstAlias.id : null,
+            aliasId: extractedAliasId,
             name: directName || (firstAlias ? firstAlias.name : '') || brandModel || '',
             displayName: readStr(d.displayName),
             isGroup: firstAlias ? firstAlias.isGroup : false,
@@ -659,14 +661,17 @@
     // {deviceId, play, aliasId}
     'connect.transfer': async a => {
       const xfer = need().resolve('ConnectTransferAPI');
-      const devId = a.deviceId || a.id;
-      const opts = { playOnTransfer: a.play !== false };
-      const aliasId = a.aliasId || a.targetAliasId;
-      if (aliasId) {
-        opts.targetAliasId = aliasId;
-        opts.aliasId = aliasId;
+      const rawDevId = String(a.deviceId || a.id || '').trim();
+      const aliasId = String(a.aliasId || a.targetAliasId || '').trim();
+      const targetId = aliasId && !rawDevId.includes('::a_') && !/_amzn_\d+$/.test(rawDevId)
+        ? `${rawDevId}::a_${aliasId}`
+        : rawDevId;
+      if (xfer && xfer.harmony && typeof xfer.harmony.transfer === 'function') {
+        const res = await xfer.harmony.transfer(targetId, { paused: a.play === false });
+        return { ok: res !== false };
       }
-      return toJson(await xfer.transferPlayback(devId, opts));
+      await xfer.transferPlayback(targetId, {});
+      return { ok: true };
     },
 
     // A playlist's cover, as the page's "Edit details" sets it: the JPEG goes to the image

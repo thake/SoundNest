@@ -30,9 +30,18 @@ object CustomSpeakerNames {
         }
     }
 
-    fun getCustomName(context: Context, deviceId: String): String? =
-        if (deviceId.isBlank()) null
-        else prefs(context).getString("$KEY_PREFIX${deviceId.trim()}", null)?.trim()?.takeIf { it.isNotEmpty() }
+    fun getCustomName(context: Context, deviceId: String): String? {
+        if (deviceId.isBlank()) return null
+        val id = deviceId.trim()
+        val p = prefs(context)
+        p.getString("$KEY_PREFIX$id", null)?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+        return p.all.entries.firstNotNullOfOrNull { (k, v) ->
+            if (!k.startsWith(KEY_PREFIX)) return@firstNotNullOfOrNull null
+            val storedId = k.removePrefix(KEY_PREFIX).trim()
+            val name = (v as? String)?.trim()?.takeIf { it.isNotEmpty() } ?: return@firstNotNullOfOrNull null
+            if (io.github.thake.soundnest.engine.ConnectDeviceId.sameDevice(id, storedId)) name else null
+        }
+    }
 
     fun resolve(context: Context, deviceId: String, fallbackName: String): String =
         getCustomName(context, deviceId) ?: fallbackName

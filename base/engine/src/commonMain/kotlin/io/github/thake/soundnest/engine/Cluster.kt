@@ -45,7 +45,8 @@ data class Cluster(
                         val type = obj.text("device_type").orEmpty()
                         val structured = extractStructuredAliases(obj)
                         val aliases = structured.map { it.name }.distinct()
-                        val name = resolveLabel(obj, aliases, type)
+                        val selectedAliasId = obj.textOrNumber("selected_alias_id")
+                        val name = resolveLabel(id, obj, aliases, selectedAliasId, structured, type)
                         ClusterDevice(
                             id = id,
                             name = name,
@@ -53,6 +54,8 @@ data class Cluster(
                             volume = obj.long("volume")?.let { v -> v / 65535.0 },
                             aliases = aliases,
                             deviceAliases = structured,
+                            selectedAliasId = selectedAliasId,
+                            offline = obj.bool("is_offline") ?: false,
                         )
                     }
                 },
@@ -81,7 +84,8 @@ data class Cluster(
                     is JsonObject -> {
                         val name = (entry.text("name") ?: entry.text("display_name") ?: entry.text("displayName"))
                             ?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                        val id = (entry.text("id") ?: entry.text("alias_id") ?: entry.text("aliasId"))?.trim()?.takeIf { it.isNotEmpty() }
+                        val id = (entry.textOrNumber("id") ?: entry.textOrNumber("alias_id") ?: entry.textOrNumber("aliasId"))
+                            ?.trim()?.takeIf { it.isNotEmpty() }
                         val isGroup = entry.bool("is_group") ?: entry.bool("isGroup") ?: false
                         DeviceAlias(id = id, name = name, isGroup = isGroup)
                     }
@@ -93,9 +97,21 @@ data class Cluster(
         private fun extractAliases(d: JsonObject): List<String> =
             extractStructuredAliases(d).map { it.name }.distinct()
 
-        private fun resolveLabel(d: JsonObject, aliases: List<String>, type: String): String {
-            d.text("name")?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
-            d.text("display_name")?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+        private fun resolveLabel(
+            deviceId: String,
+            d: JsonObject,
+            aliases: List<String>,
+            selectedAliasId: String?,
+            structured: List<DeviceAlias>,
+            type: String,
+        ): String {
+            val rawName = d.text("name")?.trim()?.takeIf { it.isNotEmpty() && it != deviceId }
+            if (rawName != null) return rawName
+            val displayName = d.text("display_name")?.trim()?.takeIf { it.isNotEmpty() && it != deviceId }
+            if (displayName != null) return displayName
+            if (selectedAliasId != null) {
+                structured.firstOrNull { it.id == selectedAliasId }?.name?.let { return it }
+            }
             aliases.firstOrNull()?.let { return it }
             val brand = (d.text("brand_display_name") ?: d.text("brand"))?.trim().orEmpty()
             val model = (d.text("model_display_name") ?: d.text("model"))?.trim().orEmpty()
@@ -122,6 +138,9 @@ data class Cluster(
         }
 
         private fun JsonObject.text(key: String): String? = (this[key] as? JsonPrimitive)?.content?.takeIf { (this[key] as JsonPrimitive).isString }
+        private fun JsonObject.textOrNumber(key: String): String? = (this[key] as? JsonPrimitive)?.let { p ->
+            if (p.content == "null" && !p.isString) null else p.content.trim().takeIf { it.isNotEmpty() }
+        }
         private fun JsonObject.long(key: String): Long? = (this[key] as? JsonPrimitive)?.content?.toLongOrNull()
         private fun JsonObject.bool(key: String): Boolean? = (this[key] as? JsonPrimitive)?.booleanOrNull
     }
@@ -148,4 +167,6 @@ data class ClusterDevice(
     val volume: Double? = null,
     val aliases: List<String> = emptyList(),
     val deviceAliases: List<DeviceAlias> = emptyList(),
+    val selectedAliasId: String? = null,
+    val offline: Boolean = false,
 )

@@ -24,21 +24,32 @@ class ConnectDeviceLabelTest {
     private class FakeConnectHost(
         private val connectDevicesJson: String? = null,
         private val fallbackServiceJson: String = "[]",
+        private val connectTransferJson: String? = """{"ok":true}""",
     ) : BridgeHost {
         override val messages = MutableSharedFlow<String>(extraBufferCapacity = 64)
         val commands = mutableListOf<String>()
+        val calls = mutableListOf<Pair<String, String>>()
 
         override suspend fun evaluate(script: String) {
             val m = Regex("""Myspoti\.call\((\d+), "([^"]+)", (.*)\)\.catch""", RegexOption.DOT_MATCHES_ALL).find(script) ?: return
             val id = m.groupValues[1]
             val cmd = m.groupValues[2]
+            val args = m.groupValues[3]
             commands += cmd
+            calls += cmd to args
             when (cmd) {
                 "connect.devices" -> {
                     if (connectDevicesJson != null) {
                         messages.emit("""{"type":"result","id":$id,"ok":true,"value":$connectDevicesJson}""")
                     } else {
                         messages.emit("""{"type":"result","id":$id,"ok":false,"error":"unknown command connect.devices"}""")
+                    }
+                }
+                "connect.transfer" -> {
+                    if (connectTransferJson != null) {
+                        messages.emit("""{"type":"result","id":$id,"ok":true,"value":$connectTransferJson}""")
+                    } else {
+                        messages.emit("""{"type":"result","id":$id,"ok":false,"error":"unknown command connect.transfer"}""")
                     }
                 }
                 "service.call" -> {
@@ -232,6 +243,7 @@ class ConnectDeviceLabelTest {
         val list = devices.devices.value
         assertEquals(2, list.size)
         assertTrue(list[0].local)
+        assertTrue(list[0].active, "Deduplicated local device should remain active when NativeEngine is active")
         assertEquals("Web Player (Chrome)", list[0].name)
         assertFalse(list[1].local)
         assertEquals("Kitchen Echo", list[1].name)
@@ -245,24 +257,149 @@ class ConnectDeviceLabelTest {
         val audio = FakeAccountAudio(holdsPlayback = true)
         devices.audio = audio
 
-        devices.transfer("remote-echo-1", play = true)
+        devices.transfer("remote-echo-1", play = true, aliasId = "1")
 
-        assertEquals("remote-echo-1" to true, audio.transferToCalledWith)
+        assertEquals(Triple("remote-echo-1", true, "1"), audio.transferToCalledWith)
+        assertFalse("connect.transfer" in host.commands)
         assertFalse("service.call" in host.commands)
     }
 
     @Test
-    fun `SpotifyDevices transfer falls back to ConnectTransferAPI when AccountAudio does not hold playback`() = runTest {
+    fun `SpotifyDevices transfer falls back to connect_transfer when AccountAudio does not hold playback`() = runTest {
         val host = FakeConnectHost(connectDevicesJson = "[]")
         val bridge = Bridge(host, scope)
         val devices = SpotifyDevices(bridge)
         val audio = FakeAccountAudio(holdsPlayback = false)
         devices.audio = audio
 
-        devices.transfer("remote-echo-1", play = true)
+        devices.transfer("28fa3b85-4e54-4429-9383-0bad54fa70e8::a_1", play = false)
 
         assertNull(audio.transferToCalledWith)
-        assertTrue("service.call" in host.commands)
+        assertTrue("connect.transfer" in host.commands)
+    }
+
+    @Test
+    fun `SpotifyDevices transfer yields AccountAudio when fallback connect_transfer succeeds`() = runTest {
+        val host = FakeConnectHost(connectDevicesJson = "[]", connectTransferJson = """{"ok":true}""")
+        val bridge = Bridge(host, scope)
+        val devices = SpotifyDevices(bridge)
+        val audio = FakeAccountAudio(holdsPlayback = true, transferSucceeds = false)
+        devices.audio = audio
+
+        devices.transfer("28fa3b85-4e54-4429-9383-0bad54fa70e8::a_1", play = true)
+
+        assertTrue(audio.yieldPlaybackCalled, "Fallback transfer success must yield NativeAudio to prevent split-brain")
+    }
+
+    @Test
+    fun `SpotifyDevices transfer throws when connect_transfer reports ok=false`() = runTest {
+        val host = FakeConnectHost(connectDevicesJson = "[]", connectTransferJson = """{"ok":false}""")
+        val bridge = Bridge(host, scope)
+        val devices = SpotifyDevices(bridge)
+
+        val res = runCatching { devices.transfer("28fa3b85-4e54-4429-9383-0bad54fa70e8::a_1", play = true) }
+        assertTrue(res.isFailure, "Expected failed connect.transfer ({ok:false}) to fail instead of silently succeeding")
+    }
+
+    @Test
+    fun `SpotifyDevices setVolume and pause split Harmony composite alias IDs into wire URL and target_alias_id`() = runTest {
+        val sent = mutableListOf<Triple<String, String, String?>>()
+        val host = FakeConnectHost(connectDevicesJson = """[{"id":"local-dev","name":"Pixel","type":"COMPUTER","isActive":false,"isLocal":true}]""")
+        val bridge = Bridge(host, scope)
+        val devices = SpotifyDevices(bridge, sender = { method, url, body ->
+            sent += Triple(method, url, body)
+            200 to "{}"
+        })
+        devices.ownDeviceId = { "local-dev" }
+
+        assertTrue(devices.setVolume("28fa3b85-4e54-4429-9383-0bad54fa70e8::a_1", 0.5))
+        assertTrue(devices.pause("28fa3b85-4e54-4429-9383-0bad54fa70e8::a_1"))
+
+        assertEquals(2, sent.size)
+        val vol = sent[0]
+        assertEquals("PUT", vol.first)
+        assertTrue(vol.second.endsWith("/connect/volume/from/local-dev/to/28fa3b85-4e54-4429-9383-0bad54fa70e8"), "got ${vol.second}")
+        val volJson = Json.parseToJsonElement(vol.third!!).jsonObject
+        assertEquals("1", volJson["command_options"]!!.jsonObject["target_alias_id"]!!.toString())
+
+        val pause = sent[1]
+        assertEquals("POST", pause.first)
+        assertTrue(pause.second.endsWith("/player/command/from/local-dev/to/28fa3b85-4e54-4429-9383-0bad54fa70e8"), "got ${pause.second}")
+        val pauseJson = Json.parseToJsonElement(pause.third!!).jsonObject
+        assertEquals("1", pauseJson["target_alias_id"]!!.toString())
+    }
+
+    @Test
+    fun `player-bridge connect_transfer calls harmony transfer with composed alias id and paused flag and returns ok`() {
+        val node = findNodeBinary()
+        assumeTrue(node != null, "Node runtime not found; skipping live JS VM check")
+        val bridgeJs = checkNotNull(javaClass.getResource("/bridge/player-bridge.js")) { "player-bridge.js missing" }.readText()
+
+        val probeScript = """
+            const posted = [];
+            const transferCalls = [];
+            globalThis.window = globalThis;
+            globalThis.Document = class {};
+            globalThis.HTMLMediaElement = class {};
+            globalThis.Node = class {};
+            globalThis.Window = class {};
+            globalThis.MutationObserver = class { observe() {} disconnect() {} };
+            globalThis.PerformanceObserver = class { observe() {} };
+            globalThis.SoundNestHost = { postMessage: msg => posted.push(JSON.parse(msg)) };
+
+            const fakeMap = new Map([
+              [Symbol('ConnectTransferAPI'), {
+                harmony: {
+                  transfer: async (targetId, opts) => {
+                    transferCalls.push({ targetId, opts });
+                    return targetId.includes('fail') ? false : true;
+                  }
+                },
+                transferPlayback: async () => { throw new Error('Should prefer harmony.transfer'); }
+              }],
+              [Symbol('PlayerAPI'), { getEvents: () => ({ addListener() {} }), getState: () => null, getQueue: () => null }],
+              [Symbol('PlaybackAPI'), { getVolume: () => 1 }],
+              [Symbol('LibraryAPI'), { getEvents: () => ({ addListener() {} }), contains: async () => [] }],
+              [Symbol('PlatformAutoplayAPI'), {}],
+              [Symbol('TokenProvider'), { getToken: async () => null }],
+            ]);
+            const mainEl = {
+              '__reactContainer${'$'}test': {
+                memoizedProps: {
+                  value: {
+                    getRegistry: () => ({ _map: fakeMap, resolve: k => fakeMap.get(k) }),
+                    getGraphQLLoader: () => async () => ({}),
+                  }
+                }
+              },
+              querySelectorAll: () => [],
+            };
+            globalThis.document = { addEventListener() {}, getElementById: id => (id === 'main' ? mainEl : null), body: mainEl };
+            globalThis.addEventListener = () => {};
+
+            $bridgeJs
+            (async () => {
+              await window.Myspoti.call(1, 'connect.transfer', { deviceId: '28fa-uuid', aliasId: '1', play: false });
+              await window.Myspoti.call(2, 'connect.transfer', { deviceId: 'fail-uuid::a_1', play: true });
+              console.log(JSON.stringify({ calls: transferCalls, r1: posted.find(p => p.id === 1), r2: posted.find(p => p.id === 2) }));
+              process.exit(0);
+            })().catch(e => { console.error(e); process.exit(1); });
+        """.trimIndent()
+
+        val proc = ProcessBuilder(node, "-e", probeScript).redirectErrorStream(true).start()
+        val out = proc.inputStream.bufferedReader().readText().trim()
+        val exit = proc.waitFor()
+        assertEquals(0, exit, "Node script failed: $out")
+        val line = out.lineSequence().last { it.startsWith("{") }
+        val res = Json.parseToJsonElement(line).jsonObject
+        val calls = res["calls"]!!.jsonArray
+        assertEquals(2, calls.size)
+        assertEquals("\"28fa-uuid::a_1\"", calls[0].jsonObject["targetId"]?.toString())
+        assertEquals("true", calls[0].jsonObject["opts"]!!.jsonObject["paused"]?.toString())
+        assertEquals("true", res["r1"]!!.jsonObject["value"]!!.jsonObject["ok"]?.toString())
+        assertEquals("\"fail-uuid::a_1\"", calls[1].jsonObject["targetId"]?.toString())
+        assertEquals("false", calls[1].jsonObject["opts"]!!.jsonObject["paused"]?.toString())
+        assertEquals("false", res["r2"]!!.jsonObject["value"]!!.jsonObject["ok"]?.toString())
     }
 
     @Test
@@ -284,10 +421,12 @@ class ConnectDeviceLabelTest {
         override val on: Boolean = true,
         override var holdsPlayback: Boolean = true,
         override val deviceId: String? = "native-phone-1",
+        private val transferSucceeds: Boolean = true,
     ) : AccountAudio {
         var lastContextUri: String? = null
-        var transferToCalledWith: Pair<String, Boolean>? = null
+        var transferToCalledWith: Triple<String, Boolean, String?>? = null
         var pullHereCalled: Boolean = false
+        var yieldPlaybackCalled: Boolean = false
 
         override suspend fun play(contextUri: String, trackUri: String?, index: Int?, positionMs: Long?, order: List<String>?, shuffle: Boolean?) {
             lastContextUri = contextUri
@@ -297,9 +436,13 @@ class ConnectDeviceLabelTest {
         override suspend fun seek(positionMs: Long) {}
         override suspend fun next() {}
         override suspend fun previous() {}
-        override suspend fun transferTo(deviceId: String, play: Boolean): Boolean {
-            transferToCalledWith = deviceId to play
-            return true
+        override suspend fun transferTo(deviceId: String, play: Boolean, aliasId: String?): Boolean {
+            transferToCalledWith = Triple(deviceId, play, aliasId)
+            return transferSucceeds
+        }
+        override suspend fun yieldPlayback() {
+            yieldPlaybackCalled = true
+            holdsPlayback = false
         }
         override suspend fun pullHere(play: Boolean): Boolean {
             pullHereCalled = true

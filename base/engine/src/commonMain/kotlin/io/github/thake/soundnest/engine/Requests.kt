@@ -168,9 +168,18 @@ internal object Bodies {
     }
 
     /** `POST connect-state/v1/connect/transfer/from/{dev}/to/{dev}`. */
-    fun transfer(restorePaused: String, commandId: String): JsonObject = buildJsonObject {
+    fun transfer(
+        restorePaused: String,
+        commandId: String,
+        targetAliasInt: Int? = null,
+        targetAliasRaw: String? = null,
+    ): JsonObject = buildJsonObject {
         putJsonObject("transfer_options") { put("restore_paused", restorePaused) }
         put("command_id", commandId)
+        when {
+            targetAliasInt != null -> put("target_alias_id", targetAliasInt)
+            !targetAliasRaw.isNullOrBlank() -> put("target_alias_id", targetAliasRaw)
+        }
     }
 
     /** One `melody/v1/msg/batch` body. */

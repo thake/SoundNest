@@ -2203,7 +2203,7 @@ object SongPlayer {
         runCatching { api.devices.refresh() }
         val rawList = api.devices.devices.value.map { toConnectDevice(it) }
             .sortedWith(compareByDescending<ConnectDevice> { it.isSelf }.thenBy { it.name })
-            .distinctBy { if (it.isSelf) "self" else "${it.id}:${it.aliasId.orEmpty()}" }
+            .distinctBy { io.github.thake.soundnest.feature.speakers.connect.ConnectTransferMatcher.dedupeKey(it) }
         val list = io.github.thake.soundnest.feature.speakers.settings.TrustedNetworkGate.filterConnectDevices(Graph.app, rawList)
         _activeDevice.value = list.firstOrNull { it.isActive && !it.isSelf }
         // Kinds only (no names or ids): a report that says "no speaker" shows whether Spotify listed one.
@@ -2253,7 +2253,7 @@ object SongPlayer {
         }
         _activeDevice.value = allowedRemote?.let { toConnectDevice(it, forceRemoteActive = true) }
         val remote = active?.takeIf { !it.local }?.let { toConnectDevice(it, forceRemoteActive = true) } ?: return
-        if (remote.id == chosenRemote) {
+        if (io.github.thake.soundnest.feature.speakers.connect.ConnectTransferMatcher.matchesChosenRemote(remote.id, chosenRemote, remote.aliasId)) {
             if (allowedRemote != null) return
             // Child left the trusted Home Wi-Fi (or parent hid this speaker): forget chosenRemote and pull here.
             chosenRemote = null
@@ -2366,19 +2366,26 @@ object SongPlayer {
     }
 
     private suspend fun verifyTransfer(device: ConnectDevice, wanted: Boolean) {
-        val deadline = SystemClock.elapsedRealtime() + 4_000L
+        val deadline = SystemClock.elapsedRealtime() + 10_000L
         var confirmedActive = false
         while (SystemClock.elapsedRealtime() < deadline) {
             kotlinx.coroutines.delay(500)
             runCatching { api.devices.refresh() }
-            val match = api.devices.devices.value.firstOrNull { it.id == device.id || (device.aliasId != null && it.aliasId == device.aliasId) }
-            if (match?.active == true && !NativeAudio.holdsPlayback) {
-                confirmedActive = true
-                break
+            val match = api.devices.devices.value.firstOrNull {
+                io.github.thake.soundnest.feature.speakers.connect.ConnectTransferMatcher.matchesDevice(device, it)
+            }
+            if (match?.active == true) {
+                if (NativeAudio.holdsPlayback) {
+                    runCatching { NativeAudio.yieldPlayback() }
+                }
+                if (!NativeAudio.holdsPlayback) {
+                    confirmedActive = true
+                    break
+                }
             }
         }
         if (!confirmedActive) {
-            Log.w(TAG, "transfer to ${device.name} (${device.id}) was not confirmed active within 4s; rolling back")
+            Log.w(TAG, "transfer to ${device.name} (${device.id}) was not confirmed active within 10s; rolling back")
             withContext(Dispatchers.Main) {
                 transferFailed(device)
             }
@@ -2401,7 +2408,7 @@ object SongPlayer {
      * device that plays nothing. Back on this phone, and the person is told.
      */
     private fun transferFailed(device: ConnectDevice) {
-        if (device.isSelf || chosenRemote != device.id) return
+        if (device.isSelf || !io.github.thake.soundnest.feature.speakers.connect.ConnectTransferMatcher.matchesChosenRemote(device.id, chosenRemote, device.aliasId)) return
         chosenRemote = null
         _activeDevice.value = null
         main.post {
