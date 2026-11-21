@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.Devices
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PauseCircle
+import androidx.compose.material.icons.rounded.PersonAdd
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
@@ -112,6 +113,7 @@ fun ParentHubScreen(
 
     var liveStates by remember { mutableStateOf<Map<String, ChildLiveState>>(emptyMap()) }
     var showPairDialog by remember { mutableStateOf(false) }
+    var showAddSecondParentDialog by remember { mutableStateOf(false) }
     var preselectedEndpoint by remember { mutableStateOf<DiscoveredChildEndpoint?>(null) }
     var editingPolicyChild by remember { mutableStateOf<PairedChildRecord?>(null) }
     var browsingCatalogChild by remember { mutableStateOf<PairedChildRecord?>(null) }
@@ -342,6 +344,30 @@ fun ParentHubScreen(
             }
         }
 
+        if (pairedChildren.isNotEmpty()) {
+            m3SettingsBlock(key = "hub:add-second-parent", palette = scaffoldPalette) {
+                OutlinedButton(
+                    onClick = { showAddSecondParentDialog = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("parent_hub_add_second_parent"),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.PersonAdd,
+                        contentDescription = null,
+                        tint = scaffoldPalette.accent,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.parent_hub_add_second_parent),
+                        color = scaffoldPalette.text,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+        }
+
         if (isDedicatedMode && onSwitchToStandardMode != null) {
             m3SettingsBlock(key = "hub:switch-mode", palette = scaffoldPalette) {
                 OutlinedButton(
@@ -366,6 +392,18 @@ fun ParentHubScreen(
                 preselectedEndpoint = null
                 scope.launch { liveStates = ParentRemoteClient.pollAll(context, PairedDevicesStore.pairedChildren(context)) }
             },
+            onChildrenImported = {
+                showPairDialog = false
+                preselectedEndpoint = null
+                scope.launch { liveStates = ParentRemoteClient.pollAll(context, PairedDevicesStore.pairedChildren(context)) }
+            },
+        )
+    }
+
+    if (showAddSecondParentDialog) {
+        AddSecondParentDialog(
+            palette = palette,
+            onDismiss = { showAddSecondParentDialog = false },
         )
     }
 

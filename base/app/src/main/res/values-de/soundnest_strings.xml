@@ -1365,4 +1365,15 @@
     <string name="remote_catalog_audible_pin">Startseite</string>
     <string name="remote_catalog_audible_pinned">Angepinnt</string>
     <string name="remote_browse_pick_block_desc">Spotify durchsuchen &amp; %1$s’ Bibliothek verwalten, um Songs, Künstler, Playlists und Audible-Bücher auszuwählen oder zu blocken</string>
+
+    <!-- Zweites Elterngerät hinzufügen (Eltern-zu-Eltern-Übertragung) -->
+    <string name="parent_hub_add_second_parent">Zweites Elterngerät hinzufügen</string>
+    <string name="parent_transfer_title">Zweites Elterngerät hinzufügen</string>
+    <string name="parent_transfer_desc">Scanne diesen QR-Code mit dem zweiten Eltern-Handy (+ → QR-Code scannen), um alle %1$d gekoppelten Kindergeräte per WLAN zu übertragen.</string>
+    <string name="parent_transfer_complete_msg">%1$d Kindergeräte an %2$s übertragen.</string>
+    <string name="parent_transfer_imported_toast">%1$d Kindergeräte von %2$s übernommen</string>
+    <string name="parent_transfer_expired">Übertragungscode abgelaufen.</string>
+    <string name="parent_transfer_restart">Neuen Code erzeugen</string>
+    <string name="parent_transfer_mode_child">Kindergerät</string>
+    <string name="parent_transfer_mode_parent">Von Elterngerät</string>
 </resources>

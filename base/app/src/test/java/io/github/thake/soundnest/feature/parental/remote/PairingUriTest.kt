@@ -3,6 +3,7 @@ package io.github.thake.soundnest.feature.parental.remote
 
 import io.github.thake.soundnest.feature.parental.remote.net.PairingInvite
 import io.github.thake.soundnest.feature.parental.remote.net.PairingUri
+import io.github.thake.soundnest.feature.parental.remote.net.ParentTransferInvite
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -47,5 +48,26 @@ class PairingUriTest {
 
         // Wrong scheme
         assertNull(PairingUri.parse("https://example.com/pair"))
+    }
+
+    @Test
+    fun parentTransferUriEncodeAndParseRoundTrip() {
+        val invite = ParentTransferInvite(
+            sourceParentId = "parent-papa-1",
+            host = "192.168.178.128",
+            port = 44556,
+            code = "904215",
+            deviceName = "Papa's Phone",
+        )
+        val encoded = PairingUri.encodeParentTransfer(invite)
+        assertNull(PairingUri.parse(encoded))
+        val parsed = PairingUri.parseParentTransfer(encoded)
+        assertNotNull(parsed)
+        assertEquals(invite, parsed)
+
+        // Rejects public IP & bad code
+        assertNull(PairingUri.parseParentTransfer("soundnest-parent-transfer://v1?id=p1&host=1.1.1.1&port=1234&code=123456&name=Papa"))
+        assertNull(PairingUri.parseParentTransfer("soundnest-parent-transfer://v1?id=p1&host=192.168.1.2&port=1234&code=123&name=Papa"))
+        assertNotNull(PairingUri.parseParentTransfer("soundnest-parent-transfer://v1?id=p1&host=127.0.0.1&port=1234&code=123456&name=Papa", allowLoopback = true))
     }
 }

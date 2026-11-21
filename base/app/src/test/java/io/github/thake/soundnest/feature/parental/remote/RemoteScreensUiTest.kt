@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import io.github.thake.soundnest.R
@@ -20,6 +21,7 @@ import io.github.thake.soundnest.feature.parental.remote.net.ChildControlDelegat
 import io.github.thake.soundnest.feature.parental.remote.net.ChildRemoteServer
 import io.github.thake.soundnest.feature.parental.remote.net.ChildStatusSnapshot
 import io.github.thake.soundnest.feature.parental.remote.net.ParentRemoteClient
+import io.github.thake.soundnest.feature.parental.remote.net.ParentTransferServer
 import io.github.thake.soundnest.feature.parental.remote.net.RemoteCatalogItem
 import io.github.thake.soundnest.feature.parental.remote.net.RemotePolicyBundle
 import io.github.thake.soundnest.feature.parental.remote.net.RemoteRequest
@@ -27,6 +29,7 @@ import io.github.thake.soundnest.feature.parental.remote.net.RemoteResponse
 import io.github.thake.soundnest.feature.parental.remote.settings.DeviceRoleStore
 import io.github.thake.soundnest.feature.parental.remote.settings.PairedDevicesStore
 import io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession
+import io.github.thake.soundnest.feature.parental.remote.ui.AddSecondParentDialog
 import io.github.thake.soundnest.feature.parental.remote.ui.ChildFamilyRemotePage
 import io.github.thake.soundnest.feature.parental.remote.ui.PairChildDialog
 import io.github.thake.soundnest.feature.parental.remote.ui.RemoteCatalogBrowserScreen
@@ -66,6 +69,7 @@ class RemoteScreensUiTest {
         context = RuntimeEnvironment.getApplication()
         RemotePolicySession.resetForTests(context)
         ChildRemoteServer.resetForTests()
+        ParentTransferServer.resetForTests()
         DeviceRoleStore.resetForTests(context)
         PairedDevicesStore.resetForTests(context)
         ParentSecurityManager.resetForTests(context)
@@ -81,6 +85,7 @@ class RemoteScreensUiTest {
     fun tearDown() {
         RemotePolicySession.resetForTests(context)
         ChildRemoteServer.resetForTests()
+        ParentTransferServer.resetForTests()
     }
 
     private fun installLoopbackDelegate() {
@@ -169,9 +174,9 @@ class RemoteScreensUiTest {
         }
         composeRule.onNodeWithTag("pair_child_scan_qr").assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.parent_hub_manual_address)).performClick()
-        composeRule.onNodeWithTag("pair_child_host_input").assertIsDisplayed()
-        composeRule.onNodeWithTag("pair_child_port_input").assertIsDisplayed()
-        composeRule.onNodeWithTag("pair_child_code_input").assertIsDisplayed()
+        composeRule.onNodeWithTag("pair_child_host_input").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("pair_child_port_input").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("pair_child_code_input").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -259,5 +264,70 @@ class RemoteScreensUiTest {
         assertTrue("a1" in childServerPolicy.blockedArtistIds)
         assertEquals("Bibi Blocksberg", childServerLabels["track:t1"]?.title)
         assertEquals("Bibi & Tina", childServerLabels["artist:a1"]?.title)
+    }
+
+    @Test
+    fun addSecondParentDialogDisplaysCodeAndPairChildDialogImportsFromParentOverLoopback() {
+        PairedDevicesStore.upsertPairedChild(
+            context = context,
+            childId = "child-joris-1",
+            displayName = "Joris",
+            host = "127.0.0.1",
+            port = 1,
+            rawSecret = RemoteCrypto.randomBytes(32),
+        )
+        composeRule.setContent {
+            val palette = rememberM3SettingsPalette()
+            AddSecondParentDialog(
+                palette = palette,
+                bindAddress = InetAddress.getLoopbackAddress(),
+                onDismiss = {},
+            )
+        }
+        composeRule.waitUntil(timeoutMillis = 5_000L) {
+            composeRule.onAllNodesWithTag("parent_transfer_code_text").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("parent_transfer_code_text").assertIsDisplayed()
+        val session = ParentTransferServer.sessionFlow.value!!
+        assertEquals(1, session.childCount)
+        assertEquals(6, session.code.length)
+    }
+
+    @Test
+    fun pairChildDialogManualParentModeImportsChildrenOverLoopback() {
+        PairedDevicesStore.upsertPairedChild(
+            context = context,
+            childId = "child-bennet-1",
+            displayName = "Bennet",
+            host = "127.0.0.1",
+            port = 1,
+            rawSecret = RemoteCrypto.randomBytes(32),
+        )
+        val session = ParentTransferServer.startTransferSession(
+            context = context,
+            bindAddress = InetAddress.getLoopbackAddress(),
+            sourceParentIdOverride = "parent-papa",
+            sourceParentNameOverride = "Papa",
+        ).getOrThrow()
+
+        var importedCount = 0
+        composeRule.setContent {
+            val palette = rememberM3SettingsPalette()
+            PairChildDialog(
+                palette = palette,
+                onDismiss = {},
+                onPaired = {},
+                onChildrenImported = { importedCount = it.size },
+            )
+        }
+        composeRule.onNodeWithText(context.getString(R.string.parent_hub_manual_address)).performClick()
+        composeRule.onNodeWithTag("pair_mode_parent").performClick()
+        composeRule.onNodeWithTag("pair_child_host_input").performTextInput("127.0.0.1")
+        composeRule.onNodeWithTag("pair_child_port_input").performTextInput(session.port.toString())
+        composeRule.onNodeWithTag("pair_child_code_input").performTextInput(session.code)
+        composeRule.onNodeWithTag("pair_child_confirm").performClick()
+
+        composeRule.waitUntil(timeoutMillis = 5_000L) { importedCount == 1 }
+        assertEquals(1, importedCount)
     }
 }

@@ -178,6 +178,14 @@ sealed class RemoteRequest {
     @Serializable
     @SerialName("get_child_catalog")
     data object GetChildCatalog : RemoteRequest()
+
+    @Serializable
+    @SerialName("register_parent")
+    data class RegisterParent(
+        val parentId: String,
+        val parentName: String,
+        val secretB64: String,
+    ) : RemoteRequest()
 }
 
 /** Lightweight read-only catalog item returned by a Child Device for remote Pick / Block. */
@@ -255,6 +263,70 @@ sealed class RemoteResponse {
     ) : RemoteResponse()
 
     @Serializable
+    @SerialName("parent_registered")
+    data class ParentRegistered(
+        val parentId: String,
+        val parentName: String,
+    ) : RemoteResponse()
+
+    @Serializable
     @SerialName("error")
     data class Error(val code: String, val message: String) : RemoteResponse()
+}
+
+// ── Parent-to-Parent Transfer Wire Models ──
+
+@Serializable
+data class ParentTransferHello(
+    val version: Int = RemoteProtocol.PROTOCOL_VERSION,
+    val sourceParentId: String,
+    val sourceParentName: String,
+    val childCount: Int,
+    val challengeNonceB64: String,
+)
+
+@Serializable
+data class ParentTransferInit(
+    val newParentId: String,
+    val newParentName: String,
+    val newParentEcdhPubB64: String,
+    val proofHmacB64: String,
+)
+
+@Serializable
+data class TransferredChildEntry(
+    val childId: String,
+    val displayName: String,
+    val lastHost: String,
+    val lastPort: Int,
+    val secretB64: String,
+    /** Non-null only when the child was offline during transfer and needs auto-upgrade on first contact. */
+    val authParentId: String? = null,
+    val upgraded: Boolean = true,
+)
+
+@Serializable
+data class ParentTransferPayload(
+    val challengeNonceB64: String,
+    val sourceParentName: String,
+    val children: List<TransferredChildEntry>,
+)
+
+@Serializable
+sealed class ParentTransferReply {
+    @Serializable
+    @SerialName("transfer_complete")
+    data class Complete(
+        val sourceEcdhPubB64: String,
+        val proofHmacB64: String,
+        val ivB64: String,
+        val ciphertextB64: String,
+    ) : ParentTransferReply()
+
+    @Serializable
+    @SerialName("error")
+    data class Error(
+        val code: String,
+        val message: String,
+    ) : ParentTransferReply()
 }

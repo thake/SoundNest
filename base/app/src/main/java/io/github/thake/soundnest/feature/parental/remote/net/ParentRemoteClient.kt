@@ -25,6 +25,12 @@ data class ChildLiveState(
     val updatedAtMs: Long = 0L,
 )
 
+data class ParentTransferImportResult(
+    val sourceParentName: String,
+    val importedChildren: List<PairedChildRecord>,
+    val upgradedCount: Int,
+)
+
 /**
  * Encrypted TCP client used by a Parent Device to pair with and control paired Child Devices
  * on the same Wi-Fi network.
@@ -38,12 +44,14 @@ object ParentRemoteClient {
         host: String,
         port: Int,
         code: String,
+        parentIdOverride: String? = null,
+        parentNameOverride: String? = null,
     ): Result<PairedChildRecord> = withContext(Dispatchers.IO) {
         runCatching {
             val cleanCode = code.filter { it.isDigit() }
             require(cleanCode.length == 6) { "Pairing code must be 6 digits" }
-            val parentId = DeviceRoleStore.deviceId(context)
-            val parentName = DeviceRoleStore.deviceName(context)
+            val parentId = parentIdOverride ?: DeviceRoleStore.deviceId(context)
+            val parentName = parentNameOverride ?: DeviceRoleStore.deviceName(context)
 
             Socket().use { s ->
                 s.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
@@ -105,8 +113,12 @@ object ParentRemoteClient {
         }
     }
 
-    suspend fun fetchStatus(context: Context, child: PairedChildRecord): Result<ChildStatusSnapshot> =
-        sendEncryptedRequest(context, child, RemoteRequest.GetStatus).mapCatching { resp ->
+    suspend fun fetchStatus(
+        context: Context,
+        child: PairedChildRecord,
+        parentIdOverride: String? = null,
+    ): Result<ChildStatusSnapshot> =
+        sendEncryptedRequest(context, child, RemoteRequest.GetStatus, parentIdOverride).mapCatching { resp ->
             when (resp) {
                 is RemoteResponse.Status -> resp.snapshot
                 is RemoteResponse.Error -> error(resp.message)
@@ -202,6 +214,115 @@ object ParentRemoteClient {
             }
         }
 
+    suspend fun registerCoParent(
+        context: Context,
+        child: PairedChildRecord,
+        newParentId: String,
+        newParentName: String,
+        newSecret: ByteArray,
+        parentIdOverride: String? = null,
+    ): Result<Unit> =
+        sendEncryptedRequest(
+            context = context,
+            child = child,
+            request = RemoteRequest.RegisterParent(
+                parentId = newParentId,
+                parentName = newParentName,
+                secretB64 = Base64.encodeToString(newSecret, Base64.NO_WRAP),
+            ),
+            parentIdOverride = parentIdOverride,
+        ).mapCatching { resp ->
+            when (resp) {
+                is RemoteResponse.ParentRegistered -> Unit
+                is RemoteResponse.Error -> error(resp.message)
+                else -> error("Unexpected register-parent response")
+            }
+        }
+
+    suspend fun receiveParentTransfer(
+        context: Context,
+        host: String,
+        port: Int,
+        code: String,
+        newParentIdOverride: String? = null,
+        newParentNameOverride: String? = null,
+    ): Result<ParentTransferImportResult> = withContext(Dispatchers.IO) {
+        runCatching {
+            val cleanCode = code.filter { it.isDigit() }
+            require(cleanCode.length == 6) { "Transfer code must be 6 digits" }
+            val newParentId = newParentIdOverride ?: DeviceRoleStore.deviceId(context)
+            val newParentName = newParentNameOverride ?: DeviceRoleStore.deviceName(context)
+
+            Socket().use { s ->
+                s.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
+                s.soTimeout = 15_000 // Allow time for Parent A to register co-parent on online children
+                val input = s.getInputStream()
+                val output = s.getOutputStream()
+
+                val hello = RemoteProtocol.readJsonFrame<ParentTransferHello>(input)
+                require(hello.version == RemoteProtocol.PROTOCOL_VERSION) { "Unsupported protocol version: ${hello.version}" }
+
+                val challengeNonce = Base64.decode(hello.challengeNonceB64, Base64.NO_WRAP)
+                val newKp = RemoteCrypto.generateEcdhKeyPair()
+                val newPubBytes = newKp.public.encoded
+                val transferAuthKey = RemoteCrypto.derivePairingKey(cleanCode, challengeNonce, hello.sourceParentId)
+                val proofInput =
+                    "parent-transfer-init|$newParentId|${hello.sourceParentId}|".toByteArray(Charsets.UTF_8) + newPubBytes
+                val proofMac = RemoteCrypto.hmacSha256(transferAuthKey, proofInput)
+
+                RemoteProtocol.writeJsonFrame(
+                    output,
+                    ParentTransferInit(
+                        newParentId = newParentId,
+                        newParentName = newParentName,
+                        newParentEcdhPubB64 = Base64.encodeToString(newPubBytes, Base64.NO_WRAP),
+                        proofHmacB64 = Base64.encodeToString(proofMac, Base64.NO_WRAP),
+                    ),
+                )
+
+                when (val reply = RemoteProtocol.readJsonFrame<ParentTransferReply>(input)) {
+                    is ParentTransferReply.Error -> error(reply.message)
+                    is ParentTransferReply.Complete -> {
+                        val sourcePubBytes = Base64.decode(reply.sourceEcdhPubB64, Base64.NO_WRAP)
+                        val respMac = Base64.decode(reply.proofHmacB64, Base64.NO_WRAP)
+                        val expectedRespInput =
+                            "parent-transfer-complete|$newParentId|${hello.sourceParentId}|".toByteArray(Charsets.UTF_8) +
+                                newPubBytes + sourcePubBytes
+                        require(RemoteCrypto.verifyHmacSha256(transferAuthKey, expectedRespInput, respMac)) {
+                            "Source parent authentication failed"
+                        }
+                        val ecdhShared = RemoteCrypto.deriveEcdhSharedSecret(newKp.private, sourcePubBytes)
+                        val encKey = RemoteCrypto.derivePermanentSecret(ecdhShared, challengeNonce, newParentId, hello.sourceParentId)
+                        val aad = "soundnest-parent-transfer-v1|$newParentId|${hello.sourceParentId}".toByteArray(Charsets.UTF_8)
+                        val iv = Base64.decode(reply.ivB64, Base64.NO_WRAP)
+                        val ct = Base64.decode(reply.ciphertextB64, Base64.NO_WRAP)
+                        val plain = RemoteCrypto.decryptAesGcm(encKey, iv, ct, aad)
+                        val payload = RemoteProtocol.json.decodeFromString<ParentTransferPayload>(plain.toString(Charsets.UTF_8))
+                        require(payload.challengeNonceB64 == hello.challengeNonceB64) { "Transfer challenge mismatch" }
+
+                        val imported = payload.children.map { entry ->
+                            val rawSecret = Base64.decode(entry.secretB64, Base64.NO_WRAP)
+                            PairedDevicesStore.upsertPairedChild(
+                                context = context,
+                                childId = entry.childId,
+                                displayName = entry.displayName,
+                                host = entry.lastHost,
+                                port = entry.lastPort,
+                                rawSecret = rawSecret,
+                                authParentId = entry.authParentId,
+                            )
+                        }
+                        ParentTransferImportResult(
+                            sourceParentName = payload.sourceParentName.ifBlank { hello.sourceParentName },
+                            importedChildren = imported,
+                            upgradedCount = payload.children.count { it.upgraded },
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     suspend fun pauseAll(context: Context, children: List<PairedChildRecord>): Map<String, Result<ChildStatusSnapshot>> =
         coroutineScope {
             children.map { child ->
@@ -209,18 +330,42 @@ object ParentRemoteClient {
             }.awaitAll().toMap()
         }
 
-    suspend fun pollAll(context: Context, children: List<PairedChildRecord>): Map<String, ChildLiveState> =
+    suspend fun pollAll(
+        context: Context,
+        children: List<PairedChildRecord>,
+        parentIdOverride: String? = null,
+        parentNameOverride: String? = null,
+    ): Map<String, ChildLiveState> =
         coroutineScope {
             children.map { child ->
                 async {
-                    val res = fetchStatus(context, child)
+                    val res = fetchStatus(context, child, parentIdOverride)
                     val now = System.currentTimeMillis()
                     child.childId to res.fold(
                         onSuccess = { snap ->
+                            var activeChild = child
                             if (snap.deviceName.isNotBlank() && snap.deviceName != child.displayName) {
                                 PairedDevicesStore.renameChild(context, child.childId, snap.deviceName)
                             }
-                            ChildLiveState(child = child, online = true, snapshot = snap, updatedAtMs = now)
+                            // Auto-upgrade delegated offline-transfer credential to this parent's own unique key
+                            if (child.authParentId != null) {
+                                val ownParentId = parentIdOverride ?: DeviceRoleStore.deviceId(context)
+                                val ownParentName = parentNameOverride ?: DeviceRoleStore.deviceName(context)
+                                val freshSecret = RemoteCrypto.randomBytes(32)
+                                if (registerCoParent(context, child, ownParentId, ownParentName, freshSecret, parentIdOverride).isSuccess) {
+                                    activeChild = PairedDevicesStore.upsertPairedChild(
+                                        context = context,
+                                        childId = child.childId,
+                                        displayName = snap.deviceName.ifBlank { child.displayName },
+                                        host = child.lastHost,
+                                        port = child.lastPort,
+                                        rawSecret = freshSecret,
+                                        pairedAtMs = child.pairedAtMs,
+                                        authParentId = null,
+                                    )
+                                }
+                            }
+                            ChildLiveState(child = activeChild, online = true, snapshot = snap, updatedAtMs = now)
                         },
                         onFailure = { e ->
                             ChildLiveState(child = child, online = false, lastError = e.message, updatedAtMs = now)
@@ -234,11 +379,12 @@ object ParentRemoteClient {
         context: Context,
         child: PairedChildRecord,
         request: RemoteRequest,
+        parentIdOverride: String? = null,
     ): Result<RemoteResponse> = withContext(Dispatchers.IO) {
         runCatching {
             val secret = PairedDevicesStore.secretForChild(context, child.childId)
                 ?: error("Missing pairing key for ${child.displayName}")
-            val parentId = DeviceRoleStore.deviceId(context)
+            val parentId = child.authParentId ?: parentIdOverride ?: DeviceRoleStore.deviceId(context)
             val discovered = ParentLanDiscovery.discovered.value[child.childId]
             val host = discovered?.host ?: child.lastHost
             val port = discovered?.port ?: child.lastPort

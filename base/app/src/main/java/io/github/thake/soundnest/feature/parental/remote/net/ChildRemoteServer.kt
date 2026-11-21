@@ -624,6 +624,20 @@ object ChildRemoteServer {
                 }
                 is RemoteRequest.SearchCatalog -> RemoteResponse.CatalogSearch(delegate.searchCatalog(context, req.query))
                 RemoteRequest.GetChildCatalog -> delegate.getChildCatalog(context)
+                is RemoteRequest.RegisterParent -> {
+                    val cleanParentId = req.parentId.trim()
+                    require(cleanParentId.isNotEmpty()) { "Parent ID cannot be empty" }
+                    val newSecret = Base64.decode(req.secretB64, Base64.NO_WRAP)
+                    require(newSecret.size == 32) { "Expected 32-byte parent secret" }
+                    val rec = PairedDevicesStore.upsertPairedParent(
+                        context = context,
+                        parentId = cleanParentId,
+                        parentName = req.parentName,
+                        rawSecret = newSecret,
+                        pairedAtMs = clockMs(),
+                    )
+                    RemoteResponse.ParentRegistered(parentId = rec.parentId, parentName = rec.parentName)
+                }
             }
         }.getOrElse { e ->
             RemoteResponse.Error("EXEC_ERROR", e.message ?: "Command failed")

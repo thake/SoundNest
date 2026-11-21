@@ -30,6 +30,11 @@ data class PairedChildRecord(
     val secretBlobB64: String,
     val wrapped: Boolean,
     val pairedAtMs: Long,
+    /**
+     * Optional delegated parent ID used temporarily when this child was offline during a
+     * Parent-to-Parent transfer. Automatically cleared to null once upgraded to this device's own key.
+     */
+    val authParentId: String? = null,
 )
 
 /**
@@ -154,6 +159,7 @@ object PairedDevicesStore {
         port: Int,
         rawSecret: ByteArray,
         pairedAtMs: Long = System.currentTimeMillis(),
+        authParentId: String? = null,
     ): PairedChildRecord {
         init(context)
         val wrapped = RemoteCrypto.wrapWithKeystoreOrNull(rawSecret)
@@ -166,6 +172,7 @@ object PairedDevicesStore {
             secretBlobB64 = Base64.encodeToString(blob, Base64.NO_WRAP),
             wrapped = wrapped != null,
             pairedAtMs = pairedAtMs,
+            authParentId = authParentId?.trim()?.takeIf { it.isNotEmpty() },
         )
         val updated = _pairedChildrenFlow.value.filterNot { it.childId == childId } + record
         prefs(context).edit().putString(KEY_CHILDREN_JSON, json.encodeToString(updated)).apply()

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.Devices
 import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
@@ -49,6 +50,7 @@ import io.github.thake.soundnest.R
 import io.github.thake.soundnest.core.ui.look.LookAlertDialog
 import io.github.thake.soundnest.core.ui.settings.M3SettingsPalette
 import io.github.thake.soundnest.core.ui.settings.m3FilledButtonColors
+import io.github.thake.soundnest.core.ui.settings.m3FilterChipColors
 import io.github.thake.soundnest.feature.parental.remote.net.DiscoveredChildEndpoint
 import io.github.thake.soundnest.feature.parental.remote.net.PairingUri
 import io.github.thake.soundnest.feature.parental.remote.net.ParentLanDiscovery
@@ -62,6 +64,7 @@ fun PairChildDialog(
     preselected: DiscoveredChildEndpoint? = null,
     onDismiss: () -> Unit,
     onPaired: (PairedChildRecord) -> Unit,
+    onChildrenImported: (List<PairedChildRecord>) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -75,6 +78,7 @@ fun PairChildDialog(
     var selectedName by remember(preselected) { mutableStateOf(preselected?.deviceName.orEmpty()) }
     var code by remember { mutableStateOf("") }
     var showManual by remember(preselected) { mutableStateOf(preselected != null) }
+    var manualParentTransfer by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
@@ -94,6 +98,32 @@ fun PairChildDialog(
                     ).show()
                 }
                 onPaired(record)
+            }.onFailure { e ->
+                errorMsg = context.getString(R.string.parent_hub_pairing_failed, e.message ?: "Error")
+            }
+        }
+    }
+
+    fun submitParentTransfer(host: String, port: Int, transferCode: String) {
+        if (busy) return
+        busy = true
+        errorMsg = null
+        scope.launch {
+            val res = ParentRemoteClient.receiveParentTransfer(context, host, port, transferCode)
+            busy = false
+            res.onSuccess { result ->
+                Handler(Looper.getMainLooper()).post {
+                    Toast.makeText(
+                        context,
+                        context.getString(
+                            R.string.parent_transfer_imported_toast,
+                            result.importedChildren.size,
+                            result.sourceParentName,
+                        ),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+                onChildrenImported(result.importedChildren)
             }.onFailure { e ->
                 errorMsg = context.getString(R.string.parent_hub_pairing_failed, e.message ?: "Error")
             }
@@ -125,14 +155,15 @@ fun PairChildDialog(
                             GmsBarcodeScanning.getClient(context).startScan()
                                 .addOnSuccessListener { barcode ->
                                     val raw = barcode.rawValue.orEmpty()
-                                    val invite = PairingUri.parse(raw)
-                                    if (invite == null) {
-                                        errorMsg = context.getString(
+                                    val childInvite = PairingUri.parse(raw)
+                                    val parentInvite = PairingUri.parseParentTransfer(raw)
+                                    when {
+                                        childInvite != null -> submitPairing(childInvite.host, childInvite.port, childInvite.code)
+                                        parentInvite != null -> submitParentTransfer(parentInvite.host, parentInvite.port, parentInvite.code)
+                                        else -> errorMsg = context.getString(
                                             R.string.parent_hub_pairing_failed,
                                             "Not a valid SoundNest pairing QR code",
                                         )
-                                    } else {
-                                        submitPairing(invite.host, invite.port, invite.code)
                                     }
                                 }
                                 .addOnFailureListener {
@@ -201,6 +232,22 @@ fun PairChildDialog(
                     }
                 } else {
                     HorizontalDivider(color = palette.divider)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = !manualParentTransfer,
+                            onClick = { manualParentTransfer = false; errorMsg = null },
+                            label = { Text(stringResource(R.string.parent_transfer_mode_child), fontSize = 12.sp) },
+                            colors = m3FilterChipColors(palette),
+                            modifier = Modifier.testTag("pair_mode_child"),
+                        )
+                        FilterChip(
+                            selected = manualParentTransfer,
+                            onClick = { manualParentTransfer = true; selectedName = ""; errorMsg = null },
+                            label = { Text(stringResource(R.string.parent_transfer_mode_parent), fontSize = 12.sp) },
+                            colors = m3FilterChipColors(palette),
+                            modifier = Modifier.testTag("pair_mode_parent"),
+                        )
+                    }
                     if (selectedName.isNotBlank()) {
                         Text(
                             text = selectedName,
@@ -269,6 +316,8 @@ fun PairChildDialog(
                         val portNum = selectedPort.toIntOrNull()
                         if (selectedHost.isBlank() || portNum == null || portNum !in 1..65535 || code.length != 6) {
                             errorMsg = context.getString(R.string.parent_hub_pairing_failed, "Check IP, port, and 6-digit code")
+                        } else if (manualParentTransfer) {
+                            submitParentTransfer(selectedHost, portNum, code)
                         } else {
                             submitPairing(selectedHost, portNum, code)
                         }

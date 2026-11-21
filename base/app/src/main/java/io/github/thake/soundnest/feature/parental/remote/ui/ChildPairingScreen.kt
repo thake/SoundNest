@@ -292,7 +292,7 @@ fun ChildFamilyRemotePage(
 }
 
 @Composable
-private fun QrCodeCanvas(
+internal fun QrCodeCanvas(
     content: String,
     modifier: Modifier = Modifier,
 ) {

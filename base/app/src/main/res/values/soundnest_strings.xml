@@ -1374,4 +1374,15 @@
     <string name="remote_catalog_audible_pin" tools:ignore="MissingTranslation">Pin Home</string>
     <string name="remote_catalog_audible_pinned" tools:ignore="MissingTranslation">Pinned</string>
     <string name="remote_browse_pick_block_desc" tools:ignore="MissingTranslation">Search Spotify &amp; browse %1$s’s library to pick or block songs, artists, playlists, and Audible books</string>
+
+    <!-- Add Second Parent Device (Parent-to-Parent Transfer) -->
+    <string name="parent_hub_add_second_parent" tools:ignore="MissingTranslation">Add Second Parent Device</string>
+    <string name="parent_transfer_title" tools:ignore="MissingTranslation">Add Second Parent Device</string>
+    <string name="parent_transfer_desc" tools:ignore="MissingTranslation">Scan this QR code from the second parent’s phone (+ → Scan QR Code) to transfer all %1$d paired children over Wi-Fi.</string>
+    <string name="parent_transfer_complete_msg" tools:ignore="MissingTranslation">Transferred %1$d children to %2$s.</string>
+    <string name="parent_transfer_imported_toast" tools:ignore="MissingTranslation">Imported %1$d children from %2$s</string>
+    <string name="parent_transfer_expired" tools:ignore="MissingTranslation">Transfer code expired.</string>
+    <string name="parent_transfer_restart" tools:ignore="MissingTranslation">Generate New Code</string>
+    <string name="parent_transfer_mode_child" tools:ignore="MissingTranslation">Child Device</string>
+    <string name="parent_transfer_mode_parent" tools:ignore="MissingTranslation">From Parent</string>
 </resources>
