@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Devices
@@ -121,6 +122,7 @@ enum class ParentSettingsPage {
     Audible,
     LocalAndRadio,
     SpeakersNetwork,
+    ScheduleAndSleep,
     FamilyRemote,
     SecurityBackup,
 }
@@ -311,6 +313,13 @@ fun ParentSettingsScreen(
                 policy = policy,
                 sessionTick = sessionTick,
                 networkRefresh = networkRefresh,
+                listState = pageListState,
+                back = back,
+                lockAndExit = lockAndExit,
+            )
+            ParentSettingsPage.ScheduleAndSleep -> io.github.thake.soundnest.feature.parental.schedule.ui.ParentScheduleSettingsPage(
+                context = context,
+                policy = policy,
                 listState = pageListState,
                 back = back,
                 lockAndExit = lockAndExit,
@@ -558,6 +567,31 @@ private fun ParentRootHubPage(
                     palette = scaffoldPalette,
                     testTag = "parent_nav_speakers_network",
                     onClick = { open(ParentSettingsPage.SpeakersNetwork) },
+                )
+            }
+            row {
+                val sched = policy.schedule.clamped()
+                val parts = buildList {
+                    if (sched.usageHoursEnabled) {
+                        add(
+                            stringResource(
+                                R.string.parent_schedule_nav_detail_hours,
+                                io.github.thake.soundnest.feature.parental.schedule.ScheduleParentalPolicy.formatMinutesOfDay(sched.weekdayWindow.startMinutes),
+                                io.github.thake.soundnest.feature.parental.schedule.ScheduleParentalPolicy.formatMinutesOfDay(sched.weekdayWindow.endMinutes),
+                            ),
+                        )
+                    }
+                    if (sched.bedtimeInactivityEnabled) {
+                        add(stringResource(R.string.parent_schedule_nav_detail_bedtime, sched.inactivityTimeoutMinutes))
+                    }
+                }
+                M3SettingsNavRow(
+                    icon = Icons.Rounded.Bedtime,
+                    title = stringResource(R.string.parent_schedule_section_title),
+                    detail = if (parts.isEmpty()) stringResource(R.string.parent_schedule_nav_detail_off) else parts.joinToString(" · "),
+                    palette = scaffoldPalette,
+                    testTag = "parent_nav_schedule_sleep",
+                    onClick = { open(ParentSettingsPage.ScheduleAndSleep) },
                 )
             }
             row {

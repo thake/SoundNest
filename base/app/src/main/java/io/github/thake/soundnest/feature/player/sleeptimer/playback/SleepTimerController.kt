@@ -83,6 +83,28 @@ object SleepTimerController {
         _sleepEndsAt.value = null
     }
 
+    /**
+     * Triggered by parental time guardrails (Allowed Listening Hours cutoff or Bedtime Inactivity Sleep Timer).
+     * Reuses the same smooth fade-out and multi-player pause pipeline as the regular sleep timer.
+     */
+    internal fun triggerParentalSleep(fade: Boolean) {
+        if (fade) {
+            if (sleepFade?.isActive != true) startSleepFade()
+        } else {
+            sleepFade?.cancel()
+            sleepFade = null
+            pauseForSleepTimer()
+        }
+    }
+
+    /** Cancels an in-progress parental fade-out when the child interacts with the app. */
+    internal fun cancelParentalFadeIfActive() {
+        if (_sleepEndsAt.value == null && sleepFade?.isActive == true) {
+            sleepFade?.cancel()
+            sleepFade = null
+        }
+    }
+
     /** [minutes] null = off, 0 = at the end of the current track. */
     fun setSleepTimer(minutes: Int?) {
         runCatching {

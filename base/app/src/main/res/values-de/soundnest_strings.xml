@@ -1313,4 +1313,34 @@
     <string name="remote_policy_gate_autoplay">Autoplay &amp; Radio</string>
     <string name="remote_policy_gate_readonly_library">Spotify-Bibliothek schreibgeschützt</string>
     <string name="remote_policy_gate_jam">Spotify Jam (Heim-WLAN)</string>
+
+    <!-- Hörzeiten & Schlafenszeit-Inaktivitäts-Timer -->
+    <string name="parent_schedule_section_title">Hörzeiten &amp; Schlafenszeit</string>
+    <string name="parent_schedule_nav_detail_off">Keine Zeitlimits aktiv</string>
+    <string name="parent_schedule_nav_detail_hours">Zeiten %1$s–%2$s</string>
+    <string name="parent_schedule_nav_detail_bedtime">Auto-Sleep nach %1$d Min.</string>
+    <string name="parent_schedule_hours_header">Erlaubte Hörzeiten</string>
+    <string name="parent_schedule_hours_enable_title">Erlaubte Hörzeiten erzwingen</string>
+    <string name="parent_schedule_hours_enable_desc">Außerhalb dieser Zeiten pausiert die Wiedergabe automatisch und ein ruhiger Sperrbildschirm wird bis zur Eltern-PIN angezeigt.</string>
+    <string name="parent_schedule_weekdays">Werktags (Mo–Fr)</string>
+    <string name="parent_schedule_weekends">Wochenende (Sa–So)</string>
+    <string name="parent_schedule_start">Beginn</string>
+    <string name="parent_schedule_end">Ende</string>
+    <string name="parent_schedule_pick_time">Uhrzeit wählen</string>
+    <string name="parent_schedule_extension_title">Vorübergehende Verlängerung</string>
+    <string name="parent_schedule_extension_plus_30">+30 Min.</string>
+    <string name="parent_schedule_extension_plus_60">+60 Min.</string>
+    <string name="parent_schedule_extension_active">Vorübergehende Verlängerung aktiv</string>
+    <string name="parent_schedule_extension_clear">Verlängerung beenden</string>
+    <string name="parent_schedule_bedtime_header">Schlafenszeit-Inaktivitäts-Timer</string>
+    <string name="parent_schedule_bedtime_enable_title">Auto-Sleep bei Inaktivität abends</string>
+    <string name="parent_schedule_bedtime_enable_desc">Nach der abendlichen Startzeit wird die Wiedergabe sanft ausgeblendet und pausiert, wenn keine Aktivität erfolgt.</string>
+    <string name="parent_schedule_bedtime_after">Aktiv ab</string>
+    <string name="parent_schedule_bedtime_until">Aktiv bis (morgens)</string>
+    <string name="parent_schedule_inactivity_label">Pausieren nach Inaktivität von</string>
+    <string name="parent_schedule_inactivity_min">%1$d Min.</string>
+    <string name="parent_schedule_lock_title">Die Hörzeit ist vorbei</string>
+    <string name="parent_schedule_lock_next_today">Du kannst heute wieder ab %1$s hören.</string>
+    <string name="parent_schedule_lock_next_tomorrow">Du kannst morgen wieder ab %1$s hören.</string>
+    <string name="parent_schedule_lock_parent_unlock">Eltern-Entsperrung</string>
 </resources>

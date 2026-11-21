@@ -21,6 +21,7 @@ import io.github.thake.soundnest.feature.lyrics.genius.settings.GeniusSettings
 import io.github.thake.soundnest.feature.lyrics.settings.LyricsParentalPolicy
 import io.github.thake.soundnest.feature.lyrics.settings.LyricsSettings
 import io.github.thake.soundnest.feature.lyrics.translation.settings.LyricsTranslationSettings
+import io.github.thake.soundnest.feature.parental.schedule.ScheduleParentalPolicy
 import io.github.thake.soundnest.feature.player.settings.PlaybackParentalPolicy
 import io.github.thake.soundnest.feature.player.settings.PlaybackSettings
 import io.github.thake.soundnest.feature.radio.settings.RadioParentalPolicy
@@ -74,6 +75,7 @@ data class ParentalPolicy(
     val home: HomeParentalPolicy = HomeParentalPolicy(),
     val library: LibraryParentalPolicy = LibraryParentalPolicy(),
     val playback: PlaybackParentalPolicy = PlaybackParentalPolicy(),
+    val schedule: ScheduleParentalPolicy = ScheduleParentalPolicy(),
 ) {
     /**
      * Autoplay, Smart Shuffle, Track/Artist Radio, Playlist Extender, and Browse Categories

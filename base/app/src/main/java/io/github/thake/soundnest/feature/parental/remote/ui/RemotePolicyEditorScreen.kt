@@ -463,6 +463,56 @@ fun RemotePolicyEditorScreen(
             }
         }
 
+        // 4b. Listening Hours & Bedtime Inactivity Sleep Timer
+        m3SettingsBlock(key = "remote_policy:schedule", palette = scaffoldPalette) {
+            val sched = policy.schedule.clamped()
+            Text(
+                text = stringResource(R.string.parent_schedule_section_title),
+                color = scaffoldPalette.muted,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
+            )
+            M3GroupCard(palette = scaffoldPalette) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    M3SettingsSwitchRow(
+                        title = stringResource(R.string.parent_schedule_hours_enable_title),
+                        detail = "${stringResource(R.string.parent_schedule_weekdays)}: ${io.github.thake.soundnest.feature.parental.schedule.ScheduleParentalPolicy.formatMinutesOfDay(sched.weekdayWindow.startMinutes)}–${io.github.thake.soundnest.feature.parental.schedule.ScheduleParentalPolicy.formatMinutesOfDay(sched.weekdayWindow.endMinutes)}",
+                        checked = sched.usageHoursEnabled,
+                        palette = scaffoldPalette,
+                        onCheckedChange = { enabled ->
+                            draftPolicy = policy.copy(schedule = sched.copy(usageHoursEnabled = enabled))
+                        },
+                    )
+                    M3SettingsSwitchRow(
+                        title = stringResource(R.string.parent_schedule_bedtime_enable_title),
+                        detail = "${stringResource(R.string.parent_schedule_bedtime_after)} ${io.github.thake.soundnest.feature.parental.schedule.ScheduleParentalPolicy.formatMinutesOfDay(sched.bedtimeStartMinutes)}",
+                        checked = sched.bedtimeInactivityEnabled,
+                        palette = scaffoldPalette,
+                        onCheckedChange = { enabled ->
+                            draftPolicy = policy.copy(schedule = sched.copy(bedtimeInactivityEnabled = enabled))
+                        },
+                    )
+                    if (sched.bedtimeInactivityEnabled) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            io.github.thake.soundnest.feature.parental.schedule.ScheduleParentalPolicy.INACTIVITY_PRESETS.forEach { mins ->
+                                val selected = sched.inactivityTimeoutMinutes == mins
+                                FilterChip(
+                                    selected = selected,
+                                    onClick = { draftPolicy = policy.copy(schedule = sched.copy(inactivityTimeoutMinutes = mins)) },
+                                    label = { Text(stringResource(R.string.parent_schedule_inactivity_min, mins)) },
+                                    leadingIcon = if (selected) {
+                                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                                    } else null,
+                                    colors = m3FilterChipColors(scaffoldPalette),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // 5. Save & Push Actions
         m3SettingsBlock(key = "remote_policy:actions", palette = scaffoldPalette) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {

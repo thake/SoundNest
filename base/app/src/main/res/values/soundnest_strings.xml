@@ -1322,4 +1322,34 @@
     <string name="remote_policy_gate_autoplay" tools:ignore="MissingTranslation">Autoplay &amp; Radio</string>
     <string name="remote_policy_gate_readonly_library" tools:ignore="MissingTranslation">Read-Only Spotify Library</string>
     <string name="remote_policy_gate_jam" tools:ignore="MissingTranslation">Spotify Jam (Home Wi-Fi)</string>
+
+    <!-- Parental Listening Hours & Bedtime Inactivity Sleep Timer -->
+    <string name="parent_schedule_section_title" tools:ignore="MissingTranslation">Listening Hours &amp; Bedtime</string>
+    <string name="parent_schedule_nav_detail_off" tools:ignore="MissingTranslation">No time limits active</string>
+    <string name="parent_schedule_nav_detail_hours" tools:ignore="MissingTranslation">Hours %1$s–%2$s</string>
+    <string name="parent_schedule_nav_detail_bedtime" tools:ignore="MissingTranslation">Bedtime sleep after %1$d min</string>
+    <string name="parent_schedule_hours_header" tools:ignore="MissingTranslation">Allowed Listening Hours</string>
+    <string name="parent_schedule_hours_enable_title" tools:ignore="MissingTranslation">Enforce allowed listening hours</string>
+    <string name="parent_schedule_hours_enable_desc" tools:ignore="MissingTranslation">Outside these hours, playback pauses automatically and a calm lock screen is shown until Parent PIN unlock.</string>
+    <string name="parent_schedule_weekdays" tools:ignore="MissingTranslation">Weekdays (Mon–Fri)</string>
+    <string name="parent_schedule_weekends" tools:ignore="MissingTranslation">Weekends (Sat–Sun)</string>
+    <string name="parent_schedule_start" tools:ignore="MissingTranslation">Start</string>
+    <string name="parent_schedule_end" tools:ignore="MissingTranslation">End</string>
+    <string name="parent_schedule_pick_time" tools:ignore="MissingTranslation">Select time</string>
+    <string name="parent_schedule_extension_title" tools:ignore="MissingTranslation">Temporary override</string>
+    <string name="parent_schedule_extension_plus_30" tools:ignore="MissingTranslation">+30 min</string>
+    <string name="parent_schedule_extension_plus_60" tools:ignore="MissingTranslation">+60 min</string>
+    <string name="parent_schedule_extension_active" tools:ignore="MissingTranslation">Temporary extension active</string>
+    <string name="parent_schedule_extension_clear" tools:ignore="MissingTranslation">End extension</string>
+    <string name="parent_schedule_bedtime_header" tools:ignore="MissingTranslation">Bedtime Inactivity Sleep Timer</string>
+    <string name="parent_schedule_bedtime_enable_title" tools:ignore="MissingTranslation">Auto-sleep after inactivity at bedtime</string>
+    <string name="parent_schedule_bedtime_enable_desc" tools:ignore="MissingTranslation">After the evening start time, fades out and pauses playback automatically if there is no touch or control activity.</string>
+    <string name="parent_schedule_bedtime_after" tools:ignore="MissingTranslation">Active after</string>
+    <string name="parent_schedule_bedtime_until" tools:ignore="MissingTranslation">Active until (morning)</string>
+    <string name="parent_schedule_inactivity_label" tools:ignore="MissingTranslation">Pause after no activity for</string>
+    <string name="parent_schedule_inactivity_min" tools:ignore="MissingTranslation">%1$d min</string>
+    <string name="parent_schedule_lock_title" tools:ignore="MissingTranslation">Listening hours are over</string>
+    <string name="parent_schedule_lock_next_today" tools:ignore="MissingTranslation">You can listen again today at %1$s.</string>
+    <string name="parent_schedule_lock_next_tomorrow" tools:ignore="MissingTranslation">You can listen again tomorrow at %1$s.</string>
+    <string name="parent_schedule_lock_parent_unlock" tools:ignore="MissingTranslation">Parent Unlock</string>
 </resources>

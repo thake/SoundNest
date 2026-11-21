@@ -157,6 +157,7 @@ fun App() {
                 }
             }
             io.github.thake.soundnest.feature.library.hiddensongs.ui.HiddenSongUndo()
+            io.github.thake.soundnest.feature.parental.schedule.ui.UsageHoursLockOverlay()
             io.github.thake.soundnest.feature.parental.ui.ParentPinPromptHost()
         }
     }
