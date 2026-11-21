@@ -97,3 +97,9 @@ https://chromium.googlesource.com/chromium/src/+/main/components/cast_channel/pr
 Copyright The Chromium Authors. Casting to Google Cast devices
 (`base/app/src/main/java/io/github/thake/soundnest/feature/speakers/cast/`) implements the CastMessage wire format defined by
 this file; no Chromium source code is included.
+
+## ZXing Core — Apache-2.0
+https://github.com/zxing/zxing
+
+`com.google.zxing:core` 3.5.3, Copyright ZXing authors, used as an unmodified library for generating
+local Wi-Fi pairing QR codes on Child Devices. Licence text in `base/licenses/Apache-2.0.txt`.

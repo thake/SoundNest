@@ -35,8 +35,12 @@ object Graph {
         app = application
         // The data saver first: on a metered network with it on, nothing may go out, not even the page.
         DataSaver.init(application)
+        io.github.thake.soundnest.feature.parental.remote.settings.DeviceRoleStore.init(application)
+        io.github.thake.soundnest.feature.parental.remote.settings.PairedDevicesStore.init(application)
         val saver = DataSaver.active
-        SoundNestRuntime.start(application, loadPage = !saver, held = saver)
+        val dedicatedParent = io.github.thake.soundnest.feature.parental.remote.settings.DeviceRoleStore.isParentController &&
+            !io.github.thake.soundnest.feature.accounts.settings.OnboardingSettings.isLoggedIn(application)
+        SoundNestRuntime.start(application, loadPage = !saver && !dedicatedParent, held = saver || dedicatedParent)
         // Feature settings needed before crossfade / playback / UI start.
         PlaybackSettings.init(application)
         HideDjPref.init(application)

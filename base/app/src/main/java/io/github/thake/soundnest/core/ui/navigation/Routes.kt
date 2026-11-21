@@ -39,6 +39,7 @@ sealed class Routes(
     object WhatsNew : Routes(0, "WhatsNew", "whatsnew")
     object Settings : Routes(0, "Settings", "settings")
     object ParentSettings : Routes(0, "ParentSettings", "parentsettings")
+    object ParentHub : Routes(0, "ParentHub", "parenthub")
     object About : Routes(0, "About", "about")
     object Accounts : Routes(0, "Accounts", "accounts")
 }

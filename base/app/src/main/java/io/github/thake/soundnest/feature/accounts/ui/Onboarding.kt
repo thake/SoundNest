@@ -3,6 +3,8 @@ package io.github.thake.soundnest.feature.accounts.ui
 
 /** What the main activity puts on screen. */
 enum class Entry {
+    /** Explicit Parent Controller Hub (manages paired child devices on Wi-Fi without Spotify login). */
+    PARENT_HUB,
     /** Fail-closed mandatory Parent PIN setup before any child setup or app access. */
     PARENT_SETUP,
     /** The one-time steps after the Spotify account is in place ([SetupScreen]). */
@@ -24,7 +26,9 @@ object Onboarding {
         setupNeeded: Boolean,
         connecting: Boolean,
         parentPinConfigured: Boolean = true,
+        isParentController: Boolean = false,
     ): Entry = when {
+        !spotifySignedIn && isParentController -> Entry.PARENT_HUB
         spotifySignedIn && !parentPinConfigured -> Entry.PARENT_SETUP
         spotifySignedIn && setupNeeded -> Entry.SETUP
         spotifySignedIn -> Entry.APP

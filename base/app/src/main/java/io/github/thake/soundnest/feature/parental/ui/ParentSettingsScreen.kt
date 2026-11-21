@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Devices
 import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.Home
@@ -120,6 +121,7 @@ enum class ParentSettingsPage {
     Audible,
     LocalAndRadio,
     SpeakersNetwork,
+    FamilyRemote,
     SecurityBackup,
 }
 
@@ -312,6 +314,15 @@ fun ParentSettingsScreen(
                 listState = pageListState,
                 back = back,
                 lockAndExit = lockAndExit,
+            )
+            ParentSettingsPage.FamilyRemote -> io.github.thake.soundnest.feature.parental.remote.ui.ChildFamilyRemotePage(
+                context = context,
+                listState = pageListState,
+                back = back,
+                lockAndExit = lockAndExit,
+                onOpenParentHub = {
+                    navController.navigate(io.github.thake.soundnest.core.ui.navigation.Routes.ParentHub.route)
+                },
             )
             ParentSettingsPage.SecurityBackup -> ParentSecurityBackupPage(
                 context = context,
@@ -547,6 +558,22 @@ private fun ParentRootHubPage(
                     palette = scaffoldPalette,
                     testTag = "parent_nav_speakers_network",
                     onClick = { open(ParentSettingsPage.SpeakersNetwork) },
+                )
+            }
+            row {
+                val pairedParentsCount = io.github.thake.soundnest.feature.parental.remote.settings.PairedDevicesStore
+                    .pairedParentsFlow.collectAsState().value.size
+                M3SettingsNavRow(
+                    icon = Icons.Rounded.Devices,
+                    title = stringResource(R.string.parent_remote_section_title),
+                    detail = if (pairedParentsCount > 0) {
+                        stringResource(R.string.parent_remote_nav_detail_paired, pairedParentsCount)
+                    } else {
+                        stringResource(R.string.parent_remote_nav_detail_none)
+                    },
+                    palette = scaffoldPalette,
+                    testTag = "parent_nav_family_remote",
+                    onClick = { open(ParentSettingsPage.FamilyRemote) },
                 )
             }
             row {

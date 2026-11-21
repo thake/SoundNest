@@ -37,6 +37,7 @@ class SoundNestApplication : Application() {
         prefetch()
         // New releases of the artists followed, said in a notification (a setting).
         io.github.thake.soundnest.feature.home.whatsnew.settings.NewReleaseNotifier.start(this)
+        io.github.thake.soundnest.feature.parental.remote.net.ChildRemoteServer.syncLifecycle(this)
         followAccount()
     }
 

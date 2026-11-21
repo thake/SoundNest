@@ -1251,4 +1251,75 @@
     <string name="local_radio_section_sources" tools:ignore="MissingTranslation">Sources</string>
     <string name="local_radio_section_visibility" tools:ignore="MissingTranslation">Library &amp; Menu Visibility</string>
     <string name="local_radio_section_audio" tools:ignore="MissingTranslation">Audio &amp; Mixing</string>
+
+    <!-- Parent Device & Multi-Child Wi-Fi Remote Control -->
+    <string name="welcome_parent_mode" tools:ignore="MissingTranslation">Set up as Parent Device</string>
+    <string name="parent_hub_title" tools:ignore="MissingTranslation">Parent Controller</string>
+    <string name="parent_hub_subtitle" tools:ignore="MissingTranslation">Control paired child devices on your home Wi-Fi</string>
+    <string name="parent_hub_pause_all" tools:ignore="MissingTranslation">Pause All</string>
+    <string name="parent_hub_pair_child" tools:ignore="MissingTranslation">Pair Child Device</string>
+    <string name="parent_hub_switch_to_player" tools:ignore="MissingTranslation">Switch to Spotify Player</string>
+    <string name="parent_hub_empty_title" tools:ignore="MissingTranslation">No Child Devices Paired</string>
+    <string name="parent_hub_empty_desc" tools:ignore="MissingTranslation">Open Parental Controls → Family Remote Control on your child’s device and tap Pair a Parent Device, then scan its QR code or enter its 6-digit code here.</string>
+    <string name="parent_hub_status_online" tools:ignore="MissingTranslation">Online</string>
+    <string name="parent_hub_status_offline" tools:ignore="MissingTranslation">Offline</string>
+    <string name="parent_hub_nothing_playing" tools:ignore="MissingTranslation">Nothing playing</string>
+    <string name="parent_hub_volume" tools:ignore="MissingTranslation">Volume %1$d%%</string>
+    <string name="parent_hub_sleep_timer" tools:ignore="MissingTranslation">Sleep timer</string>
+    <string name="parent_hub_sleep_timer_off" tools:ignore="MissingTranslation">Off</string>
+    <string name="parent_hub_sleep_timer_eot" tools:ignore="MissingTranslation">End of track</string>
+    <string name="parent_hub_sleep_timer_min" tools:ignore="MissingTranslation">%1$d min</string>
+    <string name="parent_hub_manage_rules" tools:ignore="MissingTranslation">Manage Rules</string>
+    <string name="parent_hub_rename" tools:ignore="MissingTranslation">Rename</string>
+    <string name="parent_hub_unpair" tools:ignore="MissingTranslation">Unpair</string>
+    <string name="parent_hub_discovered_pairing" tools:ignore="MissingTranslation">Ready to pair on Wi-Fi</string>
+    <string name="parent_hub_pair_action" tools:ignore="MissingTranslation">Pair</string>
+    <string name="parent_hub_scan_qr" tools:ignore="MissingTranslation">Scan Child’s QR Code</string>
+    <string name="parent_hub_scan_unavailable" tools:ignore="MissingTranslation">QR scanner unavailable on this device. Enter the 6-digit code instead.</string>
+    <string name="parent_hub_enter_code_hint" tools:ignore="MissingTranslation">6-digit pairing code</string>
+    <string name="parent_hub_manual_address" tools:ignore="MissingTranslation">Manual Wi-Fi address (IP:port)</string>
+    <string name="parent_hub_manual_host_hint" tools:ignore="MissingTranslation">Child IP (e.g. 192.168.1.42)</string>
+    <string name="parent_hub_manual_port_hint" tools:ignore="MissingTranslation">Port</string>
+    <string name="parent_hub_pairing_success" tools:ignore="MissingTranslation">Paired with %1$s</string>
+    <string name="parent_hub_pairing_failed" tools:ignore="MissingTranslation">Pairing failed: %1$s</string>
+    <string name="parent_hub_paused_all_toast" tools:ignore="MissingTranslation">Paused %1$d child device(s)</string>
+    <string name="parent_hub_not_on_wifi" tools:ignore="MissingTranslation">Connect to your home Wi-Fi to discover and control child devices.</string>
+
+    <string name="parent_remote_section_title" tools:ignore="MissingTranslation">Family Remote Control</string>
+    <string name="parent_remote_nav_detail_paired" tools:ignore="MissingTranslation">%1$d paired parent(s) · Wi-Fi control</string>
+    <string name="parent_remote_nav_detail_none" tools:ignore="MissingTranslation">Pair a Parent Device over Wi-Fi</string>
+    <string name="parent_remote_enable_title" tools:ignore="MissingTranslation">Allow Parent Remote Control on Wi-Fi</string>
+    <string name="parent_remote_enable_desc" tools:ignore="MissingTranslation">Let paired parent devices view playback, adjust volume/sleep timer, and update parental rules on the same Wi-Fi.</string>
+    <string name="parent_remote_device_name_label" tools:ignore="MissingTranslation">This device’s name</string>
+    <string name="parent_remote_save_name" tools:ignore="MissingTranslation">Save name</string>
+    <string name="parent_remote_start_pairing" tools:ignore="MissingTranslation">Pair a Parent Device</string>
+    <string name="parent_remote_cancel_pairing" tools:ignore="MissingTranslation">Cancel pairing</string>
+    <string name="parent_remote_pairing_expires" tools:ignore="MissingTranslation">Code expires in %1$s</string>
+    <string name="parent_remote_pairing_address" tools:ignore="MissingTranslation">Wi-Fi address: %1$s:%2$d</string>
+    <string name="parent_remote_paired_parents" tools:ignore="MissingTranslation">Paired Parent Devices</string>
+    <string name="parent_remote_no_parents" tools:ignore="MissingTranslation">No parent devices paired yet.</string>
+    <string name="parent_remote_revoke" tools:ignore="MissingTranslation">Revoke</string>
+    <string name="parent_remote_open_hub_title" tools:ignore="MissingTranslation">Open Parent Controller Hub</string>
+    <string name="parent_remote_open_hub_desc" tools:ignore="MissingTranslation">Use this device to monitor and control paired child devices on Wi-Fi.</string>
+
+    <string name="remote_policy_title" tools:ignore="MissingTranslation">Rules · %1$s</string>
+    <string name="remote_policy_loading" tools:ignore="MissingTranslation">Loading rules from %1$s…</string>
+    <string name="remote_policy_load_failed" tools:ignore="MissingTranslation">Could not reach %1$s: %2$s</string>
+    <string name="remote_policy_retry" tools:ignore="MissingTranslation">Retry</string>
+    <string name="remote_policy_save" tools:ignore="MissingTranslation">Save to %1$s</string>
+    <string name="remote_policy_sync_others" tools:ignore="MissingTranslation">Push to Other Children</string>
+    <string name="remote_policy_saved_toast" tools:ignore="MissingTranslation">Updated rules on %1$s</string>
+    <string name="remote_policy_sync_result" tools:ignore="MissingTranslation">Synced rules to %1$d of %2$d devices</string>
+    <string name="remote_policy_invalid_link" tools:ignore="MissingTranslation">Enter a valid Spotify link or URI</string>
+    <string name="remote_policy_keyword_hint" tools:ignore="MissingTranslation">Block title keyword</string>
+    <string name="remote_policy_add_keyword" tools:ignore="MissingTranslation">Add keyword</string>
+    <string name="remote_policy_gate_podcasts" tools:ignore="MissingTranslation">Podcasts</string>
+    <string name="remote_policy_gate_audiobooks" tools:ignore="MissingTranslation">Spotify Audiobooks</string>
+    <string name="remote_policy_gate_audible" tools:ignore="MissingTranslation">Audible Audiobooks</string>
+    <string name="remote_policy_gate_radio" tools:ignore="MissingTranslation">Live Radio</string>
+    <string name="remote_policy_gate_local_files" tools:ignore="MissingTranslation">Local Device Audio Files</string>
+    <string name="remote_policy_gate_lyrics" tools:ignore="MissingTranslation">Lyrics</string>
+    <string name="remote_policy_gate_autoplay" tools:ignore="MissingTranslation">Autoplay &amp; Radio</string>
+    <string name="remote_policy_gate_readonly_library" tools:ignore="MissingTranslation">Read-Only Spotify Library</string>
+    <string name="remote_policy_gate_jam" tools:ignore="MissingTranslation">Spotify Jam (Home Wi-Fi)</string>
 </resources>

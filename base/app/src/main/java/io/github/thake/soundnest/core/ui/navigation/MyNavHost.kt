@@ -195,6 +195,13 @@ fun MyNavHost(
             io.github.thake.soundnest.feature.parental.ui.ParentSettingsScreen(navHostController)
         }
 
+        page(Routes.ParentHub.route) {
+            io.github.thake.soundnest.feature.parental.remote.ui.ParentHubScreen(
+                isDedicatedMode = false,
+                onBack = { navHostController.popBackStack() },
+            )
+        }
+
         page(Routes.About.route) {
             io.github.thake.soundnest.feature.system.ui.AboutScreen(navHostController)
         }

@@ -109,14 +109,30 @@ class MainActivity : AppCompatActivity() {
                         val pinConfigured = androidx.compose.runtime.remember(securityTick) {
                             io.github.thake.soundnest.feature.parental.security.ParentSecurityManager.isPinConfigured(this@MainActivity)
                         }
+                        val deviceRole by io.github.thake.soundnest.feature.parental.remote.settings.DeviceRoleStore.roleFlow.collectAsState()
                         val entry = io.github.thake.soundnest.feature.accounts.ui.Onboarding.entry(
-                            signedIn, setupNeeded, connecting, pinConfigured,
+                            signedIn,
+                            setupNeeded,
+                            connecting,
+                            pinConfigured,
+                            isParentController = deviceRole == io.github.thake.soundnest.feature.parental.remote.settings.DeviceRole.PARENT_CONTROLLER,
                         )
                         when {
                             showLook -> io.github.thake.soundnest.feature.appearance.ui.LookStep(onNext = {
                                 io.github.thake.soundnest.feature.appearance.settings.LookPref.setChosen(this@MainActivity); showLook = false
                                 setupNeeded = io.github.thake.soundnest.feature.accounts.ui.Setup.needed(this@MainActivity)
                             })
+                            entry == io.github.thake.soundnest.feature.accounts.ui.Entry.PARENT_HUB ->
+                                io.github.thake.soundnest.feature.parental.remote.ui.ParentHubScreen(
+                                    isDedicatedMode = true,
+                                    onBack = null,
+                                    onSwitchToStandardMode = {
+                                        io.github.thake.soundnest.feature.parental.remote.settings.DeviceRoleStore.setRole(
+                                            this@MainActivity,
+                                            io.github.thake.soundnest.feature.parental.remote.settings.DeviceRole.STANDARD,
+                                        )
+                                    },
+                                )
                             entry == io.github.thake.soundnest.feature.accounts.ui.Entry.PARENT_SETUP ->
                                 io.github.thake.soundnest.feature.parental.ui.ParentPinSetupScreen(
                                     onPinConfigured = { setupNeeded = io.github.thake.soundnest.feature.accounts.ui.Setup.needed(this@MainActivity) },
@@ -133,7 +149,15 @@ class MainActivity : AppCompatActivity() {
                                     showLogin()
                                 },
                             )
-                            else -> WelcomeScreen(onLogin = { showLogin() })
+                            else -> WelcomeScreen(
+                                onLogin = { showLogin() },
+                                onParentMode = {
+                                    io.github.thake.soundnest.feature.parental.remote.settings.DeviceRoleStore.setRole(
+                                        this@MainActivity,
+                                        io.github.thake.soundnest.feature.parental.remote.settings.DeviceRole.PARENT_CONTROLLER,
+                                    )
+                                },
+                            )
                         }
                         if (showingLogin) {
                             val load by SoundNestRuntime.host.loginLoad.collectAsState()
@@ -275,6 +299,7 @@ class MainActivity : AppCompatActivity() {
         if (io.github.thake.soundnest.BuildConfig.DEBUG) io.github.thake.soundnest.host.android.MainThreadWatch.start()
         super.onStart()
         io.github.thake.soundnest.core.util.AppForeground.onForeground()
+        io.github.thake.soundnest.feature.parental.remote.net.ChildRemoteServer.syncLifecycle(this)
         io.github.thake.soundnest.core.playback.SongPlayer.refreshLikedIfStale()
         if (SystemSettings.isKeepScreenOn(this)) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)

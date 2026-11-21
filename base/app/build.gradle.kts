@@ -146,8 +146,10 @@ dependencies {
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.23.2")
     // The queue's drag and drop (Apache-2.0): the row carried stays in the list, auto-scroll at the edges.
     implementation("sh.calvin.reorderable:reorderable:3.1.0")
-    // Jam: scan the invite QR code (Google code scanner, no camera permission).
+    // Jam & Parent Device pairing: scan QR codes (Google code scanner, no camera permission).
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+    // Child Device pairing: render QR codes locally (Apache-2.0, pure JVM).
+    implementation("com.google.zxing:core:3.5.3")
     testImplementation("junit:junit:4.13.2")
     // Virtual time for the tests of timed coroutines (graces, timeouts): no real waits.
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test-jvm:1.11.0")
