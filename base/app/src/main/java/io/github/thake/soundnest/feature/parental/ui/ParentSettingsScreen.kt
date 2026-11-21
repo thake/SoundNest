@@ -3,6 +3,7 @@ package io.github.thake.soundnest.feature.parental.ui
 
 import android.content.Context
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -113,6 +114,7 @@ import io.github.thake.soundnest.feature.spokenword.audible.settings.AudibleCred
 import io.github.thake.soundnest.feature.spokenword.audible.settings.AudibleParentControlsCard
 import io.github.thake.soundnest.feature.spokenword.audible.ui.AudiblePickerSheet
 import io.github.thake.soundnest.feature.spokenword.podcasts.settings.m3PodcastParentRows
+import kotlinx.coroutines.launch
 
 enum class ParentSettingsPage {
     Root,
@@ -129,33 +131,59 @@ enum class ParentSettingsPage {
 
 @Composable
 fun ParentSettingsScreen(
-    navController: NavController,
+    navController: NavController? = null,
     listState: LazyListState = rememberLazyListState(),
     initialPage: ParentSettingsPage = ParentSettingsPage.Root,
+    remoteChild: io.github.thake.soundnest.feature.parental.remote.settings.PairedChildRecord? = null,
+    otherRemoteChildren: List<io.github.thake.soundnest.feature.parental.remote.settings.PairedChildRecord> = emptyList(),
+    onClose: (() -> Unit)? = null,
+    onOpenRemoteCatalog: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
+    val isRemoteMode = remoteChild != null
     val sessionTick by ParentSecurityManager.sessionTick.collectAsState()
-    val unlocked = remember(sessionTick) { ParentSecurityManager.isAdminUnlocked(context) }
+    val unlocked = if (isRemoteMode) true else remember(sessionTick) { ParentSecurityManager.isAdminUnlocked(context) }
     val policy by ParentalPolicyStore.policyFlow.collectAsState()
+    val remoteSyncState by io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.syncStateFlow.collectAsState()
     val audibleSummary by AudibleCredentialStore.summaryFlow.collectAsState()
+    val exitAction: () -> Unit = onClose ?: { navController?.popBackStack() }
+
+    if (isRemoteMode) {
+        BackHandler(onBack = exitAction)
+    }
 
     var networkRefresh by remember { mutableIntStateOf(0) }
     var rulesSheetApprovedTab by remember { mutableStateOf<Boolean?>(null) }
     var showAudiblePicker by remember { mutableStateOf(false) }
+    var showSyncOthersDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        AudibleCredentialStore.summary(context)
-        ParentalPolicyStore.current(context)
-        if (!ParentSecurityManager.isAdminUnlocked(context)) {
-            ParentSecurityManager.runProtected(context, AppSurface.PARENT_CONTROLS) {}
+    LaunchedEffect(remoteChild?.childId) {
+        if (remoteChild != null) {
+            io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.attach(context, remoteChild)
+        } else {
+            AudibleCredentialStore.summary(context)
+            ParentalPolicyStore.current(context)
+            if (!ParentSecurityManager.isAdminUnlocked(context)) {
+                ParentSecurityManager.runProtected(context, AppSurface.PARENT_CONTROLS) {}
+            }
         }
     }
 
-    DisposableEffect(context, unlocked) {
-        val onWifi = TrustedNetworkGate.currentSnapshot(context).onWifi
-        if (unlocked && onWifi) runCatching { LanDiscovery.start(context) }
+    DisposableEffect(remoteChild?.childId) {
         onDispose {
-            if (unlocked && onWifi) runCatching { LanDiscovery.stop() }
+            if (remoteChild != null &&
+                io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.activeChild?.childId == remoteChild.childId
+            ) {
+                io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.detach(context)
+            }
+        }
+    }
+
+    DisposableEffect(context, unlocked, isRemoteMode) {
+        val onWifi = TrustedNetworkGate.currentSnapshot(context).onWifi
+        if (!isRemoteMode && unlocked && onWifi) runCatching { LanDiscovery.start(context) }
+        onDispose {
+            if (!isRemoteMode && unlocked && onWifi) runCatching { LanDiscovery.stop() }
         }
     }
 
@@ -192,10 +220,60 @@ fun ParentSettingsScreen(
         }
     }
 
+    val remoteAttached = isRemoteMode &&
+        remoteSyncState != io.github.thake.soundnest.feature.parental.remote.settings.RemoteSyncState.Loading &&
+        remoteSyncState != io.github.thake.soundnest.feature.parental.remote.settings.RemoteSyncState.Idle &&
+        io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.isActive
+
+    if (isRemoteMode && !remoteAttached) {
+        M3SettingsScaffold(
+            title = stringResource(R.string.remote_policy_title, remoteChild.displayName),
+            onBack = exitAction,
+            listState = listState,
+            listTestTag = "parent_settings_list",
+        ) { palette ->
+            m3SettingsBlock(key = "remote:loading", palette = palette) {
+                M3GroupCard(palette = palette) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                    ) {
+                        when (val st = remoteSyncState) {
+                            is io.github.thake.soundnest.feature.parental.remote.settings.RemoteSyncState.Error -> {
+                                Text(
+                                    text = stringResource(R.string.remote_policy_load_failed, remoteChild.displayName, st.message),
+                                    color = palette.text,
+                                    fontSize = 14.sp,
+                                    textAlign = TextAlign.Center,
+                                )
+                                Button(
+                                    onClick = { io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.retrySync(context) },
+                                    colors = m3FilledButtonColors(palette),
+                                ) {
+                                    Text(stringResource(R.string.remote_policy_retry), fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            else -> {
+                                androidx.compose.material3.CircularProgressIndicator(color = palette.accent)
+                                Text(
+                                    text = stringResource(R.string.remote_policy_loading, remoteChild.displayName),
+                                    color = palette.muted,
+                                    fontSize = 14.sp,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return
+    }
+
     if (!unlocked) {
         M3SettingsScaffold(
             title = stringResource(R.string.parent_settings_title),
-            onBack = { navController.popBackStack() },
+            onBack = exitAction,
             listState = listState,
             listTestTag = "parent_settings_list",
         ) { palette ->
@@ -247,15 +325,15 @@ fun ParentSettingsScreen(
     }
 
     val lockAndExit: () -> Unit = {
-        ParentSecurityManager.lockNow(context)
-        navController.popBackStack()
+        if (!isRemoteMode) ParentSecurityManager.lockNow(context)
+        exitAction()
     }
 
     M3SubpageHost(
         initialPage = initialPage,
         rootPage = ParentSettingsPage.Root,
         valueOf = ParentSettingsPage::valueOf,
-        onExit = { navController.popBackStack() },
+        onExit = exitAction,
         label = "parent_settings_pages",
     ) { page, open, back, _ ->
         val pageListState = if (page == initialPage) listState else rememberLazyListState()
@@ -270,6 +348,11 @@ fun ParentSettingsScreen(
                 open = open,
                 back = back,
                 lockAndExit = lockAndExit,
+                remoteChild = remoteChild,
+                remoteSyncState = remoteSyncState,
+                hasOtherRemoteChildren = otherRemoteChildren.isNotEmpty(),
+                onOpenRemoteCatalog = onOpenRemoteCatalog,
+                onOpenSyncOthers = { showSyncOthersDialog = true },
             )
             ParentSettingsPage.FilterRules -> ParentFilterRulesPage(
                 context = context,
@@ -330,7 +413,7 @@ fun ParentSettingsScreen(
                 back = back,
                 lockAndExit = lockAndExit,
                 onOpenParentHub = {
-                    navController.navigate(io.github.thake.soundnest.core.ui.navigation.Routes.ParentHub.route)
+                    navController?.navigate(io.github.thake.soundnest.core.ui.navigation.Routes.ParentHub.route)
                 },
             )
             ParentSettingsPage.SecurityBackup -> ParentSecurityBackupPage(
@@ -354,6 +437,66 @@ fun ParentSettingsScreen(
     if (showAudiblePicker) {
         AudiblePickerSheet(
             onDismiss = { showAudiblePicker = false },
+        )
+    }
+
+    if (showSyncOthersDialog && otherRemoteChildren.isNotEmpty()) {
+        val syncPalette = rememberM3SettingsPalette()
+        val syncScope = androidx.compose.runtime.rememberCoroutineScope()
+        var selectedIds by remember(otherRemoteChildren) { mutableStateOf(otherRemoteChildren.map { it.childId }.toSet()) }
+        var pushing by remember { mutableStateOf(false) }
+
+        io.github.thake.soundnest.core.ui.look.LookAlertDialog(
+            onDismissRequest = { if (!pushing) showSyncOthersDialog = false },
+            containerColor = syncPalette.dialogBg,
+            title = { Text(stringResource(R.string.remote_policy_sync_others), color = syncPalette.text, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    otherRemoteChildren.forEach { target ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            androidx.compose.material3.Checkbox(
+                                checked = target.childId in selectedIds,
+                                onCheckedChange = { checked ->
+                                    selectedIds = if (checked) selectedIds + target.childId else selectedIds - target.childId
+                                },
+                                enabled = !pushing,
+                            )
+                            Text(target.displayName, color = syncPalette.text, fontSize = 14.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val targets = otherRemoteChildren.filter { it.childId in selectedIds }
+                        if (targets.isEmpty() || pushing) return@Button
+                        pushing = true
+                        syncScope.launch {
+                            val ok = io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession
+                                .pushToOtherChildren(context, targets)
+                            pushing = false
+                            showSyncOthersDialog = false
+                            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.remote_policy_sync_result, ok, targets.size),
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            }
+                        }
+                    },
+                    enabled = !pushing && selectedIds.isNotEmpty(),
+                    colors = m3FilledButtonColors(syncPalette),
+                ) {
+                    Text(stringResource(R.string.remote_policy_sync_others), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showSyncOthersDialog = false }, enabled = !pushing) {
+                    Text(stringResource(android.R.string.cancel), color = syncPalette.muted)
+                }
+            },
         )
     }
 }
@@ -392,6 +535,12 @@ private fun ParentRootHubPage(
     open: (ParentSettingsPage) -> Unit,
     back: () -> Unit,
     lockAndExit: () -> Unit,
+    remoteChild: io.github.thake.soundnest.feature.parental.remote.settings.PairedChildRecord? = null,
+    remoteSyncState: io.github.thake.soundnest.feature.parental.remote.settings.RemoteSyncState =
+        io.github.thake.soundnest.feature.parental.remote.settings.RemoteSyncState.Idle,
+    hasOtherRemoteChildren: Boolean = false,
+    onOpenRemoteCatalog: (() -> Unit)? = null,
+    onOpenSyncOthers: (() -> Unit)? = null,
 ) {
     val palette = rememberM3SettingsPalette()
     val modeName = stringResource(
@@ -471,26 +620,67 @@ private fun ParentRootHubPage(
     }
 
     M3SettingsScaffold(
-        title = stringResource(R.string.parent_settings_title),
+        title = if (remoteChild != null) {
+            stringResource(R.string.remote_policy_title, remoteChild.displayName)
+        } else {
+            stringResource(R.string.parent_settings_title)
+        },
         onBack = back,
         listState = listState,
         listTestTag = "parent_settings_list",
-        classicActions = { ParentLockExitClassicAction(palette, lockAndExit) },
+        classicActions = {
+            if (remoteChild == null) ParentLockExitClassicAction(palette, lockAndExit)
+        },
         immersiveActions = {
-            ImmersiveBarAction(
-                icon = Icons.Rounded.Lock,
-                contentDescription = stringResource(R.string.parent_pin_lock),
-                onClick = lockAndExit,
-            )
+            if (remoteChild == null) {
+                ImmersiveBarAction(
+                    icon = Icons.Rounded.Lock,
+                    contentDescription = stringResource(R.string.parent_pin_lock),
+                    onClick = lockAndExit,
+                )
+            }
         },
     ) { scaffoldPalette ->
-        item(key = "parent:session-block", contentType = "m3:block") {
-            M3SectionBlock(
-                palette = scaffoldPalette,
-                header = stringResource(R.string.parent_section_lock_session),
-            ) {
-                Box(Modifier.padding(16.dp)) {
-                    ParentSecurityControlsSection()
+        if (remoteChild != null) {
+            m3SettingsBlock(key = "parent:remote-banner", palette = scaffoldPalette) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    io.github.thake.soundnest.feature.parental.remote.ui.RemoteSyncBannerRow(
+                        childName = remoteChild.displayName,
+                        syncState = remoteSyncState,
+                        palette = scaffoldPalette,
+                        onRetry = { io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.retrySync(context) },
+                    )
+                    if (onOpenRemoteCatalog != null) {
+                        M3GroupCard(palette = scaffoldPalette) {
+                            M3SettingsNavRow(
+                                icon = Icons.Rounded.CheckCircle,
+                                title = stringResource(R.string.parent_hub_pick_block),
+                                detail = stringResource(R.string.remote_browse_pick_block_desc, remoteChild.displayName),
+                                palette = scaffoldPalette,
+                                testTag = "parent_remote_open_catalog",
+                                onClick = onOpenRemoteCatalog,
+                            )
+                        }
+                    }
+                    if (hasOtherRemoteChildren && onOpenSyncOthers != null) {
+                        OutlinedButton(
+                            onClick = onOpenSyncOthers,
+                            modifier = Modifier.fillMaxWidth().testTag("parent_remote_sync_others"),
+                        ) {
+                            Text(stringResource(R.string.remote_policy_sync_others), color = scaffoldPalette.text)
+                        }
+                    }
+                }
+            }
+        } else {
+            item(key = "parent:session-block", contentType = "m3:block") {
+                M3SectionBlock(
+                    palette = scaffoldPalette,
+                    header = stringResource(R.string.parent_section_lock_session),
+                ) {
+                    Box(Modifier.padding(16.dp)) {
+                        ParentSecurityControlsSection()
+                    }
                 }
             }
         }
@@ -594,21 +784,23 @@ private fun ParentRootHubPage(
                     onClick = { open(ParentSettingsPage.ScheduleAndSleep) },
                 )
             }
-            row {
-                val pairedParentsCount = io.github.thake.soundnest.feature.parental.remote.settings.PairedDevicesStore
-                    .pairedParentsFlow.collectAsState().value.size
-                M3SettingsNavRow(
-                    icon = Icons.Rounded.Devices,
-                    title = stringResource(R.string.parent_remote_section_title),
-                    detail = if (pairedParentsCount > 0) {
-                        stringResource(R.string.parent_remote_nav_detail_paired, pairedParentsCount)
-                    } else {
-                        stringResource(R.string.parent_remote_nav_detail_none)
-                    },
-                    palette = scaffoldPalette,
-                    testTag = "parent_nav_family_remote",
-                    onClick = { open(ParentSettingsPage.FamilyRemote) },
-                )
+            if (remoteChild == null) {
+                row {
+                    val pairedParentsCount = io.github.thake.soundnest.feature.parental.remote.settings.PairedDevicesStore
+                        .pairedParentsFlow.collectAsState().value.size
+                    M3SettingsNavRow(
+                        icon = Icons.Rounded.Devices,
+                        title = stringResource(R.string.parent_remote_section_title),
+                        detail = if (pairedParentsCount > 0) {
+                            stringResource(R.string.parent_remote_nav_detail_paired, pairedParentsCount)
+                        } else {
+                            stringResource(R.string.parent_remote_nav_detail_none)
+                        },
+                        palette = scaffoldPalette,
+                        testTag = "parent_nav_family_remote",
+                        onClick = { open(ParentSettingsPage.FamilyRemote) },
+                    )
+                }
             }
             row {
                 M3SettingsNavRow(

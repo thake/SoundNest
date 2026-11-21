@@ -72,8 +72,7 @@ object ParentalScheduleController {
     @Volatile
     private var started = false
 
-    @Volatile
-    private var tickerJob: Job? = null
+    private val activeJobs = mutableListOf<Job>()
 
     @Volatile
     private var lastActivityMonoMs: Long = 0L
@@ -94,7 +93,7 @@ object ParentalScheduleController {
         started = true
         lastActivityMonoMs = maxOf(UserTouch.lastAt.value, monoClockMs())
 
-        scope.launch {
+        activeJobs += scope.launch {
             UserTouch.lastAt.collect { touchAt ->
                 if (touchAt > lastActivityMonoMs) {
                     lastActivityMonoMs = touchAt
@@ -106,13 +105,13 @@ object ParentalScheduleController {
                 }
             }
         }
-        scope.launch {
+        activeJobs += scope.launch {
             ParentalPolicyStore.policyFlow.collect { evaluateNow(app) }
         }
-        scope.launch {
+        activeJobs += scope.launch {
             ParentSecurityManager.sessionTick.collect { evaluateNow(app) }
         }
-        tickerJob = scope.launch {
+        activeJobs += scope.launch {
             while (isActive) {
                 evaluateNow(app)
                 delay(TICK_INTERVAL_MS)
@@ -218,8 +217,8 @@ object ParentalScheduleController {
 
     @Synchronized
     internal fun resetForTests() {
-        tickerJob?.cancel()
-        tickerJob = null
+        activeJobs.forEach { it.cancel() }
+        activeJobs.clear()
         started = false
         nowZonedProvider = { ZonedDateTime.now() }
         wallClockMs = { System.currentTimeMillis() }

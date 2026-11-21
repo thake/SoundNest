@@ -11,7 +11,9 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.Base64
 import io.github.thake.soundnest.BuildConfig
+import io.github.thake.soundnest.core.catalog.Api
 import io.github.thake.soundnest.core.di.Graph
+import io.github.thake.soundnest.core.model.HomeItem
 import io.github.thake.soundnest.core.playback.SongPlayer
 import io.github.thake.soundnest.feature.parental.remote.crypto.RemoteCrypto
 import io.github.thake.soundnest.feature.parental.remote.settings.DeviceRole
@@ -25,6 +27,9 @@ import io.github.thake.soundnest.feature.parental.settings.RuleLabel
 import io.github.thake.soundnest.feature.parental.settings.RuleLabelStore
 import io.github.thake.soundnest.feature.player.sleeptimer.playback.SleepTimerController
 import io.github.thake.soundnest.feature.speakers.settings.TrustedNetworkGate
+import io.github.thake.soundnest.feature.spokenword.audible.data.AudibleCatalogCache
+import io.github.thake.soundnest.feature.spokenword.audible.settings.AudibleCredentialStore
+import io.github.thake.soundnest.host.android.SoundNestRuntime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -34,6 +39,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.NetworkInterface
@@ -59,6 +65,8 @@ interface ChildControlDelegate {
     fun getPolicy(context: Context): RemotePolicyBundle
     fun updatePolicy(context: Context, policy: ParentalPolicy, ruleLabels: Map<String, RuleLabel>): Pair<Long, ChildStatusSnapshot>
     fun renameDevice(context: Context, newName: String): ChildStatusSnapshot
+    fun searchCatalog(context: Context, query: String): List<RemoteCatalogItem> = emptyList()
+    fun getChildCatalog(context: Context): RemoteResponse.ChildCatalog = RemoteResponse.ChildCatalog()
 }
 
 object DefaultChildControlDelegate : ChildControlDelegate {
@@ -156,6 +164,158 @@ object DefaultChildControlDelegate : ChildControlDelegate {
     override fun renameDevice(context: Context, newName: String): ChildStatusSnapshot {
         DeviceRoleStore.setDeviceName(context, newName)
         return getStatus(context)
+    }
+
+    override fun searchCatalog(context: Context, query: String): List<RemoteCatalogItem> {
+        val q = query.trim()
+        if (q.isEmpty()) return emptyList()
+        val out = mutableListOf<RemoteCatalogItem>()
+        // Include matching Audible books from local cache first
+        runCatching {
+            AudibleCatalogCache.books(context)
+                .filter { b ->
+                    val authors = b.authors.joinToString(", ")
+                    b.title.contains(q, ignoreCase = true) || authors.contains(q, ignoreCase = true)
+                }
+                .take(10)
+                .forEach { b ->
+                    out += RemoteCatalogItem(
+                        kind = "audible",
+                        id = b.asin,
+                        title = b.title,
+                        subtitle = b.authors.joinToString(", "),
+                        coverUrl = b.coverUrl,
+                    )
+                }
+        }
+        // Unfiltered Spotify catalog search via child's active session (no credentials leave the child)
+        if (runCatching { SoundNestRuntime.isStarted && SoundNestRuntime.api.ready.value }.getOrDefault(false)) {
+            runCatching {
+                runBlocking {
+                    val api = SoundNestRuntime.api
+                    val music = runCatching { api.search.all(q, limit = 12) }.getOrNull()
+                    if (music != null) {
+                        music.tracks.items.forEach { t ->
+                            out += RemoteCatalogItem(
+                                kind = "track",
+                                id = ParentalPolicyStore.normalizeSpotifyId(t.uri),
+                                title = t.name,
+                                subtitle = t.artists.joinToString(", ") { it.name },
+                                coverUrl = t.album?.images?.firstOrNull()?.url.orEmpty(),
+                                explicit = t.explicit,
+                            )
+                        }
+                        music.artists.items.forEach { a ->
+                            out += RemoteCatalogItem(
+                                kind = "artist",
+                                id = ParentalPolicyStore.normalizeSpotifyId(a.uri),
+                                title = a.name,
+                                subtitle = "",
+                                coverUrl = a.images.firstOrNull()?.url.orEmpty(),
+                            )
+                        }
+                        music.albums.items.forEach { al ->
+                            out += RemoteCatalogItem(
+                                kind = "album",
+                                id = ParentalPolicyStore.normalizeSpotifyId(al.uri),
+                                title = al.name,
+                                subtitle = al.artists.joinToString(", ") { it.name },
+                                coverUrl = al.images.firstOrNull()?.url.orEmpty(),
+                            )
+                        }
+                        music.playlists.items.forEach { pl ->
+                            out += RemoteCatalogItem(
+                                kind = "playlist",
+                                id = ParentalPolicyStore.normalizeSpotifyId(pl.uri),
+                                title = pl.name,
+                                subtitle = pl.owner.orEmpty(),
+                                coverUrl = pl.images.firstOrNull()?.url.orEmpty(),
+                            )
+                        }
+                    }
+                    val shows = runCatching { api.search.shows(q, limit = 8).items }.getOrDefault(emptyList())
+                    shows.forEach { sh ->
+                        out += RemoteCatalogItem(
+                            kind = "show",
+                            id = ParentalPolicyStore.normalizeSpotifyId(sh.uri),
+                            title = sh.title,
+                            subtitle = sh.subtitle.orEmpty(),
+                            coverUrl = sh.images.firstOrNull()?.url.orEmpty(),
+                        )
+                    }
+                }
+            }
+        }
+        return out.filter { it.id.isNotBlank() && it.title.isNotBlank() }.distinctBy { "${it.kind}:${it.id}" }
+    }
+
+    override fun getChildCatalog(context: Context): RemoteResponse.ChildCatalog {
+        val libraryItems = mutableListOf<RemoteCatalogItem>()
+        runCatching {
+            Api.HomeCache.library.orEmpty().forEach { entry ->
+                val rawId = entry.spotifyId
+                val kind = when {
+                    rawId.startsWith(Api.SHOW_PREFIX) -> "show"
+                    entry.isPlaylist -> "playlist"
+                    else -> "album"
+                }
+                val id = ParentalPolicyStore.normalizeSpotifyId(rawId.removePrefix(Api.SHOW_PREFIX))
+                if (id.isNotBlank()) {
+                    libraryItems += RemoteCatalogItem(
+                        kind = kind,
+                        id = id,
+                        title = entry.name,
+                        subtitle = entry.subtitle.ifBlank { entry.artists },
+                        coverUrl = entry.coverUri,
+                    )
+                }
+            }
+            Api.HomeCache.artists.orEmpty().forEach { a ->
+                val id = ParentalPolicyStore.normalizeSpotifyId(a.id)
+                if (id.isNotBlank()) {
+                    libraryItems += RemoteCatalogItem(
+                        kind = "artist",
+                        id = id,
+                        title = a.name,
+                        coverUrl = a.coverUri,
+                    )
+                }
+            }
+        }
+
+        val homeItems = mutableListOf<RemoteCatalogItem>()
+        runCatching {
+            Api.HomeCache.home?.sections.orEmpty().flatMap { it.items }.forEach { item ->
+                val mapped = when (item) {
+                    is HomeItem.Playlist -> RemoteCatalogItem("playlist", ParentalPolicyStore.normalizeSpotifyId(item.id), item.name, item.subtitle, item.imageUrl)
+                    is HomeItem.Album -> RemoteCatalogItem("album", ParentalPolicyStore.normalizeSpotifyId(item.id), item.name, item.artists.ifBlank { item.subtitle }, item.imageUrl)
+                    is HomeItem.Artist -> RemoteCatalogItem("artist", ParentalPolicyStore.normalizeSpotifyId(item.id), item.name, "", item.imageUrl)
+                    is HomeItem.Show -> RemoteCatalogItem("show", ParentalPolicyStore.normalizeSpotifyId(item.id), item.name, item.subtitle, item.imageUrl)
+                    else -> null
+                }
+                if (mapped != null && mapped.id.isNotBlank()) homeItems += mapped
+            }
+        }
+
+        val audibleConnected = runCatching { AudibleCredentialStore.summary(context) != null }.getOrDefault(false)
+        val audibleBooks = runCatching {
+            AudibleCatalogCache.books(context).map { b ->
+                RemoteCatalogItem(
+                    kind = "audible",
+                    id = b.asin,
+                    title = b.title,
+                    subtitle = b.authors.joinToString(", "),
+                    coverUrl = b.coverUrl,
+                )
+            }
+        }.getOrDefault(emptyList())
+
+        return RemoteResponse.ChildCatalog(
+            libraryItems = libraryItems.distinctBy { "${it.kind}:${it.id}" },
+            homeItems = homeItems.distinctBy { "${it.kind}:${it.id}" },
+            audibleBooks = audibleBooks,
+            audibleConnected = audibleConnected,
+        )
     }
 }
 
@@ -462,6 +622,8 @@ object ChildRemoteServer {
                     if (port > 0) reRegisterMdns(context, port)
                     RemoteResponse.Status(snap)
                 }
+                is RemoteRequest.SearchCatalog -> RemoteResponse.CatalogSearch(delegate.searchCatalog(context, req.query))
+                RemoteRequest.GetChildCatalog -> delegate.getChildCatalog(context)
             }
         }.getOrElse { e ->
             RemoteResponse.Error("EXEC_ERROR", e.message ?: "Command failed")

@@ -177,6 +177,31 @@ object ParentRemoteClient {
             }
         }
 
+    suspend fun searchChildCatalog(
+        context: Context,
+        child: PairedChildRecord,
+        query: String,
+    ): Result<List<RemoteCatalogItem>> =
+        sendEncryptedRequest(context, child, RemoteRequest.SearchCatalog(query)).mapCatching { resp ->
+            when (resp) {
+                is RemoteResponse.CatalogSearch -> resp.items
+                is RemoteResponse.Error -> error(resp.message)
+                else -> error("Unexpected catalog search response")
+            }
+        }
+
+    suspend fun fetchChildCatalog(
+        context: Context,
+        child: PairedChildRecord,
+    ): Result<RemoteResponse.ChildCatalog> =
+        sendEncryptedRequest(context, child, RemoteRequest.GetChildCatalog).mapCatching { resp ->
+            when (resp) {
+                is RemoteResponse.ChildCatalog -> resp
+                is RemoteResponse.Error -> error(resp.message)
+                else -> error("Unexpected child catalog response")
+            }
+        }
+
     suspend fun pauseAll(context: Context, children: List<PairedChildRecord>): Map<String, Result<ChildStatusSnapshot>> =
         coroutineScope {
             children.map { child ->

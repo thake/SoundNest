@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.PauseCircle
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.WifiOff
@@ -113,6 +114,7 @@ fun ParentHubScreen(
     var showPairDialog by remember { mutableStateOf(false) }
     var preselectedEndpoint by remember { mutableStateOf<DiscoveredChildEndpoint?>(null) }
     var editingPolicyChild by remember { mutableStateOf<PairedChildRecord?>(null) }
+    var browsingCatalogChild by remember { mutableStateOf<PairedChildRecord?>(null) }
     var sleepTimerTarget by remember { mutableStateOf<PairedChildRecord?>(null) }
     var renameTarget by remember { mutableStateOf<PairedChildRecord?>(null) }
 
@@ -133,14 +135,28 @@ fun ParentHubScreen(
         }
     }
 
-    editingPolicyChild?.let { target ->
-        RemotePolicyEditorScreen(
+    browsingCatalogChild?.let { target ->
+        RemoteCatalogBrowserScreen(
             child = target,
-            otherChildren = pairedChildren.filter { it.childId != target.childId },
-            onBack = { editingPolicyChild = null },
-            onSaved = {
+            onBack = {
+                browsingCatalogChild = null
+                scope.launch { liveStates = ParentRemoteClient.pollAll(context, pairedChildren) }
+            },
+        )
+        return
+    }
+
+    editingPolicyChild?.let { target ->
+        io.github.thake.soundnest.feature.parental.ui.ParentSettingsScreen(
+            navController = null,
+            remoteChild = target,
+            otherRemoteChildren = pairedChildren.filter { it.childId != target.childId },
+            onClose = {
                 editingPolicyChild = null
                 scope.launch { liveStates = ParentRemoteClient.pollAll(context, pairedChildren) }
+            },
+            onOpenRemoteCatalog = {
+                browsingCatalogChild = target
             },
         )
         return
@@ -317,6 +333,7 @@ fun ParentHubScreen(
                             }
                         },
                         onOpenSleepTimer = { sleepTimerTarget = child },
+                        onOpenCatalog = { browsingCatalogChild = child },
                         onManageRules = { editingPolicyChild = child },
                         onRename = { renameTarget = child },
                         onUnpair = { PairedDevicesStore.removePairedChild(context, child.childId) },
@@ -443,6 +460,7 @@ private fun ChildControlCard(
     palette: M3SettingsPalette,
     onAction: (RemotePlaybackAction, Int?, Int?) -> Unit,
     onOpenSleepTimer: () -> Unit,
+    onOpenCatalog: () -> Unit,
     onManageRules: () -> Unit,
     onRename: () -> Unit,
     onUnpair: () -> Unit,
@@ -611,7 +629,7 @@ private fun ChildControlCard(
                     )
                 }
 
-                // Quick action chips: Sleep Timer + Manage Rules
+                // Quick action chips: Sleep Timer + Pick/Block + Manage Rules
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth(),
@@ -629,17 +647,27 @@ private fun ChildControlCard(
                         Spacer(Modifier.width(6.dp))
                         Text(sleepLabel, color = palette.text, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    Button(
-                        onClick = onManageRules,
-                        colors = m3FilledButtonColors(palette),
+                    OutlinedButton(
+                        onClick = onOpenCatalog,
                         modifier = Modifier
                             .weight(1f)
-                            .testTag("parent_hub_manage_rules_${state.child.childId}"),
+                            .testTag("parent_hub_pick_block_${state.child.childId}"),
                     ) {
-                        Icon(Icons.Rounded.Tune, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Rounded.Star, contentDescription = null, modifier = Modifier.size(16.dp), tint = palette.accent)
                         Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.parent_hub_manage_rules), fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text(stringResource(R.string.parent_hub_pick_block), color = palette.text, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
+                }
+                Button(
+                    onClick = onManageRules,
+                    colors = m3FilledButtonColors(palette),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("parent_hub_manage_rules_${state.child.childId}"),
+                ) {
+                    Icon(Icons.Rounded.Tune, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.parent_hub_manage_rules), fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                 }
             }
         }

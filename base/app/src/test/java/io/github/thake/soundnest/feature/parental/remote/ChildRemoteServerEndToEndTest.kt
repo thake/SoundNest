@@ -11,10 +11,12 @@ import io.github.thake.soundnest.feature.parental.remote.net.ChildRemoteServer
 import io.github.thake.soundnest.feature.parental.remote.net.ChildStatusSnapshot
 import io.github.thake.soundnest.feature.parental.remote.net.ClientWireMessage
 import io.github.thake.soundnest.feature.parental.remote.net.ParentRemoteClient
+import io.github.thake.soundnest.feature.parental.remote.net.RemoteCatalogItem
 import io.github.thake.soundnest.feature.parental.remote.net.RemotePlaybackAction
 import io.github.thake.soundnest.feature.parental.remote.net.RemotePolicyBundle
 import io.github.thake.soundnest.feature.parental.remote.net.RemoteProtocol
 import io.github.thake.soundnest.feature.parental.remote.net.RemoteRequest
+import io.github.thake.soundnest.feature.parental.remote.net.RemoteResponse
 import io.github.thake.soundnest.feature.parental.remote.net.ServerHello
 import io.github.thake.soundnest.feature.parental.remote.net.ServerWireMessage
 import io.github.thake.soundnest.feature.parental.remote.settings.DeviceRoleStore
@@ -130,6 +132,17 @@ class ChildRemoteServerEndToEndTest {
                 DeviceRoleStore.setDeviceName(context, newName)
                 return getStatus(context)
             }
+
+            override fun searchCatalog(context: Context, query: String): List<RemoteCatalogItem> = listOf(
+                RemoteCatalogItem("track", "t1", "Bibi Blocksberg", "Kiddinx"),
+                RemoteCatalogItem("artist", "a1", "Bibi & Tina"),
+            )
+
+            override fun getChildCatalog(context: Context): RemoteResponse.ChildCatalog = RemoteResponse.ChildCatalog(
+                libraryItems = listOf(RemoteCatalogItem("playlist", "p1", "Bedtime Mix", "By Parent")),
+                audibleBooks = listOf(RemoteCatalogItem("audible", "B001", "Die drei ???", "Author")),
+                audibleConnected = true,
+            )
         }
     }
 
@@ -340,5 +353,26 @@ class ChildRemoteServerEndToEndTest {
             val reply = RemoteProtocol.readJsonFrame<ServerWireMessage>(s.getInputStream())
             assertTrue(reply is ServerWireMessage.Error && reply.code == "UNAUTHORIZED")
         }
+    }
+
+    @Test
+    fun remoteCatalogSearchAndChildCatalogProxyWorkOverEncryptedLan() = runBlocking {
+        ParentSecurityManager.setupInitialPin(context, "1234")
+        val session = ChildRemoteServer.startPairingSession(context, InetAddress.getLoopbackAddress()).getOrThrow()
+        val pairedChild = ParentRemoteClient.pairWithChild(context, "127.0.0.1", session.port, session.code).getOrThrow()
+
+        val searchItems = ParentRemoteClient.searchChildCatalog(context, pairedChild, "bibi").getOrThrow()
+        assertEquals(2, searchItems.size)
+        assertEquals("track", searchItems[0].kind)
+        assertEquals("t1", searchItems[0].id)
+        assertEquals("Bibi Blocksberg", searchItems[0].title)
+        assertEquals("artist", searchItems[1].kind)
+
+        val catalog = ParentRemoteClient.fetchChildCatalog(context, pairedChild).getOrThrow()
+        assertEquals(1, catalog.libraryItems.size)
+        assertEquals("playlist", catalog.libraryItems[0].kind)
+        assertEquals(1, catalog.audibleBooks.size)
+        assertEquals("audible", catalog.audibleBooks[0].kind)
+        assertTrue(catalog.audibleConnected)
     }
 }

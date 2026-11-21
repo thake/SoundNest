@@ -127,6 +127,7 @@ object ParentalPolicyStore {
 
     @Synchronized
     fun current(context: Context = Graph.app): ParentalPolicy {
+        io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.currentPolicyOrNull()?.let { return it }
         if (!initialized) {
             val loaded = loadFromDisk(context)
             _policyFlow.value = loaded
@@ -166,14 +167,35 @@ object ParentalPolicyStore {
 
     @Synchronized
     fun replace(context: Context, newPolicy: ParentalPolicy): ParentalPolicy {
-        val app = context.applicationContext
         val sanitized = sanitizePolicy(newPolicy)
+        if (io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.isActive) {
+            io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.onPolicyMutated(sanitized)
+            _policyFlow.value = sanitized
+            _revision.value++
+            return sanitized
+        }
+        val app = context.applicationContext
         prefs(app).edit().putString(KEY_POLICY_JSON, json.encodeToString(sanitized)).apply()
         _policyFlow.value = sanitized
         initialized = true
         _revision.value++
         syncRuntimeFlags(app, sanitized)
         return sanitized
+    }
+
+    @Synchronized
+    internal fun enterRemoteSession(policy: ParentalPolicy) {
+        val sanitized = sanitizePolicy(policy)
+        _policyFlow.value = sanitized
+        _revision.value++
+    }
+
+    @Synchronized
+    internal fun exitRemoteSession(context: Context) {
+        val loaded = loadFromDisk(context.applicationContext)
+        _policyFlow.value = loaded
+        initialized = true
+        _revision.value++
     }
 
     @Synchronized
@@ -510,6 +532,9 @@ object ParentalPolicyStore {
 
     @Synchronized
     internal fun resetForTests(context: Context) {
+        if (io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.isActive) {
+            io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.resetForTests(context)
+        }
         prefs(context).edit().clear().apply()
         RuleLabelStore.resetForTests(context)
         val defaults = ParentalPolicy()

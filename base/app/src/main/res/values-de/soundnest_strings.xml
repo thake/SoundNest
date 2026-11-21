@@ -1343,4 +1343,26 @@
     <string name="parent_schedule_lock_next_today">Du kannst heute wieder ab %1$s hören.</string>
     <string name="parent_schedule_lock_next_tomorrow">Du kannst morgen wieder ab %1$s hören.</string>
     <string name="parent_schedule_lock_parent_unlock">Eltern-Entsperrung</string>
+
+    <!-- Vereinheitlichte Eltern-Ansichten & Katalog-Auswahl/Blockierung -->
+    <string name="parent_hub_pick_block">Auswählen / Blocken</string>
+    <string name="remote_sync_synced">Mit %1$s synchronisiert</string>
+    <string name="remote_sync_syncing">Synchronisiere mit %1$s…</string>
+    <string name="remote_sync_error">Sync-Fehler: %1$s</string>
+    <string name="remote_catalog_title">Auswählen / Blocken · %1$s</string>
+    <string name="remote_catalog_tab_search">Suchen</string>
+    <string name="remote_catalog_tab_library">Bibliothek</string>
+    <string name="remote_catalog_tab_audible">Audible</string>
+    <string name="remote_catalog_search_hint">Songs, Künstler, Alben, Playlists suchen…</string>
+    <string name="remote_catalog_search_prompt">Suche auf Spotify &amp; Audible über %1$s</string>
+    <string name="remote_catalog_empty">Keine Einträge gefunden</string>
+    <string name="remote_catalog_pick">Auswählen</string>
+    <string name="remote_catalog_picked">Ausgewählt</string>
+    <string name="remote_catalog_block">Blocken</string>
+    <string name="remote_catalog_blocked">Geblockt</string>
+    <string name="remote_catalog_audible_approve">Freigeben</string>
+    <string name="remote_catalog_audible_approved">Freigegeben</string>
+    <string name="remote_catalog_audible_pin">Startseite</string>
+    <string name="remote_catalog_audible_pinned">Angepinnt</string>
+    <string name="remote_browse_pick_block_desc">Spotify durchsuchen &amp; %1$s’ Bibliothek verwalten, um Songs, Künstler, Playlists und Audible-Bücher auszuwählen oder zu blocken</string>
 </resources>

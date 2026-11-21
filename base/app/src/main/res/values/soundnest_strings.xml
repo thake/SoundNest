@@ -1352,4 +1352,26 @@
     <string name="parent_schedule_lock_next_today" tools:ignore="MissingTranslation">You can listen again today at %1$s.</string>
     <string name="parent_schedule_lock_next_tomorrow" tools:ignore="MissingTranslation">You can listen again tomorrow at %1$s.</string>
     <string name="parent_schedule_lock_parent_unlock" tools:ignore="MissingTranslation">Parent Unlock</string>
+
+    <!-- Unified Remote Parent Screens & Catalog Pick/Block -->
+    <string name="parent_hub_pick_block" tools:ignore="MissingTranslation">Pick / Block</string>
+    <string name="remote_sync_synced" tools:ignore="MissingTranslation">Synced with %1$s</string>
+    <string name="remote_sync_syncing" tools:ignore="MissingTranslation">Syncing to %1$s…</string>
+    <string name="remote_sync_error" tools:ignore="MissingTranslation">Sync error: %1$s</string>
+    <string name="remote_catalog_title" tools:ignore="MissingTranslation">Pick / Block · %1$s</string>
+    <string name="remote_catalog_tab_search" tools:ignore="MissingTranslation">Search</string>
+    <string name="remote_catalog_tab_library" tools:ignore="MissingTranslation">Library</string>
+    <string name="remote_catalog_tab_audible" tools:ignore="MissingTranslation">Audible</string>
+    <string name="remote_catalog_search_hint" tools:ignore="MissingTranslation">Search songs, artists, albums, playlists…</string>
+    <string name="remote_catalog_search_prompt" tools:ignore="MissingTranslation">Type to search Spotify &amp; Audible on %1$s</string>
+    <string name="remote_catalog_empty" tools:ignore="MissingTranslation">No items found</string>
+    <string name="remote_catalog_pick" tools:ignore="MissingTranslation">Pick</string>
+    <string name="remote_catalog_picked" tools:ignore="MissingTranslation">Picked</string>
+    <string name="remote_catalog_block" tools:ignore="MissingTranslation">Block</string>
+    <string name="remote_catalog_blocked" tools:ignore="MissingTranslation">Blocked</string>
+    <string name="remote_catalog_audible_approve" tools:ignore="MissingTranslation">Approve</string>
+    <string name="remote_catalog_audible_approved" tools:ignore="MissingTranslation">Approved</string>
+    <string name="remote_catalog_audible_pin" tools:ignore="MissingTranslation">Pin Home</string>
+    <string name="remote_catalog_audible_pinned" tools:ignore="MissingTranslation">Pinned</string>
+    <string name="remote_browse_pick_block_desc" tools:ignore="MissingTranslation">Search Spotify &amp; browse %1$s’s library to pick or block songs, artists, playlists, and Audible books</string>
 </resources>

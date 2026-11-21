@@ -68,6 +68,7 @@ object RuleLabelStore {
 
     @Synchronized
     fun all(context: Context): Map<String, RuleLabel> {
+        io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.currentLabelsOrNull()?.let { return it }
         val raw = prefs(context).getString(KEY_LABELS_JSON, null) ?: return emptyMap()
         return runCatching { json.decodeFromString<Map<String, RuleLabel>>(raw) }.getOrDefault(emptyMap())
     }
@@ -83,6 +84,13 @@ object RuleLabelStore {
         val cleanTitle = title?.trim()?.takeIf { it.isNotEmpty() } ?: return
         val key = keyOf(kind, idOrUri).takeIf { it.isNotEmpty() } ?: return
         val cleanSub = subtitle?.trim().orEmpty()
+        if (io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.isActive) {
+            io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.recordLabel(
+                key,
+                RuleLabel(title = cleanTitle, subtitle = cleanSub),
+            )
+            return
+        }
         val current = all(context).toMutableMap()
         current[key] = RuleLabel(title = cleanTitle, subtitle = cleanSub)
         prefs(context).edit().putString(KEY_LABELS_JSON, json.encodeToString(current)).apply()
@@ -98,12 +106,25 @@ object RuleLabelStore {
                 cleanKey to RuleLabel(v.title.trim(), v.subtitle.trim())
             }
             .toMap()
+        if (io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.isActive) {
+            io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.replaceLabels(sanitized)
+            return
+        }
         prefs(context).edit().putString(KEY_LABELS_JSON, json.encodeToString(sanitized)).apply()
     }
 
     @Synchronized
     fun mergeAll(context: Context, entries: Map<String, RuleLabel>) {
         if (entries.isEmpty()) return
+        if (io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.isActive) {
+            val sanitized = entries.mapNotNull { (k, v) ->
+                val parts = k.split(':', limit = 2)
+                if (parts.size != 2 || v.title.isBlank()) null
+                else keyOf(parts[0], parts[1]).takeIf { it.isNotEmpty() }?.let { it to RuleLabel(v.title.trim(), v.subtitle.trim()) }
+            }.toMap()
+            io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.mergeLabels(sanitized)
+            return
+        }
         val merged = all(context).toMutableMap()
         entries.forEach { (k, v) ->
             val parts = k.split(':', limit = 2)

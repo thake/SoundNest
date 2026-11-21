@@ -168,7 +168,29 @@ sealed class RemoteRequest {
     data class RenameDevice(
         val displayName: String,
     ) : RemoteRequest()
+
+    @Serializable
+    @SerialName("search_catalog")
+    data class SearchCatalog(
+        val query: String,
+    ) : RemoteRequest()
+
+    @Serializable
+    @SerialName("get_child_catalog")
+    data object GetChildCatalog : RemoteRequest()
 }
+
+/** Lightweight read-only catalog item returned by a Child Device for remote Pick / Block. */
+@Serializable
+data class RemoteCatalogItem(
+    /** One of: "track", "album", "artist", "playlist", "show", "audible". */
+    val kind: String,
+    val id: String,
+    val title: String,
+    val subtitle: String = "",
+    val coverUrl: String = "",
+    val explicit: Boolean = false,
+)
 
 @Serializable
 data class ChildStatusSnapshot(
@@ -215,6 +237,21 @@ sealed class RemoteResponse {
     data class PolicyUpdated(
         val policyRevision: Long,
         val snapshot: ChildStatusSnapshot,
+    ) : RemoteResponse()
+
+    @Serializable
+    @SerialName("catalog_search")
+    data class CatalogSearch(
+        val items: List<RemoteCatalogItem>,
+    ) : RemoteResponse()
+
+    @Serializable
+    @SerialName("child_catalog")
+    data class ChildCatalog(
+        val libraryItems: List<RemoteCatalogItem> = emptyList(),
+        val homeItems: List<RemoteCatalogItem> = emptyList(),
+        val audibleBooks: List<RemoteCatalogItem> = emptyList(),
+        val audibleConnected: Boolean = false,
     ) : RemoteResponse()
 
     @Serializable
