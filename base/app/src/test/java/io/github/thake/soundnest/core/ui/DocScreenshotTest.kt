@@ -354,6 +354,7 @@ class DocScreenshotTest {
         ParentSecurityManager.resetForTests(app)
         io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.resetForTests(app)
         io.github.thake.soundnest.feature.parental.remote.net.ChildRemoteServer.resetForTests()
+        io.github.thake.soundnest.feature.parental.remote.net.ParentTransferServer.resetForTests()
         io.github.thake.soundnest.feature.parental.remote.settings.PairedDevicesStore.resetForTests(app)
         io.github.thake.soundnest.feature.parental.remote.settings.DeviceRoleStore.resetForTests(app)
         io.github.thake.soundnest.feature.parental.schedule.ParentalScheduleController.resetForTests()
@@ -489,6 +490,7 @@ class DocScreenshotTest {
         ShadowLooper.idleMainLooper()
         io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.resetForTests(app)
         io.github.thake.soundnest.feature.parental.remote.net.ChildRemoteServer.resetForTests()
+        io.github.thake.soundnest.feature.parental.remote.net.ParentTransferServer.resetForTests()
         io.github.thake.soundnest.feature.parental.remote.settings.PairedDevicesStore.resetForTests(app)
         io.github.thake.soundnest.feature.parental.remote.settings.DeviceRoleStore.resetForTests(app)
         io.github.thake.soundnest.feature.parental.schedule.ParentalScheduleController.resetForTests()
@@ -1035,6 +1037,15 @@ class DocScreenshotTest {
                 child = requireNotNull(remoteLoopbackChild),
                 onBack = {},
                 initialTab = 1,
+            )
+        }
+        add("Parental Controls & Security", "parental/23-add-second-parent-dialog.png", "Parent Device Mode: Add Second Parent", "Single-use encrypted QR / 6-digit code dialog to transfer all paired children to a second Parent Device over Wi-Fi.", Look.CLASSIC, remoteHubPrep) {
+            val palette = io.github.thake.soundnest.core.ui.settings.rememberM3SettingsPalette()
+            io.github.thake.soundnest.feature.parental.remote.ui.ParentHubScreen(isDedicatedMode = true, onBack = {}, onSwitchToStandardMode = {})
+            io.github.thake.soundnest.feature.parental.remote.ui.AddSecondParentDialog(
+                palette = palette,
+                bindAddress = java.net.InetAddress.getLoopbackAddress(),
+                onDismiss = {},
             )
         }
 

@@ -116,6 +116,7 @@ Install SoundNest on your own phone and choose **Parent Device** on the welcome 
 - **Unified Parental Controls UI**: Tap **Manage Rules** on any online child card to open the exact same full Parental Controls screens as on the child's device — filter modes, Home shelves, Spotify/Audible gates, listening hours, and speakers — with every change syncing live over Wi-Fi.
 - **Remote Pick / Block Catalog Browser**: Tap **Pick / Block** to search Spotify and browse your child's Library and Audible catalog directly through the child's device (keeping all Spotify/Audible credentials exclusively on the child device), picking or blocking songs, albums, artists, playlists, and audiobooks with one tap.
 - **Push to Other Children**: Apply one child's rules to selected sibling devices over Wi-Fi in a single tap.
+- **Add Second Parent Device**: Tap **Add Second Parent Device** on an already-paired parent phone to show a single-use QR / 6-digit code and transfer **all** paired children's devices to a co-parent's phone in one scan — online children immediately register an independent revocable key for the second parent, while offline/asleep children transfer via a temporary delegated key that automatically upgrades on first contact.
 
 ### 8. Allowed Listening Hours & Bedtime Inactivity Sleep Timer
 Under **Listening Hours & Bedtime** in the Parental Controls Dashboard:

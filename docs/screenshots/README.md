@@ -2,12 +2,12 @@
 
 Auto-generated deterministically by `./gradlew :app:generateDocScreenshots` ([`DocScreenshotTest.kt`](../../base/app/src/test/java/io/github/thake/soundnest/ui/DocScreenshotTest.kt)).
 
-Total captured screens, panels, dialogs & sheets: **150**.
+Total captured screens, panels, dialogs & sheets: **151**.
 
 ## Contents
 - [Hero Overview (9)](#hero-overview)
 - [Onboarding & Session (9)](#onboarding-session)
-- [Parental Controls & Security (23)](#parental-controls-security)
+- [Parental Controls & Security (24)](#parental-controls-security)
 - [Classic Look (44)](#classic-look)
 - [Immersive Look (50)](#immersive-look)
 - [Sheets & Modals (15)](#sheets-modals)
@@ -67,6 +67,7 @@ Total captured screens, panels, dialogs & sheets: **150**.
 | **Family Remote Control & Pairing** (`CLASSIC`) | <img src="parental/20-family-remote-pairing.png" width="180" alt="Family Remote Control & Pairing" /> | [`parental/20-family-remote-pairing.png`](parental/20-family-remote-pairing.png)<br/>Child device pairing screen with paired parents list, QR code, and 6-digit one-time pairing code. |
 | **Parent Device Mode: Multi-Child Hub** (`CLASSIC`) | <img src="parental/21-parent-device-hub.png" width="180" alt="Parent Device Mode: Multi-Child Hub" /> | [`parental/21-parent-device-hub.png`](parental/21-parent-device-hub.png)<br/>Dedicated Parent Device hub controlling multiple paired children over encrypted home Wi-Fi. |
 | **Parent Device Mode: Remote Pick / Block** (`CLASSIC`) | <img src="parental/22-remote-catalog-browser.png" width="180" alt="Parent Device Mode: Remote Pick / Block" /> | [`parental/22-remote-catalog-browser.png`](parental/22-remote-catalog-browser.png)<br/>Remote Spotify Search, Child Library, and Audible catalog browser with instant Pick / Block syncing. |
+| **Parent Device Mode: Add Second Parent** (`CLASSIC`) | <img src="parental/23-add-second-parent-dialog.png" width="180" alt="Parent Device Mode: Add Second Parent" /> | [`parental/23-add-second-parent-dialog.png`](parental/23-add-second-parent-dialog.png)<br/>Single-use encrypted QR / 6-digit code dialog to transfer all paired children to a second Parent Device over Wi-Fi. |
 
 ## Classic Look
 
