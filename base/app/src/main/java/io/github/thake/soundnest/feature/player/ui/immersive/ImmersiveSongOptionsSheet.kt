@@ -137,19 +137,7 @@ fun ImmersiveSongOptionsSheet(
         val policy = io.github.thake.soundnest.feature.parental.settings.rememberParentalPolicy()
         val parentTargets = remember(song) { io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.targetsForSong(song) }
         if (!isRadio && adminUnlocked && parentTargets.isNotEmpty()) {
-            parentTargets.forEach { target ->
-                val blocked = io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.isBlocked(target, policy)
-                val includeTitle = target.kind != io.github.thake.soundnest.feature.parental.ui.ParentRuleKind.TRACK &&
-                    target.kind != io.github.thake.soundnest.feature.parental.ui.ParentRuleKind.EPISODE
-                ImmersiveSheetRow(
-                    icon = if (blocked) Icons.Rounded.Check else Icons.Rounded.Block,
-                    label = io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.actionLabel(target, blocked, includeTitle = includeTitle),
-                    tint = io.github.thake.soundnest.feature.parental.ui.ParentBlockRed,
-                ) {
-                    io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.toggleBlock(context, target)
-                    onDismiss()
-                }
-            }
+            io.github.thake.soundnest.feature.parental.ui.ParentRuleTargetsSection(targets = parentTargets)
             ImmersiveSheetDivider(Modifier.padding(vertical = 4.dp))
         }
 

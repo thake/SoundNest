@@ -41,6 +41,8 @@ import androidx.compose.material.icons.automirrored.outlined.QueueMusic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.StarOutline
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
@@ -188,10 +190,19 @@ fun LibraryItemSheet(entry: LibraryEntry, onDismiss: () -> Unit, onChanged: () -
                 val policy = io.github.thake.soundnest.feature.parental.settings.rememberParentalPolicy()
                 val parentTarget = remember(entry) { io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.targetForLibraryEntry(entry) }
                 if (adminUnlocked && parentTarget != null) {
+                    val picked = io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.isPicked(parentTarget, policy)
                     val blocked = io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.isBlocked(parentTarget, policy)
                     SheetRow(
+                        if (picked) androidx.compose.material.icons.Icons.Rounded.Star else androidx.compose.material.icons.Icons.Outlined.StarOutline,
+                        io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.pickActionLabel(context, parentTarget, picked),
+                    ) {
+                        io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.togglePick(context, parentTarget)
+                        onChanged()
+                        onDismiss()
+                    }
+                    SheetRow(
                         if (blocked) androidx.compose.material.icons.Icons.Outlined.CheckCircle else androidx.compose.material.icons.Icons.Outlined.Block,
-                        io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.actionLabel(parentTarget, blocked),
+                        io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.actionLabel(context, parentTarget, blocked),
                     ) {
                         io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.toggleBlock(context, parentTarget)
                         onChanged()

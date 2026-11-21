@@ -45,6 +45,8 @@ import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.QrCode2
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Block
+import androidx.compose.material.icons.outlined.StarOutline
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -229,11 +231,19 @@ fun PlaylistOptionsSheet(
                     subtitle = page.ownerName,
                     coverUri = page.coverUri,
                 )
+                val picked = io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.isPicked(target, policy)
                 val blocked = io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.isBlocked(target, policy)
                 androidx.compose.material3.HorizontalDivider(color = AppText.copy(alpha = 0.08f), modifier = Modifier.padding(vertical = 4.dp))
                 OptionRow(
+                    if (picked) androidx.compose.material.icons.Icons.Rounded.Star else androidx.compose.material.icons.Icons.Outlined.StarOutline,
+                    io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.pickActionLabel(context, target, picked),
+                ) {
+                    io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.togglePick(context, target)
+                    onDismiss()
+                }
+                OptionRow(
                     if (blocked) Icons.Outlined.CheckCircle else Icons.Outlined.Block,
-                    io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.actionLabel(target, blocked),
+                    io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.actionLabel(context, target, blocked),
                 ) {
                     io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.toggleBlock(context, target)
                     onDismiss()

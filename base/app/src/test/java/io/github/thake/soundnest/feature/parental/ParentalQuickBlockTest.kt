@@ -323,4 +323,161 @@ class ParentalQuickBlockTest {
         assertTrue(dismissed)
         assertTrue(ParentBlockActions.isBlocked(target, ParentalPolicyStore.current(app)))
     }
+
+    @Test
+    fun `pick and unpick across song, artist, playlist, album and show records labels and strips blocklist`() {
+        // Seed blocklist entries first to verify picking removes them cleanly (disjoint sets).
+        ParentalPolicyStore.blockPlaylist(app, "pl2", title = "Blocked Playlist")
+        ParentalPolicyStore.blockArtist(app, "ar2", title = "Blocked Artist")
+        ParentalPolicyStore.blockAlbum(app, "al2", title = "Blocked Album")
+        ParentalPolicyStore.blockTrack(app, "tr2", title = "Blocked Song")
+        ParentalPolicyStore.blockShow(app, "sh2", title = "Blocked Show")
+
+        val playlistTarget = ParentBlockTarget(ParentRuleKind.PLAYLIST, "spotify:playlist:pl2", "Bedtime Stories", "Spotify")
+        val artistTarget = ParentBlockTarget(ParentRuleKind.ARTIST, "spotify:artist:ar2", "Joe Hisaishi", "Artist")
+        val albumTarget = ParentBlockTarget(ParentRuleKind.ALBUM, "spotify:album:al2", "Totoro OST", "Joe Hisaishi")
+        val songTarget = ParentBlockTarget(ParentRuleKind.TRACK, "spotify:track:tr2", "Path of the Wind", "Joe Hisaishi")
+        val showTarget = ParentBlockTarget(ParentRuleKind.SHOW, "spotify:show:sh2", "Brains On!", "APM")
+
+        ParentBlockActions.pick(app, playlistTarget, showToast = false)
+        ParentBlockActions.pick(app, artistTarget, showToast = false)
+        ParentBlockActions.pick(app, albumTarget, showToast = false)
+        ParentBlockActions.pick(app, songTarget, showToast = false)
+        ParentBlockActions.pick(app, showTarget, showToast = false)
+
+        val policy = ParentalPolicyStore.current(app)
+        assertTrue(ParentBlockActions.isPicked(playlistTarget, policy))
+        assertTrue(ParentBlockActions.isPicked(artistTarget, policy))
+        assertTrue(ParentBlockActions.isPicked(albumTarget, policy))
+        assertTrue(ParentBlockActions.isPicked(songTarget, policy))
+        assertTrue(ParentBlockActions.isPicked(showTarget, policy))
+
+        assertFalse(ParentBlockActions.isBlocked(playlistTarget, policy))
+        assertFalse(ParentBlockActions.isBlocked(artistTarget, policy))
+        assertFalse(ParentBlockActions.isBlocked(albumTarget, policy))
+        assertFalse(ParentBlockActions.isBlocked(songTarget, policy))
+        assertFalse(ParentBlockActions.isBlocked(showTarget, policy))
+
+        assertEquals("Bedtime Stories", RuleLabelStore.resolve(app, "playlist", "pl2").title)
+        assertEquals("Joe Hisaishi", RuleLabelStore.resolve(app, "artist", "ar2").title)
+        assertEquals("Totoro OST", RuleLabelStore.resolve(app, "album", "al2").title)
+        assertEquals("Path of the Wind", RuleLabelStore.resolve(app, "track", "tr2").title)
+        assertEquals("Brains On!", RuleLabelStore.resolve(app, "show", "sh2").title)
+
+        assertEquals("Pick Song", ParentBlockActions.pickActionLabel(songTarget, picked = false, includeTitle = false))
+        assertEquals("Unpick Artist (Joe Hisaishi)", ParentBlockActions.pickActionLabel(artistTarget, picked = true, includeTitle = true))
+
+        // Unpicking clears the pick rule
+        ParentBlockActions.unpick(app, playlistTarget, showToast = false)
+        ParentBlockActions.unpick(app, artistTarget, showToast = false)
+        val afterUnpick = ParentalPolicyStore.current(app)
+        assertFalse(ParentBlockActions.isPicked(playlistTarget, afterUnpick))
+        assertFalse(ParentBlockActions.isPicked(artistTarget, afterUnpick))
+    }
+
+    @Test
+    fun `ParentInlineBlockPill toggles Pick and Block pills side by side with mutual exclusion`() {
+        val target = ParentBlockTarget(
+            kind = ParentRuleKind.ALBUM,
+            id = "spotify:album:totoro",
+            title = "My Neighbor Totoro",
+            subtitle = "Joe Hisaishi",
+        )
+        composeRule.setContent {
+            SpotuiTheme {
+                ParentInlineBlockPill(target = target)
+            }
+        }
+        // Locked by default -> both pills hidden
+        assertEquals(0, composeRule.onAllNodesWithText("Pick Album").fetchSemanticsNodes().size)
+        assertEquals(0, composeRule.onAllNodesWithText("Block Album").fetchSemanticsNodes().size)
+
+        // Unlock Parent Mode -> both pills appear
+        ParentSecurityManager.setupInitialPin(app, "1234")
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("parent_inline_pick_album").assertIsDisplayed().performClick()
+        composeRule.waitForIdle()
+        assertTrue(ParentBlockActions.isPicked(target, ParentalPolicyStore.current(app)))
+        assertFalse(ParentBlockActions.isBlocked(target, ParentalPolicyStore.current(app)))
+        composeRule.onNodeWithText("Picked · Tap to Remove").assertIsDisplayed()
+
+        // Tapping Block flips from Picked -> Blocked
+        composeRule.onNodeWithTag("parent_inline_block_album").assertIsDisplayed().performClick()
+        composeRule.waitForIdle()
+        assertFalse(ParentBlockActions.isPicked(target, ParentalPolicyStore.current(app)))
+        assertTrue(ParentBlockActions.isBlocked(target, ParentalPolicyStore.current(app)))
+        composeRule.onNodeWithText("Pick Album").assertIsDisplayed()
+        composeRule.onNodeWithText("Blocked · Tap to Unblock").assertIsDisplayed()
+    }
+
+    @Test
+    fun `ParentQuickBlockSheet picks target and dismisses on tap`() {
+        ParentSecurityManager.setupInitialPin(app, "1234")
+
+        val target = ParentBlockTarget(
+            kind = ParentRuleKind.PLAYLIST,
+            id = "spotify:playlist:bedtime",
+            title = "Bedtime Classics",
+            subtitle = "Spotify",
+        )
+        var dismissed = false
+        composeRule.setContent {
+            SpotuiTheme {
+                ParentQuickBlockSheet(
+                    target = target,
+                    onDismiss = { dismissed = true },
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("parent_sheet_pick_playlist")
+            .assertIsDisplayed()
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForIdle()
+
+        assertTrue(dismissed)
+        assertTrue(ParentBlockActions.isPicked(target, ParentalPolicyStore.current(app)))
+    }
+
+    @Test
+    fun `ParentRuleTargetsSection toggles Pick and Block independently across song, artist, and album`() {
+        ParentSecurityManager.setupInitialPin(app, "1234")
+        val song = SongsModel(
+            id = 42,
+            title = "Clair de Lune",
+            album = "Suite bergamasque",
+            singer = "Claude Debussy",
+            coverUri = "",
+            url = "spotify:track:tr_clair",
+            spotifyTrackId = "tr_clair",
+            albumId = "al_suite",
+            artistIds = listOf("ar_debussy"),
+        )
+        val targets = ParentBlockActions.targetsForSong(song)
+        composeRule.setContent {
+            SpotuiTheme {
+                ParentRuleTargetsSection(targets = targets)
+            }
+        }
+        composeRule.waitForIdle()
+
+        // Pick the song and block the album independently
+        composeRule.onNodeWithTag("parent_sheet_pick_track").assertIsDisplayed().performClick()
+        composeRule.onNodeWithTag("parent_sheet_block_album").assertIsDisplayed().performClick()
+        composeRule.waitForIdle()
+
+        val policy = ParentalPolicyStore.current(app)
+        assertTrue(ParentBlockActions.isPicked(targets[0], policy))
+        assertFalse(ParentBlockActions.isPicked(targets[1], policy))
+        assertTrue(ParentBlockActions.isBlocked(targets[2], policy))
+
+        // Flip album from Blocked -> Picked
+        composeRule.onNodeWithTag("parent_sheet_pick_album").assertIsDisplayed().performClick()
+        composeRule.waitForIdle()
+        val updated = ParentalPolicyStore.current(app)
+        assertTrue(ParentBlockActions.isPicked(targets[2], updated))
+        assertFalse(ParentBlockActions.isBlocked(targets[2], updated))
+    }
 }

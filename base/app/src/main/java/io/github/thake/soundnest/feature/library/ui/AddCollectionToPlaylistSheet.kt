@@ -35,6 +35,8 @@ import androidx.compose.material.icons.outlined.AddCircleOutline
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.QrCode2
+import androidx.compose.material.icons.outlined.StarOutline
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -220,10 +222,18 @@ fun AlbumOptionsSheet(albumUri: String, name: String, known: io.github.thake.sou
                     subtitle = known?.ownerName.orEmpty(),
                     coverUri = known?.coverUri.orEmpty(),
                 )
+                val picked = io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.isPicked(target, policy)
                 val blocked = io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.isBlocked(target, policy)
                 OptionRow(
+                    if (picked) androidx.compose.material.icons.Icons.Rounded.Star else androidx.compose.material.icons.Icons.Outlined.StarOutline,
+                    io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.pickActionLabel(linkContext, target, picked),
+                ) {
+                    io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.togglePick(linkContext, target)
+                    onDismiss()
+                }
+                OptionRow(
                     if (blocked) Icons.Outlined.CheckCircle else Icons.Outlined.Block,
-                    io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.actionLabel(target, blocked),
+                    io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.actionLabel(linkContext, target, blocked),
                 ) {
                     io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.toggleBlock(linkContext, target)
                     onDismiss()

@@ -11,6 +11,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,8 +26,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarOutline
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -99,6 +104,11 @@ private val ParentBlockSoftText = Color(0xFFFF8A8A)
 private val ParentBlockFill = Color(0x24FF6B6B)
 private val ParentBlockBorder = Color(0x66FF6B6B)
 
+val ParentPickGreen = Color(0xFF1ED760)
+private val ParentPickSoftText = Color(0xFF5CE68A)
+private val ParentPickFill = Color(0x241ED760)
+private val ParentPickBorder = Color(0x661ED760)
+
 /**
  * Reactive Composable helper that updates immediately whenever Parent Mode unlocks, extends, or locks.
  */
@@ -141,6 +151,18 @@ object ParentBlockActions {
         }
     }
 
+    fun isPicked(target: ParentBlockTarget, policy: ParentalPolicy): Boolean {
+        val norm = target.normalizedId
+        if (norm.isEmpty()) return false
+        return when (target.kind) {
+            ParentRuleKind.TRACK, ParentRuleKind.EPISODE -> norm in policy.allowedTrackIds
+            ParentRuleKind.ARTIST -> norm in policy.allowedArtistIds
+            ParentRuleKind.PLAYLIST -> norm in policy.allowedPlaylistIds
+            ParentRuleKind.ALBUM -> norm in policy.allowedAlbumIds
+            ParentRuleKind.SHOW -> norm in policy.spokenWord.podcasts.allowedShowIds
+        }
+    }
+
     fun actionLabel(context: Context, target: ParentBlockTarget, blocked: Boolean, includeTitle: Boolean = false): String {
         val noun = kindNoun(context, target.kind)
         val suffix = if (includeTitle && target.title.isNotBlank()) " (${target.title})" else ""
@@ -152,6 +174,72 @@ object ParentBlockActions {
         val noun = kindNoun(target.kind)
         val suffix = if (includeTitle && target.title.isNotBlank()) " (${target.title})" else ""
         return if (blocked) "Unblock $noun$suffix" else "Block $noun$suffix"
+    }
+
+    fun pickActionLabel(context: Context, target: ParentBlockTarget, picked: Boolean, includeTitle: Boolean = false): String {
+        val noun = kindNoun(context, target.kind)
+        val suffix = if (includeTitle && target.title.isNotBlank()) " (${target.title})" else ""
+        return if (picked) context.getString(R.string.parent_action_unpick_item, "$noun$suffix")
+        else context.getString(R.string.parent_action_pick_item, "$noun$suffix")
+    }
+
+    fun pickActionLabel(target: ParentBlockTarget, picked: Boolean, includeTitle: Boolean = false): String {
+        val noun = kindNoun(target.kind)
+        val suffix = if (includeTitle && target.title.isNotBlank()) " (${target.title})" else ""
+        return if (picked) "Unpick $noun$suffix" else "Pick $noun$suffix"
+    }
+
+    fun togglePick(context: Context, target: ParentBlockTarget, showToast: Boolean = true): Boolean {
+        val policy = ParentalPolicyStore.current(context)
+        val currentlyPicked = isPicked(target, policy)
+        return if (currentlyPicked) {
+            unpick(context, target, showToast)
+            false
+        } else {
+            pick(context, target, showToast)
+            true
+        }
+    }
+
+    fun pick(context: Context, target: ParentBlockTarget, showToast: Boolean = true) {
+        val norm = target.normalizedId
+        if (norm.isEmpty()) return
+        val title = target.title.takeIf { it.isNotBlank() }
+        val subtitle = target.subtitle.takeIf { it.isNotBlank() }
+        when (target.kind) {
+            ParentRuleKind.TRACK, ParentRuleKind.EPISODE ->
+                ParentalPolicyStore.allowTrack(context, norm, title = title, subtitle = subtitle)
+            ParentRuleKind.ARTIST ->
+                ParentalPolicyStore.allowArtist(context, norm, title = title, subtitle = subtitle)
+            ParentRuleKind.PLAYLIST ->
+                ParentalPolicyStore.allowPlaylist(context, norm, title = title, subtitle = subtitle)
+            ParentRuleKind.ALBUM ->
+                ParentalPolicyStore.allowAlbum(context, norm, title = title, subtitle = subtitle)
+            ParentRuleKind.SHOW ->
+                ParentalPolicyStore.allowShow(context, norm, title = title, subtitle = subtitle)
+        }
+        runCatching { SongPlayer.enforceParentalPolicyNow() }
+        if (showToast) {
+            val label = target.title.ifBlank { kindNoun(context, target.kind) }
+            Toast.makeText(context, context.getString(R.string.parent_toast_picked, kindNoun(context, target.kind).lowercase(), label), Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun unpick(context: Context, target: ParentBlockTarget, showToast: Boolean = true) {
+        val norm = target.normalizedId
+        if (norm.isEmpty()) return
+        when (target.kind) {
+            ParentRuleKind.TRACK, ParentRuleKind.EPISODE -> ParentalPolicyStore.clearTrackRule(context, norm)
+            ParentRuleKind.ARTIST -> ParentalPolicyStore.clearArtistRule(context, norm)
+            ParentRuleKind.PLAYLIST -> ParentalPolicyStore.clearPlaylistRule(context, norm)
+            ParentRuleKind.ALBUM -> ParentalPolicyStore.clearAlbumRule(context, norm)
+            ParentRuleKind.SHOW -> ParentalPolicyStore.clearShowRule(context, norm)
+        }
+        runCatching { SongPlayer.enforceParentalPolicyNow() }
+        if (showToast) {
+            val label = target.title.ifBlank { kindNoun(context, target.kind) }
+            Toast.makeText(context, context.getString(R.string.parent_toast_unpicked, kindNoun(context, target.kind).lowercase(), label), Toast.LENGTH_SHORT).show()
+        }
     }
 
     fun toggleBlock(context: Context, target: ParentBlockTarget, showToast: Boolean = true): Boolean {
@@ -388,10 +476,11 @@ object ParentBlockActions {
 }
 
 /**
- * Compact 1-tap inline pill shown on Playlist, Album, Artist, and Show detail headers while Parent Mode
- * is unlocked. Flips in-place to `Blocked · Tap to Unblock` so accidental taps on an open detail page
- * can be undone immediately without trapping the parent on an error screen.
+ * Compact 1-tap inline pills (Pick + Block) shown on Playlist, Album, Artist, and Show detail headers
+ * while Parent Mode is unlocked. Both flip in-place so accidental taps can be undone immediately
+ * without leaving the page.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ParentInlineBlockPill(
     target: ParentBlockTarget,
@@ -402,45 +491,212 @@ fun ParentInlineBlockPill(
 
     val context = LocalContext.current
     val policy = rememberParentalPolicy()
+    val picked = ParentBlockActions.isPicked(target, policy)
     val blocked = ParentBlockActions.isBlocked(target, policy)
     val noun = ParentBlockActions.kindNoun(context, target.kind)
+    val immersive = isImmersive()
 
-    val bg = if (blocked) ParentBlockRed else ParentBlockFill
-    val border = if (blocked) ParentBlockRed else ParentBlockBorder
-    val fg = if (blocked) Color.Black else ParentBlockSoftText
-    val label = if (blocked) stringResource(R.string.parent_quick_blocked_tap_unblock) else stringResource(R.string.parent_quick_block_noun, noun)
+    val pickBg = if (picked) ParentPickGreen else ParentPickFill
+    val pickBorder = if (picked) ParentPickGreen else ParentPickBorder
+    val pickFg = if (picked) Color.Black else ParentPickSoftText
+    val pickLabel = if (picked) stringResource(R.string.parent_quick_picked_tap_remove) else stringResource(R.string.parent_quick_pick_noun, noun)
 
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = modifier
-            .clip(RoundedCornerShape(50))
-            .background(bg)
-            .border(1.dp, border, RoundedCornerShape(50))
-            .clickable { ParentBlockActions.toggleBlock(context, target) }
-            .padding(horizontal = 14.dp, vertical = 7.dp)
-            .testTag("parent_inline_block_${target.kind.name.lowercase()}"),
+    val blockBg = if (blocked) ParentBlockRed else ParentBlockFill
+    val blockBorder = if (blocked) ParentBlockRed else ParentBlockBorder
+    val blockFg = if (blocked) Color.Black else ParentBlockSoftText
+    val blockLabel = if (blocked) stringResource(R.string.parent_quick_blocked_tap_unblock) else stringResource(R.string.parent_quick_block_noun, noun)
+
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier,
     ) {
-        Icon(
-            imageVector = if (isImmersive()) Icons.Rounded.Block else Icons.Outlined.Block,
-            contentDescription = null,
-            tint = fg,
-            modifier = Modifier.size(16.dp),
-        )
-        Text(
-            text = label,
-            color = fg,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(pickBg)
+                .border(1.dp, pickBorder, RoundedCornerShape(50))
+                .clickable { ParentBlockActions.togglePick(context, target) }
+                .padding(horizontal = 14.dp, vertical = 7.dp)
+                .testTag("parent_inline_pick_${target.kind.name.lowercase()}"),
+        ) {
+            Icon(
+                imageVector = when {
+                    picked -> Icons.Rounded.Star
+                    immersive -> Icons.Rounded.StarOutline
+                    else -> Icons.Outlined.StarOutline
+                },
+                contentDescription = null,
+                tint = pickFg,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(
+                text = pickLabel,
+                color = pickFg,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(blockBg)
+                .border(1.dp, blockBorder, RoundedCornerShape(50))
+                .clickable { ParentBlockActions.toggleBlock(context, target) }
+                .padding(horizontal = 14.dp, vertical = 7.dp)
+                .testTag("parent_inline_block_${target.kind.name.lowercase()}"),
+        ) {
+            Icon(
+                imageVector = if (immersive) Icons.Rounded.Block else Icons.Outlined.Block,
+                contentDescription = null,
+                tint = blockFg,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(
+                text = blockLabel,
+                color = blockFg,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
 /**
- * Lightweight, look-aware (`Classic` + `Immersive`) bottom sheet for blocking a Playlist, Album,
- * Artist, or Podcast Show directly from cards and search/library rows without needing Spotify URIs.
+ * Compact multi-target Pick + Block rows for Song and Episode options sheets (Classic + Immersive).
+ * Each target gets one row with its kind/name on the left and side-by-side Pick / Block pills on
+ * the right that toggle in-place.
+ */
+@Composable
+fun ParentRuleTargetsSection(
+    targets: List<ParentBlockTarget>,
+    modifier: Modifier = Modifier,
+) {
+    if (targets.isEmpty()) return
+    val context = LocalContext.current
+    val policy = rememberParentalPolicy()
+    val immersive = isImmersive()
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+    ) {
+        targets.forEach { target ->
+            val picked = ParentBlockActions.isPicked(target, policy)
+            val blocked = ParentBlockActions.isBlocked(target, policy)
+            val noun = ParentBlockActions.kindNoun(context, target.kind)
+            val includeTitle = target.kind != ParentRuleKind.TRACK && target.kind != ParentRuleKind.EPISODE
+            val subtitle = if (includeTitle && target.title.isNotBlank()) target.title else ""
+
+            val pickBg = if (picked) ParentPickGreen else ParentPickFill
+            val pickBorder = if (picked) ParentPickGreen else ParentPickBorder
+            val pickFg = if (picked) Color.Black else ParentPickSoftText
+
+            val blockBg = if (blocked) ParentBlockRed else ParentBlockFill
+            val blockBorder = if (blocked) ParentBlockRed else ParentBlockBorder
+            val blockFg = if (blocked) Color.Black else ParentBlockSoftText
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = noun,
+                        color = AppText,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (subtitle.isNotBlank()) {
+                        Text(
+                            text = subtitle,
+                            color = AppMuted,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(pickBg)
+                        .border(1.dp, pickBorder, RoundedCornerShape(50))
+                        .clickable { ParentBlockActions.togglePick(context, target) }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .testTag("parent_sheet_pick_${target.kind.name.lowercase()}"),
+                ) {
+                    Icon(
+                        imageVector = when {
+                            picked -> Icons.Rounded.Star
+                            immersive -> Icons.Rounded.StarOutline
+                            else -> Icons.Outlined.StarOutline
+                        },
+                        contentDescription = null,
+                        tint = pickFg,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Text(
+                        text = stringResource(if (picked) R.string.parent_compact_picked else R.string.parent_compact_pick),
+                        color = pickFg,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(blockBg)
+                        .border(1.dp, blockBorder, RoundedCornerShape(50))
+                        .clickable { ParentBlockActions.toggleBlock(context, target) }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .testTag("parent_sheet_block_${target.kind.name.lowercase()}"),
+                ) {
+                    Icon(
+                        imageVector = if (immersive) Icons.Rounded.Block else Icons.Outlined.Block,
+                        contentDescription = null,
+                        tint = blockFg,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Text(
+                        text = stringResource(if (blocked) R.string.parent_compact_blocked else R.string.parent_compact_block),
+                        color = blockFg,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Lightweight, look-aware (`Classic` + `Immersive`) bottom sheet for picking or blocking a Playlist,
+ * Album, Artist, or Podcast Show directly from cards and search/library rows without needing Spotify URIs.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalGlideComposeApi::class)
 @Composable
@@ -474,8 +730,18 @@ fun ParentQuickBlockSheet(
             )
             ImmersiveSheetDivider(Modifier.padding(vertical = 4.dp))
             allTargets.forEachIndexed { index, item ->
+                val picked = ParentBlockActions.isPicked(item, policy)
                 val blocked = ParentBlockActions.isBlocked(item, policy)
                 val includeName = index > 0 || allTargets.size > 1
+                ImmersiveSheetRow(
+                    icon = if (picked) Icons.Rounded.Star else Icons.Rounded.StarOutline,
+                    label = ParentBlockActions.pickActionLabel(context, item, picked, includeTitle = includeName),
+                    tint = ParentPickGreen,
+                    modifier = Modifier.testTag("parent_sheet_pick_${item.kind.name.lowercase()}"),
+                ) {
+                    ParentBlockActions.togglePick(context, item)
+                    onDismiss()
+                }
                 ImmersiveSheetRow(
                     icon = if (blocked) Icons.Rounded.CheckCircle else Icons.Rounded.Block,
                     label = ParentBlockActions.actionLabel(context, item, blocked, includeTitle = includeName),
@@ -541,8 +807,38 @@ fun ParentQuickBlockSheet(
                 }
                 HorizontalDivider(color = tone(0xFF3E3E3E), thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
                 allTargets.forEachIndexed { index, item ->
+                    val picked = ParentBlockActions.isPicked(item, policy)
                     val blocked = ParentBlockActions.isBlocked(item, policy)
                     val includeName = index > 0 || allTargets.size > 1
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("parent_sheet_pick_${item.kind.name.lowercase()}")
+                            .clickable {
+                                ParentBlockActions.togglePick(context, item)
+                                onDismiss()
+                            }
+                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                    ) {
+                        Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = if (picked) Icons.Rounded.Star else Icons.Outlined.StarOutline,
+                                contentDescription = null,
+                                tint = ParentPickGreen,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
+                        Spacer(Modifier.width(16.dp))
+                        Text(
+                            text = ParentBlockActions.pickActionLabel(context, item, picked, includeTitle = includeName),
+                            color = ParentPickGreen,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier

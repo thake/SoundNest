@@ -23,6 +23,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.outlined.StarOutline
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -114,11 +116,19 @@ fun ArtistOptionsSheet(artistId: String, artistName: String, artistImage: String
                     subtitle = stringResource(R.string.entity_artist),
                     coverUri = artistImage,
                 )
+                val picked = io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.isPicked(target, policy)
                 val blocked = io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.isBlocked(target, policy)
                 HorizontalDivider(color = tone(0xFF3E3E3E), thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
                 ArtistMenuRow(
+                    if (picked) androidx.compose.material.icons.Icons.Rounded.Star else androidx.compose.material.icons.Icons.Outlined.StarOutline,
+                    io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.pickActionLabel(context, target, picked),
+                ) {
+                    io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.togglePick(context, target)
+                    onDismiss()
+                }
+                ArtistMenuRow(
                     if (blocked) Icons.Default.Check else Icons.Default.Block,
-                    io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.actionLabel(target, blocked),
+                    io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.actionLabel(context, target, blocked),
                 ) {
                     io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.toggleBlock(context, target)
                     onDismiss()

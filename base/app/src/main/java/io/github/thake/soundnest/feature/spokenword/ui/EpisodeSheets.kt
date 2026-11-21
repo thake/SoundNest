@@ -94,26 +94,11 @@ fun EpisodeOptionsSheet(
                 }
             }
             val adminUnlocked = io.github.thake.soundnest.feature.parental.ui.rememberAdminUnlocked()
-            val policy = io.github.thake.soundnest.feature.parental.settings.rememberParentalPolicy()
             val parentTargets = androidx.compose.runtime.remember(song) {
                 io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.targetsForSong(song)
             }
             if (adminUnlocked && parentTargets.isNotEmpty()) {
-                parentTargets.forEachIndexed { idx, target ->
-                    val blocked = io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.isBlocked(target, policy)
-                    SpokenWordSheetAction(
-                        icon = if (blocked) Icons.Default.Check else androidx.compose.material.icons.Icons.Outlined.Block,
-                        label = io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.actionLabel(
-                            target,
-                            blocked,
-                            includeTitle = idx > 0,
-                        ),
-                        tint = io.github.thake.soundnest.feature.parental.ui.ParentBlockRed,
-                    ) {
-                        io.github.thake.soundnest.feature.parental.ui.ParentBlockActions.toggleBlock(context, target)
-                        onDismiss()
-                    }
-                }
+                io.github.thake.soundnest.feature.parental.ui.ParentRuleTargetsSection(targets = parentTargets)
                 androidx.compose.material3.HorizontalDivider(
                     color = tone(0xFF333333),
                     thickness = 0.5.dp,
