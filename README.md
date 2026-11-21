@@ -7,6 +7,7 @@
     <img src="https://img.shields.io/badge/Android-10%2B%20(API%2029%2B)-38BDF8?style=flat-square" alt="Android 10+" />
     <img src="https://img.shields.io/badge/Spotify-Free%20%26%20Premium-1DB954?style=flat-square" alt="Spotify Free & Premium" />
     <img src="https://img.shields.io/badge/Audible-Parent--Curated%20Audiobooks-F59E0B?style=flat-square" alt="Audible Parent-Curated Audiobooks" />
+    <img src="https://img.shields.io/badge/Parent%20Remote-Multi--Child%20Wi--Fi-8B5CF6?style=flat-square" alt="Parent Remote Multi-Child Wi-Fi" />
   </p>
 </div>
 
@@ -19,7 +20,7 @@ SoundNest is a focused **GPL-3.0** derivative of [Orpheon (formerly Myspoti)](ht
 - **Zero ad-blocking or DRM circumvention** — no ad-muting, no WebView script injection to suppress ads, no SponsorBlock, no audio downloading/ripping (Audible streams in memory via standard Android `MediaDrm` Widevine with zero `.aax`/`.aaxc` decryption), and no Spotify attestation workarounds.
 - **Zero third-party extensions or scrapers** — no extension runtime, no YouTube Music / external catalog scrapers, and no in-app self-updater bypassing device parental controls.
 - **Zero unmoderated social or store surfaces** — Spotify Friend Activity, unmoderated user profiles, Music Videos, Canvas video loops, artist merch/concert prompts, and Audible Store / Plus catalog browsing are completely absent.
-- **Fail-closed parental guardrails** — mandatory Parent PIN or password (4+ characters) on first launch, hybrid Blocklist / Strict Allowlist filtering, explicit per-book Audible Parent Picker, customizable Home shelves, Trusted Home Wi-Fi speaker boundaries, and a built-in Sleep Timer.
+- **Fail-closed parental guardrails** — mandatory Parent PIN or password (4+ characters) on first launch, hybrid Blocklist / Strict Allowlist filtering (with whole-word keywords & case-insensitive regex patterns), explicit per-book Audible Parent Picker, customizable Home shelves, Trusted Home Wi-Fi speaker boundaries, **Allowed Listening Hours**, an automatic **Bedtime Inactivity Sleep Timer**, and a dedicated **Parent Device Wi-Fi Remote** for managing multiple children's devices from your own phone.
 
 ---
 
@@ -33,7 +34,11 @@ SoundNest is a focused **GPL-3.0** derivative of [Orpheon (formerly Myspoti)](ht
 | :---: | :---: | :---: |
 | <img src="docs/screenshots/parent-dashboard.png" alt="Parental Controls Dashboard" width="250" /> | <img src="docs/screenshots/kid-settings.png" alt="Kid-Accessible Settings" width="250" /> | <img src="docs/screenshots/immersive-player.png" alt="Immersive Player" width="250" /> |
 
-> All screenshots above are generated deterministically during automated testing via `./gradlew :app:generateDocScreenshots`.
+| Parent Device Hub (Wi-Fi Remote) | Remote Pick / Block Browser | Listening Hours & Bedtime Sleep |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/parent-device-hub.png" alt="Parent Device Hub" width="250" /> | <img src="docs/screenshots/remote-catalog-browser.png" alt="Remote Pick / Block Browser" width="250" /> | <img src="docs/screenshots/listening-hours-schedule.png" alt="Listening Hours and Bedtime Sleep" width="250" /> |
+
+> All screenshots above — plus the complete [screenshot catalog](docs/screenshots/README.md) — are generated deterministically during automated testing via `./gradlew :app:generateDocScreenshots`.
 
 ---
 
@@ -45,7 +50,7 @@ SoundNest supports **both** Spotify Free and Spotify Premium accounts without re
 | :--- | :--- | :--- |
 | **Account Sign-In** | Supported | Supported |
 | **Advertisements** | Plays Spotify's standard audio ads unmodified via Spotify's official Web Player | Ad-free |
-| **Playback Engine** | Official Web Player (`WebPlayerHost`) | Native Media3 Engine (`NativeAudio`, 10-band Equalizer, AutoMix beat-matched transitions) or Web Player |
+| **Playback Engine** | Official Web Player (`WebPlayerHost`) with automatic playback self-healing | Native Media3 Engine (`NativeAudio`, 10-band Equalizer, AutoMix beat-matched transitions) or self-healing Web Player |
 | **Parental Content Filtering** | Full UI filtering + live playback guardrail (automatically skips or pauses if server-shuffle picks an explicit/disallowed song, while letting Spotify ads finish normally) | Full UI filtering + on-demand queue filtering + live playback guardrail |
 | **Sleep Timer** | Supported (gradual fade-out & pause) | Supported (local & remote Connect speakers) |
 | **Local Speakers (Chromecast)** | Supported on Home LAN | Supported on Home LAN |
@@ -104,8 +109,21 @@ Every non-music or external-content surface defaults to **off** until enabled by
 - **Custom Speaker Names & Visibility**: Rename speakers (e.g., *"Emma's Bedroom Echo"*) and choose between *Allow All Except Hidden* or *Only Allowed Speakers*.
 - **Sleep Timer**: Available directly to kids from the player controls without needing the Parent PIN — fades volume down gently and pauses both local playback and active remote speakers.
 
-### 7. Copying Rules to Sibling Devices (`soundnest-policy.json`)
-In **Parental Controls Dashboard -> Backup & Sibling Sync**, tap **Export Policy JSON** to save your allowlists (including approved and Home-pinned Audible ASINs), blocklists, keywords, Home section settings, feature gates, and speaker labels to `soundnest-policy.json`, then tap **Import Policy JSON** on another child's device. (Parent PINs and account credentials are never exported in backup files.)
+### 7. Parent Device Mode & Multi-Child Wi-Fi Remote Control
+Install SoundNest on your own phone and choose **Parent Device** on the welcome screen — no Spotify account sign-in required on the parent device:
+- **Zero-Cloud Encrypted Pairing**: Pair any number of children's devices over your home Wi-Fi using a QR code or 6-digit one-time pairing code (authenticated and encrypted end-to-end with **AES-256-GCM** + mDNS discovery).
+- **Live Multi-Child Hub**: See what each child is currently playing, adjust volume, skip/pause tracks, start a remote Sleep Timer, or tap **Pause All Kids** at once.
+- **Unified Parental Controls UI**: Tap **Manage Rules** on any online child card to open the exact same full Parental Controls screens as on the child's device — filter modes, Home shelves, Spotify/Audible gates, listening hours, and speakers — with every change syncing live over Wi-Fi.
+- **Remote Pick / Block Catalog Browser**: Tap **Pick / Block** to search Spotify and browse your child's Library and Audible catalog directly through the child's device (keeping all Spotify/Audible credentials exclusively on the child device), picking or blocking songs, albums, artists, playlists, and audiobooks with one tap.
+- **Push to Other Children**: Apply one child's rules to selected sibling devices over Wi-Fi in a single tap.
+
+### 8. Allowed Listening Hours & Bedtime Inactivity Sleep Timer
+Under **Listening Hours & Bedtime** in the Parental Controls Dashboard:
+- **Allowed Listening Hours**: Set separate **Weekday** and **Weekend** listening windows (e.g., 07:00–20:00 Mon–Fri, 08:00–21:00 Sat–Sun). Outside allowed hours, playback pauses automatically and a calm lock overlay displays the next allowed start time. Parents can unlock with their PIN or grant a temporary **+30 min / +60 min** extension.
+- **Bedtime Inactivity Sleep Timer**: Automatically monitors playback after a configured evening hour (e.g., 19:30–06:00) and smoothly fades out and pauses playback if there has been no touch/app activity for your chosen timeout (e.g., 20 minutes) — ideal for falling asleep to audiobooks or bedtime playlists.
+
+### 9. Copying Rules to Sibling Devices (`soundnest-policy.json`)
+In addition to live Wi-Fi **Push to Other Children**, you can open **Parental Controls Dashboard -> Security, PIN & Backup** and tap **Export Policy JSON** to save your allowlists (including approved and Home-pinned Audible ASINs), blocklists, keywords/regexes, listening schedules, Home section settings, feature gates, and speaker labels to `soundnest-policy.json`, then tap **Import Policy JSON** on another child's device. (Parent PINs and account credentials are never exported in backup files.)
 
 ---
 

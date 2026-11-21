@@ -2,12 +2,12 @@
 
 Auto-generated deterministically by `./gradlew :app:generateDocScreenshots` ([`DocScreenshotTest.kt`](../../base/app/src/test/java/io/github/thake/soundnest/ui/DocScreenshotTest.kt)).
 
-Total captured screens, panels, dialogs & sheets: **142**.
+Total captured screens, panels, dialogs & sheets: **150**.
 
 ## Contents
-- [Hero Overview (6)](#hero-overview)
+- [Hero Overview (9)](#hero-overview)
 - [Onboarding & Session (9)](#onboarding-session)
-- [Parental Controls & Security (18)](#parental-controls-security)
+- [Parental Controls & Security (23)](#parental-controls-security)
 - [Classic Look (44)](#classic-look)
 - [Immersive Look (50)](#immersive-look)
 - [Sheets & Modals (15)](#sheets-modals)
@@ -22,6 +22,9 @@ Total captured screens, panels, dialogs & sheets: **142**.
 | **Parental Controls Dashboard** (`CLASSIC`) | <img src="parent-dashboard.png" width="180" alt="Parental Controls Dashboard" /> | [`parent-dashboard.png`](parent-dashboard.png)<br/>PIN-locked configuration for filter modes, allowlists, and feature gates. |
 | **Kid-Accessible Settings** (`CLASSIC`) | <img src="kid-settings.png" width="180" alt="Kid-Accessible Settings" /> | [`kid-settings.png`](kid-settings.png)<br/>Material 3 Settings hub with audio, display, library, system, and PIN-protected Parental Controls. |
 | **Immersive Full-Screen Player** (`IMMERSIVE`) | <img src="immersive-player.png" width="180" alt="Immersive Full-Screen Player" /> | [`immersive-player.png`](immersive-player.png)<br/>Full-screen artwork mesh backdrop, scrubber, sleep timer, and transport controls. |
+| **Parent Device Hub (Wi-Fi Remote)** (`CLASSIC`) | <img src="parent-device-hub.png" width="180" alt="Parent Device Hub (Wi-Fi Remote)" /> | [`parent-device-hub.png`](parent-device-hub.png)<br/>Dedicated Parent Device mode managing multiple paired children over encrypted LAN with live playback, volume, Sleep Timer, Pick / Block, and Pause All Kids. |
+| **Remote Pick / Block Browser** (`CLASSIC`) | <img src="remote-catalog-browser.png" width="180" alt="Remote Pick / Block Browser" /> | [`remote-catalog-browser.png`](remote-catalog-browser.png)<br/>Browse and search a child's Spotify catalog, library, and Audible books from the Parent Device with 1-tap Pick / Block syncing live. |
+| **Listening Hours & Bedtime Sleep** (`CLASSIC`) | <img src="listening-hours-schedule.png" width="180" alt="Listening Hours & Bedtime Sleep" /> | [`listening-hours-schedule.png`](listening-hours-schedule.png)<br/>Weekday/weekend allowed listening windows and automatic bedtime inactivity fade-out sleep timer. |
 
 ## Onboarding & Session
 
@@ -59,6 +62,11 @@ Total captured screens, panels, dialogs & sheets: **142**.
 | **In-App Blocking: Playlist Header Pill** (`IMMERSIVE`) | <img src="parental/15-playlist-inline-block-pill.png" width="180" alt="In-App Blocking: Playlist Header Pill" /> | [`parental/15-playlist-inline-block-pill.png`](parental/15-playlist-inline-block-pill.png)<br/>1-tap Block Playlist pill and floating Parent Mode banner directly on a regular playlist detail page (zero Spotify URIs needed). |
 | **In-App Blocking: Song Options Menu** (`IMMERSIVE`) | <img src="parental/16-song-options-parent-block.png" width="180" alt="In-App Blocking: Song Options Menu" /> | [`parental/16-song-options-parent-block.png`](parental/16-song-options-parent-block.png)<br/>Song context menu while Parent Mode is unlocked, exposing 1-tap Block Song, Block Artist, and Block Album actions. |
 | **In-App Blocking: Home Card Quick-Block Sheet** (`IMMERSIVE`) | <img src="parental/17-quick-block-sheet.png" width="180" alt="In-App Blocking: Home Card Quick-Block Sheet" /> | [`parental/17-quick-block-sheet.png`](parental/17-quick-block-sheet.png)<br/>Home card overflow buttons and 1-tap ParentQuickBlockSheet while Parent Mode is unlocked. |
+| **Dashboard: Listening Hours & Bedtime Sleep** (`CLASSIC`) | <img src="parental/18-dashboard-schedule.png" width="180" alt="Dashboard: Listening Hours & Bedtime Sleep" /> | [`parental/18-dashboard-schedule.png`](parental/18-dashboard-schedule.png)<br/>Weekday/weekend listening hour windows and automatic bedtime inactivity fade-out sleep timer. |
+| **Allowed Listening Hours Lock Overlay** (`CLASSIC`) | <img src="parental/19-usage-hours-lock.png" width="180" alt="Allowed Listening Hours Lock Overlay" /> | [`parental/19-usage-hours-lock.png`](parental/19-usage-hours-lock.png)<br/>Calm full-screen lock shown outside allowed listening hours with next allowed start time and Parent Unlock / Extension action. |
+| **Family Remote Control & Pairing** (`CLASSIC`) | <img src="parental/20-family-remote-pairing.png" width="180" alt="Family Remote Control & Pairing" /> | [`parental/20-family-remote-pairing.png`](parental/20-family-remote-pairing.png)<br/>Child device pairing screen with paired parents list, QR code, and 6-digit one-time pairing code. |
+| **Parent Device Mode: Multi-Child Hub** (`CLASSIC`) | <img src="parental/21-parent-device-hub.png" width="180" alt="Parent Device Mode: Multi-Child Hub" /> | [`parental/21-parent-device-hub.png`](parental/21-parent-device-hub.png)<br/>Dedicated Parent Device hub controlling multiple paired children over encrypted home Wi-Fi. |
+| **Parent Device Mode: Remote Pick / Block** (`CLASSIC`) | <img src="parental/22-remote-catalog-browser.png" width="180" alt="Parent Device Mode: Remote Pick / Block" /> | [`parental/22-remote-catalog-browser.png`](parental/22-remote-catalog-browser.png)<br/>Remote Spotify Search, Child Library, and Audible catalog browser with instant Pick / Block syncing. |
 
 ## Classic Look
 

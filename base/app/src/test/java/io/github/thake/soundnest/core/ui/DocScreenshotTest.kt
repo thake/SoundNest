@@ -352,6 +352,11 @@ class DocScreenshotTest {
         io.github.thake.soundnest.feature.spokenword.audible.data.AudibleProgressStore.resetMemoryForTests()
         ParentSecurityManager.dismissPrompt()
         ParentSecurityManager.resetForTests(app)
+        io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.resetForTests(app)
+        io.github.thake.soundnest.feature.parental.remote.net.ChildRemoteServer.resetForTests()
+        io.github.thake.soundnest.feature.parental.remote.settings.PairedDevicesStore.resetForTests(app)
+        io.github.thake.soundnest.feature.parental.remote.settings.DeviceRoleStore.resetForTests(app)
+        io.github.thake.soundnest.feature.parental.schedule.ParentalScheduleController.resetForTests()
         ParentalPolicyStore.resetForTests(app)
         TrustedNetworkGate.resetForTests(app)
         setLibraryGridView(app, false)
@@ -482,6 +487,11 @@ class DocScreenshotTest {
         io.github.thake.soundnest.feature.spokenword.audible.data.AudibleProgressStore.clearAll(app)
         io.github.thake.soundnest.feature.spokenword.audible.data.AudibleProgressStore.resetMemoryForTests()
         ShadowLooper.idleMainLooper()
+        io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.resetForTests(app)
+        io.github.thake.soundnest.feature.parental.remote.net.ChildRemoteServer.resetForTests()
+        io.github.thake.soundnest.feature.parental.remote.settings.PairedDevicesStore.resetForTests(app)
+        io.github.thake.soundnest.feature.parental.remote.settings.DeviceRoleStore.resetForTests(app)
+        io.github.thake.soundnest.feature.parental.schedule.ParentalScheduleController.resetForTests()
         ParentSecurityManager.resetForTests(app)
         ParentSecurityManager.setupInitialPin(app, "246810")
         ParentSecurityManager.lockNow(app)
@@ -644,6 +654,117 @@ class DocScreenshotTest {
             seedFeedAndLibraryCache()
         }
 
+        var remoteLoopbackChild: io.github.thake.soundnest.feature.parental.remote.settings.PairedChildRecord? = null
+        val remoteHubPrep: (Application) -> Unit = { app ->
+            parentAdminPrep(app)
+            io.github.thake.soundnest.feature.parental.remote.settings.DeviceRoleStore.setDeviceName(app, "Emma's Tablet")
+            io.github.thake.soundnest.feature.parental.remote.net.ChildRemoteServer.enableMdns = false
+            val childPolicy = ParentalPolicyStore.current(app)
+            io.github.thake.soundnest.feature.parental.remote.net.ChildRemoteServer.delegate =
+                object : io.github.thake.soundnest.feature.parental.remote.net.ChildControlDelegate {
+                    override fun getStatus(context: android.content.Context) =
+                        io.github.thake.soundnest.feature.parental.remote.net.ChildStatusSnapshot(
+                            childId = io.github.thake.soundnest.feature.parental.remote.settings.DeviceRoleStore.deviceId(context),
+                            deviceName = "Emma's Tablet",
+                            title = "Path of the Wind",
+                            artist = "Joe Hisaishi",
+                            album = "My Neighbor Totoro",
+                            coverUrl = covers["ghibli"].orEmpty(),
+                            isPlaying = true,
+                            volumePercent = 45,
+                            policyRevision = 3L,
+                            filterMode = childPolicy.filterMode,
+                        )
+                    override fun executePlayback(
+                        context: android.content.Context,
+                        action: io.github.thake.soundnest.feature.parental.remote.net.RemoteRequest.PlaybackAction,
+                    ) = getStatus(context)
+                    override fun getPolicy(context: android.content.Context) =
+                        io.github.thake.soundnest.feature.parental.remote.net.RemotePolicyBundle(
+                            childId = io.github.thake.soundnest.feature.parental.remote.settings.DeviceRoleStore.deviceId(context),
+                            deviceName = "Emma's Tablet",
+                            policy = childPolicy,
+                            ruleLabels = RuleLabelStore.all(context),
+                            policyRevision = 3L,
+                        )
+                    override fun updatePolicy(
+                        context: android.content.Context,
+                        policy: ParentalPolicy,
+                        ruleLabels: Map<String, io.github.thake.soundnest.feature.parental.settings.RuleLabel>,
+                    ) = 4L to getStatus(context)
+                    override fun renameDevice(context: android.content.Context, newName: String) = getStatus(context)
+                    override fun searchCatalog(context: android.content.Context, query: String) = listOf(
+                        io.github.thake.soundnest.feature.parental.remote.net.RemoteCatalogItem(
+                            "track", "t_ghibli", "Path of the Wind", "Joe Hisaishi", covers["ghibli"].orEmpty(),
+                        ),
+                        io.github.thake.soundnest.feature.parental.remote.net.RemoteCatalogItem(
+                            "playlist", "ghibli", "Studio Ghibli Piano", "Parent Picks", covers["ghibli"].orEmpty(),
+                        ),
+                    )
+                    override fun getChildCatalog(context: android.content.Context) =
+                        io.github.thake.soundnest.feature.parental.remote.net.RemoteResponse.ChildCatalog(
+                            libraryItems = listOf(
+                                io.github.thake.soundnest.feature.parental.remote.net.RemoteCatalogItem(
+                                    "playlist", "ghibli", "Studio Ghibli Piano", "Parent Picks", covers["ghibli"].orEmpty(),
+                                ),
+                                io.github.thake.soundnest.feature.parental.remote.net.RemoteCatalogItem(
+                                    "album", "planets", "The Planets Suite", "Gustav Holst", covers["planets"].orEmpty(),
+                                ),
+                                io.github.thake.soundnest.feature.parental.remote.net.RemoteCatalogItem(
+                                    "album", "bedtime", "Calm Bedtime Classics", "Lullaby Orchestra", covers["bedtime"].orEmpty(),
+                                ),
+                                io.github.thake.soundnest.feature.parental.remote.net.RemoteCatalogItem(
+                                    "track", "explicit1", "Late Night Explicit Remix", "Club DJ", covers["starwars"].orEmpty(),
+                                ),
+                            ),
+                            audibleBooks = listOf(
+                                io.github.thake.soundnest.feature.parental.remote.net.RemoteCatalogItem(
+                                    "audible", "B08G9PRS1K", "Project Hail Mary", "Andy Weir", covers["planets"].orEmpty(),
+                                ),
+                                io.github.thake.soundnest.feature.parental.remote.net.RemoteCatalogItem(
+                                    "audible", "B004V0725Y", "Momo", "Michael Ende", covers["bedtime"].orEmpty(),
+                                ),
+                            ),
+                            audibleConnected = true,
+                        )
+                }
+            val session = io.github.thake.soundnest.feature.parental.remote.net.ChildRemoteServer
+                .startPairingSession(app, java.net.InetAddress.getLoopbackAddress()).getOrThrow()
+            val paired = kotlinx.coroutines.runBlocking {
+                io.github.thake.soundnest.feature.parental.remote.net.ParentRemoteClient
+                    .pairWithChild(app, "127.0.0.1", session.port, session.code).getOrThrow()
+            }
+            remoteLoopbackChild = paired
+            io.github.thake.soundnest.feature.parental.remote.settings.PairedDevicesStore.upsertPairedChild(
+                context = app,
+                childId = "child-leo-offline",
+                displayName = "Leo's Phone",
+                host = "127.0.0.1",
+                port = 1,
+                rawSecret = io.github.thake.soundnest.feature.parental.remote.crypto.RemoteCrypto.randomBytes(32),
+            )
+            io.github.thake.soundnest.feature.parental.remote.settings.DeviceRoleStore.setRole(
+                app,
+                io.github.thake.soundnest.feature.parental.remote.settings.DeviceRole.PARENT_CONTROLLER,
+            )
+        }
+        val schedulePrep: (Application) -> Unit = { app ->
+            parentAdminPrep(app)
+            ParentalPolicyStore.update(app) {
+                it.copy(
+                    schedule = io.github.thake.soundnest.feature.parental.schedule.ScheduleParentalPolicy(
+                        usageHoursEnabled = true,
+                        weekdayWindow = io.github.thake.soundnest.feature.parental.schedule.DailyTimeWindow(7 * 60, 20 * 60),
+                        weekendWindow = io.github.thake.soundnest.feature.parental.schedule.DailyTimeWindow(8 * 60, 21 * 60),
+                        bedtimeInactivityEnabled = true,
+                        bedtimeStartMinutes = 19 * 60 + 30,
+                        bedtimeEndMinutes = 6 * 60,
+                        inactivityTimeoutMinutes = 20,
+                    ),
+                )
+            }
+        }
+
         // ── 1. Hero Screenshots (README.md top-level files) ──
         add("Hero Overview", "immersive-home.png", "Immersive Home (Filtered Open)", "Curated shelves, Parent Picks, and floating glass mini-player.", Look.IMMERSIVE, filteredOpenPrep) {
             ImmersiveShell(Routes.Home.route, capped = false) { nav -> ImmersiveHomeScreen(nav) }
@@ -666,6 +787,25 @@ class DocScreenshotTest {
             SongPlayer.setSleepTimer(30)
         }) {
             ImmersivePlayer(state = immersivePlayerState(), actions = ImmersivePlayerActions(), navController = rememberNavController())
+        }
+        add("Hero Overview", "parent-device-hub.png", "Parent Device Hub (Wi-Fi Remote)", "Dedicated Parent Device mode managing multiple paired children over encrypted LAN with live playback, volume, Sleep Timer, Pick / Block, and Pause All Kids.", Look.CLASSIC, remoteHubPrep) {
+            io.github.thake.soundnest.feature.parental.remote.ui.ParentHubScreen(isDedicatedMode = true, onBack = {}, onSwitchToStandardMode = {})
+        }
+        add("Hero Overview", "remote-catalog-browser.png", "Remote Pick / Block Browser", "Browse and search a child's Spotify catalog, library, and Audible books from the Parent Device with 1-tap Pick / Block syncing live.", Look.CLASSIC, prepare = { app ->
+            remoteHubPrep(app)
+            val target = requireNotNull(remoteLoopbackChild)
+            kotlinx.coroutines.runBlocking {
+                io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.attach(app, target)
+            }
+        }) {
+            io.github.thake.soundnest.feature.parental.remote.ui.RemoteCatalogBrowserScreen(
+                child = requireNotNull(remoteLoopbackChild),
+                onBack = {},
+                initialTab = 1,
+            )
+        }
+        add("Hero Overview", "listening-hours-schedule.png", "Listening Hours & Bedtime Sleep", "Weekday/weekend allowed listening windows and automatic bedtime inactivity fade-out sleep timer.", Look.CLASSIC, schedulePrep) {
+            ParentSettingsScreen(navController = rememberNavController(), initialPage = ParentSettingsPage.ScheduleAndSleep)
         }
 
         // ── 2. Onboarding & Session States ──
@@ -845,6 +985,57 @@ class DocScreenshotTest {
                     onDismiss = {},
                 )
             }
+        }
+        add("Parental Controls & Security", "parental/18-dashboard-schedule.png", "Dashboard: Listening Hours & Bedtime Sleep", "Weekday/weekend listening hour windows and automatic bedtime inactivity fade-out sleep timer.", Look.CLASSIC, schedulePrep) {
+            ParentSettingsScreen(navController = rememberNavController(), initialPage = ParentSettingsPage.ScheduleAndSleep)
+        }
+        add("Parental Controls & Security", "parental/19-usage-hours-lock.png", "Allowed Listening Hours Lock Overlay", "Calm full-screen lock shown outside allowed listening hours with next allowed start time and Parent Unlock / Extension action.", Look.CLASSIC, prepare = { app ->
+            ParentalPolicyStore.update(app) {
+                it.copy(
+                    schedule = io.github.thake.soundnest.feature.parental.schedule.ScheduleParentalPolicy(
+                        usageHoursEnabled = true,
+                        weekdayWindow = io.github.thake.soundnest.feature.parental.schedule.DailyTimeWindow(7 * 60, 20 * 60),
+                        weekendWindow = io.github.thake.soundnest.feature.parental.schedule.DailyTimeWindow(8 * 60, 21 * 60),
+                    ),
+                )
+            }
+            io.github.thake.soundnest.feature.parental.schedule.ParentalScheduleController.nowZonedProvider = {
+                java.time.ZonedDateTime.of(2026, 11, 20, 20, 30, 0, 0, java.time.ZoneId.of("UTC"))
+            }
+            io.github.thake.soundnest.feature.parental.schedule.ParentalScheduleController.evaluateNow(app)
+        }) {
+            io.github.thake.soundnest.feature.parental.schedule.ui.UsageHoursLockOverlay()
+        }
+        add("Parental Controls & Security", "parental/20-family-remote-pairing.png", "Family Remote Control & Pairing", "Child device pairing screen with paired parents list, QR code, and 6-digit one-time pairing code.", Look.CLASSIC, prepare = { app ->
+            parentAdminPrep(app)
+            io.github.thake.soundnest.feature.parental.remote.settings.DeviceRoleStore.setDeviceName(app, "Emma's Tablet")
+            io.github.thake.soundnest.feature.parental.remote.net.ChildRemoteServer.enableMdns = false
+            io.github.thake.soundnest.feature.parental.remote.settings.PairedDevicesStore.upsertPairedParent(
+                context = app,
+                parentId = "parent-mom",
+                parentName = "Mom's Phone",
+                rawSecret = io.github.thake.soundnest.feature.parental.remote.crypto.RemoteCrypto.randomBytes(32),
+            )
+            io.github.thake.soundnest.feature.parental.remote.net.ChildRemoteServer
+                .startPairingSession(app, java.net.InetAddress.getLoopbackAddress())
+        }) {
+            ParentSettingsScreen(navController = rememberNavController(), initialPage = ParentSettingsPage.FamilyRemote)
+        }
+        add("Parental Controls & Security", "parental/21-parent-device-hub.png", "Parent Device Mode: Multi-Child Hub", "Dedicated Parent Device hub controlling multiple paired children over encrypted home Wi-Fi.", Look.CLASSIC, remoteHubPrep) {
+            io.github.thake.soundnest.feature.parental.remote.ui.ParentHubScreen(isDedicatedMode = true, onBack = {}, onSwitchToStandardMode = {})
+        }
+        add("Parental Controls & Security", "parental/22-remote-catalog-browser.png", "Parent Device Mode: Remote Pick / Block", "Remote Spotify Search, Child Library, and Audible catalog browser with instant Pick / Block syncing.", Look.CLASSIC, prepare = { app ->
+            remoteHubPrep(app)
+            val target = requireNotNull(remoteLoopbackChild)
+            kotlinx.coroutines.runBlocking {
+                io.github.thake.soundnest.feature.parental.remote.settings.RemotePolicySession.attach(app, target)
+            }
+        }) {
+            io.github.thake.soundnest.feature.parental.remote.ui.RemoteCatalogBrowserScreen(
+                child = requireNotNull(remoteLoopbackChild),
+                onBack = {},
+                initialTab = 1,
+            )
         }
 
         // ── 4. Classic Look — Complete Screen & Settings Catalog ──

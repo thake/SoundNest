@@ -81,12 +81,13 @@ import kotlinx.coroutines.delay
 fun RemoteCatalogBrowserScreen(
     child: PairedChildRecord,
     onBack: () -> Unit,
+    initialTab: Int = 0,
 ) {
     val context = LocalContext.current
     val policy by ParentalPolicyStore.policyFlow.collectAsState()
     val syncState by RemotePolicySession.syncStateFlow.collectAsState()
 
-    var selectedTab by remember { mutableIntStateOf(0) } // 0 = Search, 1 = Library, 2 = Audible
+    var selectedTab by remember { mutableIntStateOf(initialTab) } // 0 = Search, 1 = Library, 2 = Audible
     var query by remember { mutableStateOf("") }
     var searching by remember { mutableStateOf(false) }
     var searchResults by remember { mutableStateOf<List<RemoteCatalogItem>>(emptyList()) }
