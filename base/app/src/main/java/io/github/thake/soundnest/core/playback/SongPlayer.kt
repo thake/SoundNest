@@ -1123,6 +1123,7 @@ object SongPlayer {
                         tell(true)
                     } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
                         Log.w(TAG, "transport timed out after ${TRANSPORT_TIMEOUT_MS} ms")
+                        scope.launch { runCatching { WebPlayerSelfHealer.healIfWedged(Graph.app, "transport_timeout") } }
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
                     } catch (e: Exception) {
@@ -1165,8 +1166,22 @@ object SongPlayer {
             val moved = kotlinx.coroutines.withTimeoutOrNull(PLAY_CHECK_MS) {
                 api.player.state.first { it?.item?.uri == itemUri || !isLatest() }
             }
-            if (moved != null || !isLatest()) return
+            if (moved != null || !isLatest()) {
+                if (moved != null) WebPlayerSelfHealer.recordHealthy()
+                return
+            }
             if (attempt == 0) { Log.w(TAG, "play of $itemUri not taken: sent again"); play() }
+        }
+        if (!isLatest()) return
+        val healed = runCatching { WebPlayerSelfHealer.healIfWedged(Graph.app, "play_not_taken") }.getOrDefault(false)
+        if (healed && isLatest()) {
+            // Wait for the reloaded Web Player page to become ready, then replay the child's tap once.
+            kotlinx.coroutines.delay(1_000L)
+            val readyAgain = kotlinx.coroutines.withTimeoutOrNull(READY_WAIT_MS) { api.ready.first { it } } != null
+            if (readyAgain && isLatest()) {
+                Log.i(TAG, "re-sending play of $itemUri after Web Player self-heal")
+                play()
+            }
         }
     }
 

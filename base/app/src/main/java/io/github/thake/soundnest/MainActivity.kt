@@ -299,6 +299,7 @@ class MainActivity : AppCompatActivity() {
         if (io.github.thake.soundnest.BuildConfig.DEBUG) io.github.thake.soundnest.host.android.MainThreadWatch.start()
         super.onStart()
         io.github.thake.soundnest.core.util.AppForeground.onForeground()
+        io.github.thake.soundnest.core.playback.WebPlayerSelfHealer.onForeground(this)
         io.github.thake.soundnest.feature.parental.remote.net.ChildRemoteServer.syncLifecycle(this)
         io.github.thake.soundnest.core.playback.SongPlayer.refreshLikedIfStale()
         if (SystemSettings.isKeepScreenOn(this)) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -311,6 +312,7 @@ class MainActivity : AppCompatActivity() {
         io.github.thake.soundnest.host.android.MainThreadWatch.stop()
         if (!isChangingConfigurations) {
             io.github.thake.soundnest.core.util.AppForeground.onBackground()
+            io.github.thake.soundnest.core.playback.WebPlayerSelfHealer.onBackground()
         }
     }
 
