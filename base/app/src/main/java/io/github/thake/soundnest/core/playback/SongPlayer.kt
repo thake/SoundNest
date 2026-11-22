@@ -538,14 +538,13 @@ object SongPlayer {
         pendingTrackId = null
         pendingItemUri = null
         pendingUntil = 0L
-        intentUri = ""; intentUntil = 0L
         wantPlayingUntil = 0L; wantPausedUntil = 0L
         // Its own end puts nothing back on screen: the seq it ends with is no longer the last.
         seekSeq++; seekJob?.cancel(); seekUntil = 0L; seekUri = ""
         stateSeen = false
         playing = false; bufferingState.value = false; adState.value = false; durationMs = 0L; positionMs = 0L
         currentTrackId = ""; currentContextUri = ""
-        contextRegistry.clear(); contextRows.clear(); contextNames.clear(); library.clear()
+        contextRegistry.clear(); contextRows.clear(); contextNames.clear(); savedStore.clear()
         synchronized(wantedSaved) { wantedSaved.clear() }
         _queue.value = EngineQueue(); apiQueue = null; restoredQueuePending = false; _nowPlaying.value = NowPlaying()
         sessionStore.clear(); resumeWhenReady = false
@@ -918,7 +917,7 @@ object SongPlayer {
                     if (currentLikeUri() == uri) check = checkLibrary(listOf(uri))
                 }
                 val answer = when {
-                    check.failed -> "failed, from Spotify, song $uri, reason ${savedError.ifBlank { "no answer" }}"
+                    check.failed -> "failed, from Spotify, song $uri, reason ${savedStore.lastError.ifBlank { "no answer" }}"
                     uri in check.asked -> "${if (uri in check.saved) "liked" else "not liked"}, from Spotify, song $uri"
                     else -> "${if (uri in check.saved) "liked" else "not liked"}, from memory, song $uri"
                 }
@@ -1873,12 +1872,18 @@ object SongPlayer {
     }
 
     // ── Library state (Liked Songs, saved albums / playlists, followed artists) ──
-    /** What Spotify's library says about each uri seen so far; every screen reads this. */
-    val library: androidx.compose.runtime.snapshots.SnapshotStateMap<String, Boolean> =
-        androidx.compose.runtime.mutableStateMapOf()
+    private val savedStore: LibrarySavedStore by lazy {
+        LibrarySavedStore(
+            scope = scope,
+            clock = SystemClock::elapsedRealtime,
+            postMain = { main.post(it) },
+            fetcher = { api.library.contains(it) },
+        )
+    }
 
-    /** Confirmed by Spotify less than that long ago: not asked for again (see [libraryContains]). */
-    private const val SAVED_FRESH_MS = 60_000L
+    /** What Spotify's library says about each uri seen so far; every screen reads this. */
+    val library: androidx.compose.runtime.snapshots.SnapshotStateMap<String, Boolean>
+        get() = savedStore.library
 
     /** A check of the song shown that got no answer is made once more after this long. */
     private const val LIKE_RETRY_MS = 2_500L
@@ -1886,28 +1891,10 @@ object SongPlayer {
     /** After a check that failed twice, page states do not start another before this long. */
     private const val LIKE_RETRY_AFTER_MS = 30_000L
 
-    /** When Spotify (or the user's own tap) last settled each uri. */
-    private val savedAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
-
-    /** One request in flight per uri list, so two callers asking share it. */
-    private val savedFlights =
-        java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Deferred<List<Boolean>?>>()
-    private val savedFlightLock = kotlinx.coroutines.sync.Mutex()
-    /** Why the last request for saved states got no answer (logged by [refreshCurrentLiked]). */
-    @Volatile private var savedError = ""
-
-    // The user's last like/unlike wins briefly over states that were already in flight.
-    @Volatile private var intentUri = ""
-    @Volatile private var intentValue = false
-    @Volatile private var intentUntil = 0L
-
-    private fun likedFor(uri: String, reported: Boolean): Boolean =
-        if (uri == intentUri && SystemClock.elapsedRealtime() < intentUntil) intentValue else reported
+    private fun likedFor(uri: String, reported: Boolean): Boolean = savedStore.likedFor(uri, reported)
 
     private fun onLibraryItem(uri: String, saved: Boolean) {
-        if (uri == intentUri && SystemClock.elapsedRealtime() < intentUntil && saved != intentValue) return
-        library[uri] = saved
-        savedAt[uri] = SystemClock.elapsedRealtime()
+        if (!savedStore.applyItem(uri, saved)) return
         if (uri == currentLikeUri()) {
             boundState?.likeState?.value = saved
             pushNotification(null, saved)
@@ -1928,8 +1915,7 @@ object SongPlayer {
 
     /** Make sure [uri]'s saved state ends up in [library]. */
     fun requestSaved(uri: String) {
-        // An entry older than [SAVED_FRESH_MS] is asked again (it may have changed in another app); [libraryContains] skips the fresh ones.
-        if (uri.isBlank() || (library.containsKey(uri) && SystemClock.elapsedRealtime() - (savedAt[uri] ?: 0L) < SAVED_FRESH_MS)) return
+        if (uri.isBlank() || savedStore.isFresh(uri)) return
         if (wantedSaved.add(uri)) { main.removeCallbacks(flushSaved); main.postDelayed(flushSaved, 32) }
     }
 
@@ -1997,59 +1983,10 @@ object SongPlayer {
         }
     }
 
-    /** What [checkLibrary] found: [saved] of the uris asked about, [asked] the ones that went to Spotify, [failed] when that got no answer. */
-    private class LibraryCheck(val saved: Set<String>, val asked: Set<String>, val failed: Boolean)
-
     /** Which of [uris] are saved in the user's library (Liked Songs / saved albums…). */
     suspend fun libraryContains(uris: List<String>): Set<String> = checkLibrary(uris).saved
 
-    private suspend fun checkLibrary(uris: List<String>): LibraryCheck {
-        if (uris.isEmpty()) return LibraryCheck(emptySet(), emptySet(), false)
-        val now = SystemClock.elapsedRealtime()
-        // A page prefetch and the page opening ask for the same list within a second, and the
-        // rows of a list ask again for what the list just confirmed: only what is unknown (or
-        // old enough to have changed elsewhere) goes to Spotify.
-        val (known, unknown) = uris.partition { library.containsKey(it) && now - (savedAt[it] ?: 0L) < SAVED_FRESH_MS }
-        val out = known.filterTo(mutableSetOf()) { library[it] == true }
-        if (unknown.isEmpty()) return LibraryCheck(out, emptySet(), false)
-        val flags = savedFlags(unknown) ?: return LibraryCheck(out, emptySet(), true)
-        val saved = unknown.filterIndexed { i, _ -> flags.getOrNull(i) == true }.toSet()
-        main.post {
-            for (u in unknown) {
-                if (u == intentUri && SystemClock.elapsedRealtime() < intentUntil) continue
-                library[u] = u in saved
-                savedAt[u] = now
-            }
-        }
-        return LibraryCheck(out + saved, unknown.toSet(), false)
-    }
-
-    /** [uris] in one request; two callers asking the same list share that one request. */
-    private suspend fun savedFlags(uris: List<String>): List<Boolean>? {
-        val key = uris.sorted().joinToString("\n")
-        val flight = savedFlightLock.withLock {
-            savedFlights[key] ?: scope.async {
-                try {
-                    api.library.contains(uris)
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    savedError = e.message ?: e.javaClass.simpleName
-                    null
-                }
-            }.also { d ->
-                savedFlights[key] = d
-                d.invokeOnCompletion { savedFlights.remove(key, d) }
-            }
-        }
-        return try {
-            flight.await()
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            null
-        }
-    }
+    private suspend fun checkLibrary(uris: List<String>): LibrarySavedStore.CheckResult = savedStore.check(uris)
 
     /** Bumped at every like / unlike of a track Spotify took: the Liked Songs page refreshes its top. */
     val likedChanges = kotlinx.coroutines.flow.MutableStateFlow(0)
@@ -2077,9 +2014,7 @@ object SongPlayer {
             io.github.thake.soundnest.host.android.Logbook.log("library: $uri refused (read-only Spotify library)")
             return
         }
-        intentUri = uri
-        intentValue = on
-        intentUntil = SystemClock.elapsedRealtime() + 3000
+        savedStore.recordIntent(uri, on)
         onLibraryItem(uri, on)
         val track = uri.startsWith(SPOTIFY_TRACK_PREFIX)
         if (track) likedTaps.tryEmit(trackIdOf(uri) to on)
@@ -2116,7 +2051,7 @@ object SongPlayer {
                         return@withLock
                     }
                     if (write == libraryWrites.get()) {
-                        intentUntil = 0
+                        savedStore.clearIntent()
                         onLibraryItem(uri, !on)
                         if (track) likedTaps.tryEmit(trackIdOf(uri) to !on)
                         PlaybackAlertBus.emitResource(io.github.thake.soundnest.R.string.library_change_failed, longDuration = false)

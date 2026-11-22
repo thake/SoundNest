@@ -17,16 +17,20 @@ import org.robolectric.annotation.Config
 class ParentalPolicyRegistrationTest {
 
     private lateinit var context: Context
+    private val registeredSettings = mutableListOf<PolicySyncedSetting>()
+    private val registeredInvalidators = mutableListOf<() -> Unit>()
 
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
-        ParentalPolicyStore.clearRegistrationsForTests()
     }
 
     @After
     fun tearDown() {
-        ParentalPolicyStore.clearRegistrationsForTests()
+        registeredSettings.forEach(ParentalPolicyStore::unregisterPolicySynced)
+        registeredSettings.clear()
+        registeredInvalidators.forEach(ParentalPolicyStore::unregisterCacheInvalidator)
+        registeredInvalidators.clear()
     }
 
     @Test
@@ -39,6 +43,7 @@ class ParentalPolicyRegistrationTest {
                 lastPolicy = policy
             }
         }
+        registeredSettings += fake
 
         ParentalPolicyStore.registerPolicySynced(fake)
         ParentalPolicyStore.registerPolicySynced(fake)
@@ -54,6 +59,7 @@ class ParentalPolicyRegistrationTest {
     fun `registered cache invalidator runs on replace`() {
         var invalidated = 0
         val invalidator: () -> Unit = { invalidated++ }
+        registeredInvalidators += invalidator
 
         ParentalPolicyStore.registerCacheInvalidator(invalidator)
         ParentalPolicyStore.registerCacheInvalidator(invalidator)

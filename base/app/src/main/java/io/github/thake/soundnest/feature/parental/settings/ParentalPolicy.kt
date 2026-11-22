@@ -224,6 +224,10 @@ object ParentalPolicyStore {
         if (setting !in policySyncedSettings) policySyncedSettings.add(setting)
     }
 
+    fun unregisterPolicySynced(setting: PolicySyncedSetting) {
+        policySyncedSettings.remove(setting)
+    }
+
     /**
      * Registers a cache invalidation hook to run whenever the policy changes (wired from [Graph.init]).
      * Idempotent.
@@ -232,9 +236,8 @@ object ParentalPolicyStore {
         if (invalidator !in cacheInvalidators) cacheInvalidators.add(invalidator)
     }
 
-    internal fun clearRegistrationsForTests() {
-        policySyncedSettings.clear()
-        cacheInvalidators.clear()
+    fun unregisterCacheInvalidator(invalidator: () -> Unit) {
+        cacheInvalidators.remove(invalidator)
     }
 
     private fun syncRuntimeFlags(context: Context, policy: ParentalPolicy) {

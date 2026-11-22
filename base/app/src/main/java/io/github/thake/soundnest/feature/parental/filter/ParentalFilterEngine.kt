@@ -23,7 +23,6 @@ import io.github.thake.soundnest.feature.parental.settings.ParentalPolicy
 import io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore
 import io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris
 import io.github.thake.soundnest.feature.spokenword.audible.settings.AudibleCredentialStore
-import java.text.Normalizer
 
 /**
  * Hybrid parental content filter supporting both:
@@ -34,137 +33,14 @@ import java.text.Normalizer
  */
 object ParentalFilterEngine {
 
-    private val DIACRITICS = Regex("\\p{Mn}+")
-    private val NON_WORD_SPACES = Regex("[^\\p{L}\\p{N}]+")
-    private val MULTI_SPACE = Regex("\\s+")
-
-    @Volatile
-    private var cachedRegexSource: Set<String> = emptySet()
-
-    @Volatile
-    private var cachedCompiledRegexes: List<Regex> = emptyList()
-
-    private fun compiledBlockedRegexes(patterns: Set<String>): List<Regex> {
-        if (patterns.isEmpty()) return emptyList()
-        if (patterns == cachedRegexSource) return cachedCompiledRegexes
-        val compiled = patterns.mapNotNull { pat ->
-            runCatching { Regex(pat, RegexOption.IGNORE_CASE) }.getOrNull()
-        }
-        cachedRegexSource = patterns.toSet()
-        cachedCompiledRegexes = compiled
-        return compiled
-    }
-
     /** Strips accents/diacritics and lowercases while preserving digits/punctuation for regex checks. */
-    fun stripDiacriticsLower(raw: String): String {
-        if (raw.isBlank()) return ""
-        val decomposed = Normalizer.normalize(raw, Normalizer.Form.NFKD)
-        return DIACRITICS.replace(decomposed, "").lowercase()
-    }
+    fun stripDiacriticsLower(raw: String): String = BlockedTextMatcher.stripDiacriticsLower(raw)
 
-    /**
-     * Normalizes text for anti-evasion keyword matching:
-     * - NFKD Unicode decomposition + diacritic removal (`éxplïcît` -> `explicit`)
-     * - Leetspeak / symbol folding (`@`->`a`, `$`->`s`, `0`->`o`, `1`->`i`, `!`->`i`, `3`->`e`, `4`->`a`, `5`->`s`, `7`->`t`)
-     * - Punctuation collapsed to single spaces so word-boundary checks remain accurate.
-     */
-    fun normalizeForKeywords(raw: String): String {
-        if (raw.isBlank()) return ""
-        val base = stripDiacriticsLower(raw)
-        val sb = StringBuilder(base.length)
-        for (ch in base) {
-            val mapped = when (ch) {
-                '@' -> 'a'
-                '$' -> 's'
-                '0' -> 'o'
-                '1', '!' -> 'i'
-                '3' -> 'e'
-                '4' -> 'a'
-                '5' -> 's'
-                '7' -> 't'
-                else -> ch
-            }
-            sb.append(mapped)
-        }
-        return NON_WORD_SPACES.replace(sb.toString(), " ").replace(MULTI_SPACE, " ").trim()
-    }
+    /** Normalizes text for anti-evasion keyword matching (NFKD + diacritics + leetspeak folding). */
+    fun normalizeForKeywords(raw: String): String = BlockedTextMatcher.normalizeForKeywords(raw)
 
-    private val CENSORED_TOKEN_SPLIT = Regex("[^\\p{L}\\p{N}@*\$!]+")
-    private const val VOWELS = "aeiou"
-
-    private fun foldLeetChar(ch: Char): Char = when (ch) {
-        '@' -> 'a'
-        '$' -> 's'
-        '0' -> 'o'
-        '1', '!' -> 'i'
-        '3' -> 'e'
-        '4' -> 'a'
-        '5' -> 's'
-        '7' -> 't'
-        else -> ch
-    }
-
-    /** Matches words where `@` or `*` masks a vowel (e.g. `f@ck` -> `fuck`, `sh*t` -> `shit`). */
-    private fun matchesCensoredWord(rawToken: String, normKeyword: String): Boolean {
-        if (normKeyword.length < 3 || rawToken.length != normKeyword.length) return false
-        if ('@' !in rawToken && '*' !in rawToken) return false
-        var wildcards = 0
-        for (i in rawToken.indices) {
-            val rawCh = rawToken[i]
-            val kwCh = normKeyword[i]
-            if (foldLeetChar(rawCh) == kwCh) continue
-            if ((rawCh == '@' || rawCh == '*') && kwCh in VOWELS) {
-                wildcards++
-                continue
-            }
-            return false
-        }
-        return wildcards > 0 && (normKeyword.length - wildcards) >= 2
-    }
-
-    /** Plain word-tokenized lowercase without digit-folding so numeric keywords like `"1989"` also match. */
-    private fun normalizePlainWords(raw: String): String {
-        if (raw.isBlank()) return ""
-        return NON_WORD_SPACES.replace(stripDiacriticsLower(raw), " ").replace(MULTI_SPACE, " ").trim()
-    }
-
-    fun matchesBlockedText(policy: ParentalPolicy, vararg fields: String): Boolean {
-        if (policy.blockedKeywords.isEmpty() && policy.blockedRegexPatterns.isEmpty()) return false
-        val nonBlank = fields.filter { it.isNotBlank() }
-        if (nonBlank.isEmpty()) return false
-
-        if (policy.blockedKeywords.isNotEmpty()) {
-            for (field in nonBlank) {
-                val stripped = stripDiacriticsLower(field)
-                val rawTokens = CENSORED_TOKEN_SPLIT.split(stripped).filter { it.isNotEmpty() }
-                val foldedPadded = " ${normalizeForKeywords(field)} "
-                val plainPadded = " ${normalizePlainWords(field)} "
-                for (kw in policy.blockedKeywords) {
-                    val normKw = normalizeForKeywords(kw)
-                    val plainKw = normalizePlainWords(kw)
-                    if (normKw.isNotEmpty() && foldedPadded.contains(" $normKw ")) return true
-                    if (plainKw.isNotEmpty() && plainPadded.contains(" $plainKw ")) return true
-                    if (normKw.length >= 3 && !normKw.contains(' ') && rawTokens.any { matchesCensoredWord(it, normKw) }) {
-                        return true
-                    }
-                }
-            }
-        }
-
-        if (policy.blockedRegexPatterns.isNotEmpty()) {
-            val compiled = compiledBlockedRegexes(policy.blockedRegexPatterns)
-            for (field in nonBlank) {
-                val stripped = stripDiacriticsLower(field)
-                val folded = normalizeForKeywords(field)
-                for (rx in compiled) {
-                    if (rx.containsMatchIn(field) || rx.containsMatchIn(stripped) || rx.containsMatchIn(folded)) {
-                        return true
-                    }
-                }
-            }
-        }
-        return false
-    }
+    fun matchesBlockedText(policy: ParentalPolicy, vararg fields: String): Boolean =
+        BlockedTextMatcher.matches(policy.blockedKeywords, policy.blockedRegexPatterns, *fields)
 
     fun isContextBlocked(contextUri: String?, policy: ParentalPolicy): Boolean {
         if (contextUri.isNullOrBlank()) return false

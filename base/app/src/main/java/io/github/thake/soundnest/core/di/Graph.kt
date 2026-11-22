@@ -67,7 +67,7 @@ object Graph {
         registerParentalPolicyHooks()
     }
 
-    private fun registerParentalPolicyHooks() {
+    internal fun registerParentalPolicyHooks() {
         val store = io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore
         listOf(
             io.github.thake.soundnest.feature.speakers.settings.SpeakersSettings,

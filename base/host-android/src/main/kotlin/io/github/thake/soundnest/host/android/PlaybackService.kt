@@ -691,6 +691,10 @@ class PlaybackService : MediaBrowserServiceCompat() {
         })
     }
 
+    private val accessGuard: MediaBrowserAccessGuard by lazy {
+        MediaBrowserAccessGuard.fromPackageManager(packageName, packageManager)
+    }
+
     // Media browser (Android Auto).
     override fun onGetRoot(clientPackageName: String, clientUid: Int, rootHints: Bundle?): BrowserRoot? {
         // The service is exported (Android Auto requires it), but the library —
@@ -698,10 +702,10 @@ class PlaybackService : MediaBrowserServiceCompat() {
         // Wear, System UI, Waze from Google Play, other system apps and the app itself. Any other app
         // gets an empty root: it can still connect and use the session's
         // play/pause controls, but browsing and search return nothing.
-        val packages = runCatching { packageManager.getPackagesForUid(clientUid)?.toList() }.getOrNull().orEmpty()
-        if (clientPackageName != packageName && clientPackageName !in packages) return null
-        if (clientPackageName != packageName) Logbook.log("media browser connected: $clientPackageName (browse: ${if (mayBrowse(clientPackageName)) "yes" else "no"})")
-        if (!mayBrowse(clientPackageName)) {
+        if (!accessGuard.isCallerUidValid(clientPackageName, clientUid)) return null
+        val allowed = accessGuard.mayBrowse(clientPackageName)
+        if (clientPackageName != packageName) Logbook.log("media browser connected: $clientPackageName (browse: ${if (allowed) "yes" else "no"})")
+        if (!allowed) {
             android.util.Log.w("Myspoti", "media browser: empty root for $clientPackageName")
             return BrowserRoot(EMPTY_ROOT_ID, null)
         }
@@ -762,29 +766,10 @@ class PlaybackService : MediaBrowserServiceCompat() {
             .build(), MediaBrowserCompat.MediaItem.FLAG_PLAYABLE))
     }
 
-    /**
-     * The app itself, the listed browsers, and system apps may browse the library. A listed
-     * third-party app ([STORE_BROWSERS]) must come from Google Play: its package name alone is
-     * free for any sideloaded app to take when the real one is not installed.
-     */
-    private fun mayBrowse(clientPackageName: String): Boolean {
-        if (clientPackageName == packageName || clientPackageName in ALLOWED_BROWSERS) return true
-        if (clientPackageName in STORE_BROWSERS) return installedFromPlay(clientPackageName)
-        val flags = runCatching { packageManager.getApplicationInfo(clientPackageName, 0).flags }.getOrDefault(0)
-        return (flags and ApplicationInfo.FLAG_SYSTEM) != 0
-    }
-
-    private fun installedFromPlay(pkg: String): Boolean = runCatching {
-        val installer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) packageManager.getInstallSourceInfo(pkg).installingPackageName
-            else @Suppress("DEPRECATION") packageManager.getInstallerPackageName(pkg)
-        installer == PLAY_STORE
-    }.getOrDefault(false)
-
     /** Whether the client behind the current onLoadChildren/onSearch call may browse. */
     private fun callerMayBrowse(): Boolean {
         val caller = runCatching { currentBrowserInfo }.getOrNull() ?: return false
-        val packages = runCatching { packageManager.getPackagesForUid(caller.uid)?.toList() }.getOrNull().orEmpty()
-        return caller.packageName in packages && mayBrowse(caller.packageName)
+        return accessGuard.canCallerBrowse(caller.packageName, caller.uid)
     }
 
     companion object {
@@ -871,24 +856,6 @@ class PlaybackService : MediaBrowserServiceCompat() {
         /** The state last published to the session (see [update]), and when (elapsed realtime). */
         @Volatile private var published: NowPlayingInfo? = null
         @Volatile private var publishedAt = 0L
-
-        /** Packages allowed to browse the library (see onGetRoot). */
-        private val ALLOWED_BROWSERS = setOf(
-            "com.google.android.projection.gearhead", // Android Auto (phone)
-            "com.google.android.apps.automotive.templates.host", // Android Automotive OS
-            "com.google.android.googlequicksearchbox", // Google Assistant
-            "com.google.android.carassistant",
-            "com.android.systemui",
-            "com.android.bluetooth", // car stereos browsing over Bluetooth AVRCP
-            "com.google.android.wearable.app", // Wear OS
-            "com.android.car.media", // Android Automotive media center
-        )
-
-        /** Third-party apps allowed to browse when Google Play installed them (see mayBrowse). */
-        private val STORE_BROWSERS = setOf(
-            "com.waze", // Waze's audio player: its "Show list" lists the playlists (#177)
-        )
-        private const val PLAY_STORE = "com.android.vending"
 
         /** Set once by the app. */
         @Volatile var controls: PlaybackControls? = null

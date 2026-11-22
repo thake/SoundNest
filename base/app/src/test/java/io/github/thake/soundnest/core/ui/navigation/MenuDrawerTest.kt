@@ -74,6 +74,7 @@ class MenuDrawerTest {
         val app = RuntimeEnvironment.getApplication()
         appContext = app
         Graph::class.java.getDeclaredField("app").apply { isAccessible = true }.set(null, app)
+        Graph.registerParentalPolicyHooks()
         ParentSecurityManager.resetForTests(app)
         ParentalPolicyStore.resetForTests(app)
     }
