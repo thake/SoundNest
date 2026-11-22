@@ -44,6 +44,18 @@ class CdpHost private constructor(private val socket: WebSocket, private val lis
         send("Runtime.evaluate", buildJsonObject { put("expression", script); put("awaitPromise", false) })
     }
 
+    override suspend fun evaluateValue(script: String): String? {
+        val res = send(
+            "Runtime.evaluate",
+            buildJsonObject {
+                put("expression", script)
+                put("awaitPromise", false)
+                put("returnByValue", true)
+            },
+        )
+        return res["result"]?.jsonObject?.get("value")?.toString()
+    }
+
     /** Sets each cookie ([name] to [value]) on [domain] for a year, secure, on the whole site. */
     suspend fun setCookies(cookies: List<Pair<String, String>>, domain: String) {
         val expires = System.currentTimeMillis() / 1000.0 + 365 * 24 * 3600

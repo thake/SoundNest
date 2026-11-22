@@ -75,6 +75,13 @@ class HttpException(val code: Int, message: String) : Exception("HTTP $code: $me
 interface ClientTokenStore {
     fun load(deviceId: String): String?
     fun save(deviceId: String, text: String)
+
+    /**
+     * Explicit storage seam for sensitive Spotify Web OAuth tokens so implementations
+     * enforce encryption by contract rather than inspecting magic key suffixes.
+     */
+    fun loadWebToken(deviceId: String): String? = load("$deviceId-web")
+    fun saveWebToken(deviceId: String, text: String) = save("$deviceId-web", text)
 }
 
 /**
@@ -121,7 +128,7 @@ class SpotifyHttp(
     private suspend fun invalidateWebTokenIfMatches(failedAccess: String) = lock.withLock {
         if (web?.access == failedAccess) {
             web = null
-            runCatching { tokenStore?.save(storedKey(), "") }
+            runCatching { tokenStore?.saveWebToken(deviceId, "") }
         }
     }
 
@@ -136,7 +143,7 @@ class SpotifyHttp(
     }
 
     /** Drops the cached web token (it belongs to one account); the client token is kept. */
-    suspend fun forgetWebToken() = lock.withLock { web = null; runCatching { tokenStore?.save(storedKey(), "") } }
+    suspend fun forgetWebToken() = lock.withLock { web = null; runCatching { tokenStore?.saveWebToken(deviceId, "") } }
 
     /** The credentials [send] uses, for a client on another HTTP stack (the native playback engine). */
     class Credentials(
@@ -186,7 +193,7 @@ class SpotifyHttp(
      * started). Kept per account (its device id); never an anonymous token.
      */
     private fun storedWebToken(now: Long): WebToken? = runCatching {
-        val o = Json.parseToJsonElement(tokenStore?.load(storedKey()) ?: return null).jsonObject
+        val o = Json.parseToJsonElement(tokenStore?.loadWebToken(deviceId) ?: return null).jsonObject
         WebToken(
             access = o["access"]!!.jsonPrimitive.content, expiresAtMs = o["expiresAtMs"]!!.jsonPrimitive.long,
             clientId = o["clientId"]!!.jsonPrimitive.content, appVersion = o["appVersion"]!!.jsonPrimitive.content,
@@ -216,7 +223,7 @@ class SpotifyHttp(
             ).also { w ->
                 web = w
                 if (!w.anonymous) runCatching {
-                    tokenStore?.save(storedKey(), buildJsonObject {
+                    tokenStore?.saveWebToken(deviceId, buildJsonObject {
                         put("access", w.access); put("expiresAtMs", w.expiresAtMs); put("clientId", w.clientId); put("appVersion", w.appVersion)
                     }.toString())
                 }

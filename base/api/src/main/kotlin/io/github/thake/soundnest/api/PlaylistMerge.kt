@@ -47,11 +47,15 @@ object PlaylistMerge {
         return out
     }
 
-    /** The songs of [source] (an album or a playlist). */
-    suspend fun sourceTracks(api: SoundNestApi, source: Uri): List<Uri> = addable(
-        if (source.startsWith("spotify:album:")) readAll { api.catalog.albumTracks(source, it, 50) }
-        else readAll { api.playlists.tracks(source, it, 100) }
+    /** The songs of [source] (an album or a playlist) using narrow [Catalog] & [Playlists] ports (ISP). */
+    suspend fun sourceTracks(catalog: Catalog, playlists: Playlists, source: Uri): List<Uri> = addable(
+        if (source.startsWith("spotify:album:")) readAll { catalog.albumTracks(source, it, 50) }
+        else readAll { playlists.tracks(source, it, 100) }
     )
+
+    /** The songs of [source] (an album or a playlist). */
+    suspend fun sourceTracks(api: SoundNestApi, source: Uri): List<Uri> =
+        sourceTracks(api.catalog, api.playlists, source)
 
     /**
      * What liking every song of [source] would do: [MergePlan.fresh] holds the ones not liked yet
@@ -63,10 +67,19 @@ object PlaylistMerge {
         return MergePlan(incoming, incoming.filterIndexed { i, _ -> flags.getOrNull(i) != true })
     }
 
+    /** [likePlan] for an album or playlist using narrow ports (ISP). */
+    suspend fun likePlan(catalog: Catalog, playlists: Playlists, library: Library, source: Uri): MergePlan =
+        likePlan(sourceTracks(catalog, playlists, source)) { library.contains(it) }
+
     /** [likePlan] for an album or playlist, read from [api]. */
-    suspend fun likePlan(api: SoundNestApi, source: Uri): MergePlan = likePlan(sourceTracks(api, source)) { api.library.contains(it) }
+    suspend fun likePlan(api: SoundNestApi, source: Uri): MergePlan =
+        likePlan(api.catalog, api.playlists, api.library, source)
+
+    /** What adding [source] to [target] would do using narrow ports (ISP). */
+    suspend fun plan(catalog: Catalog, playlists: Playlists, target: Uri, source: Uri): MergePlan =
+        plan(readAll { playlists.tracks(target, it, 100) }, sourceTracks(catalog, playlists, source))
 
     /** What adding [source] to [target] would do. */
     suspend fun plan(api: SoundNestApi, target: Uri, source: Uri): MergePlan =
-        plan(readAll { api.playlists.tracks(target, it, 100) }, sourceTracks(api, source))
+        plan(api.catalog, api.playlists, target, source)
 }

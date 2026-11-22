@@ -1670,8 +1670,8 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
      * list from its start and turn shuffle on: the pick is held instead and played, in the order it
      * was given, when the ad is over (see [onState]).
      */
-    /** The account's audio outside the page (the native engine), when the host has one; see [AccountAudio]. */
-    @Volatile var audio: AccountAudio? = null
+    /** The account's audio outside the page (the native engine), when the host has one; see [AccountAudioPlayer]. */
+    @Volatile var audio: AccountAudioPlayer? = null
         set(value) {
             field = value
             audioWatch?.cancel()
@@ -1685,10 +1685,10 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
     private fun engineHolds(): Boolean = outside()?.holdsPlayback == true
 
     /** [audio] when it is enabled on this phone (and the page is not the unheard mirror, and no remote speaker is selected). */
-    private fun outside(): AccountAudio? = audio?.takeIf { it.on && !mirroring && !remoteSelected() && !remoteActive }
+    private fun outside(): AccountAudioPlayer? = audio?.takeIf { it.on && !mirroring && !remoteSelected() && !remoteActive }
 
     /** [audio] only while a song is actually loaded on it (not when a remote Connect/Alexa speaker holds playback). */
-    private fun activeOutside(): AccountAudio? = outside()?.takeIf { it.holdsPlayback }
+    private fun activeOutside(): AccountAudioPlayer? = outside()?.takeIf { it.holdsPlayback }
 
     override suspend fun play(contextUri: Uri, trackUri: Uri?, index: Int?, positionMs: Long?, order: List<Uri>?) {
         userPlays()

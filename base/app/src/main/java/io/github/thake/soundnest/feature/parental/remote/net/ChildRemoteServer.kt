@@ -58,19 +58,30 @@ data class ActivePairingSession(
     val inviteUri: String,
 )
 
-/**
- * Abstraction over local child playback & policy operations so [ChildRemoteServer]
- * can be tested cleanly on JVM/Robolectric without a live Spotify WebView.
- */
-interface ChildControlDelegate {
+/** Segregated playback & device-status port for [ChildRemoteServer] (ISP). */
+interface ChildPlaybackController {
     fun getStatus(context: Context): ChildStatusSnapshot
     fun executePlayback(context: Context, action: RemoteRequest.PlaybackAction): ChildStatusSnapshot
+    fun renameDevice(context: Context, newName: String): ChildStatusSnapshot
+}
+
+/** Segregated parental policy synchronization port for [ChildRemoteServer] (ISP). */
+interface ChildPolicyController {
     fun getPolicy(context: Context): RemotePolicyBundle
     fun updatePolicy(context: Context, policy: ParentalPolicy, ruleLabels: Map<String, RuleLabel>): Pair<Long, ChildStatusSnapshot>
-    fun renameDevice(context: Context, newName: String): ChildStatusSnapshot
+}
+
+/** Segregated catalog browsing/search port for [ChildRemoteServer] (ISP). */
+interface ChildCatalogProvider {
     fun searchCatalog(context: Context, query: String): List<RemoteCatalogItem> = emptyList()
     fun getChildCatalog(context: Context): RemoteResponse.ChildCatalog = RemoteResponse.ChildCatalog()
 }
+
+/**
+ * Combined abstraction over local child playback, policy, and catalog operations so
+ * [ChildRemoteServer] can be tested cleanly on JVM/Robolectric without a live Spotify WebView.
+ */
+interface ChildControlDelegate : ChildPlaybackController, ChildPolicyController, ChildCatalogProvider
 
 object DefaultChildControlDelegate : ChildControlDelegate {
     private val mainHandler by lazy { Handler(Looper.getMainLooper()) }

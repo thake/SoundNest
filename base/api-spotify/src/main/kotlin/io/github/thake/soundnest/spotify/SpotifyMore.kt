@@ -502,7 +502,7 @@ class SpotifyDevices(
     @Volatile var ownDeviceId: () -> String? = { null }
     /** All device ids owned by this app (active native engine + any pending-cleanup orphan ids). */
     @Volatile var ownDeviceIds: () -> Set<String> = { ownDeviceId()?.let(::setOf).orEmpty() }
-    @Volatile var audio: AccountAudio? = null
+    @Volatile var audio: AccountAudioConnect? = null
     private val _devices = MutableStateFlow<List<Device>>(emptyList())
     override val devices: StateFlow<List<Device>> = _devices
 

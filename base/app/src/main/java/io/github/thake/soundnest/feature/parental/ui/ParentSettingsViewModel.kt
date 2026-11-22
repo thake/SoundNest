@@ -92,26 +92,9 @@ internal data class ManagedRuleEntry(
  * Parses a pasted Spotify URI or `open.spotify.com` URL into `(kind, normalizedId)`,
  * or returns `null` if the string is not a supported Spotify track/album/artist/playlist/show link.
  */
-internal fun parseQuickSpotifyUri(raw: String): Pair<String, String>? {
-    val trimmed = raw.trim()
-    val kind = when {
-        trimmed.contains(":track:") || trimmed.contains("/track/") -> "track"
-        trimmed.contains(":album:") || trimmed.contains("/album/") -> "album"
-        trimmed.contains(":artist:") || trimmed.contains("/artist/") -> "artist"
-        trimmed.contains(":playlist:") || trimmed.contains("/playlist/") -> "playlist"
-        trimmed.contains(":show:") || trimmed.contains("/show/") -> "show"
-        else -> return null
-    }
-    val id = trimmed
-        .substringBefore('?')
-        .substringBefore('#')
-        .trimEnd('/')
-        .substringAfterLast('/')
-        .substringAfterLast(':')
-        .trim()
-    if (id.isEmpty()) return null
-    return kind to id
-}
+internal fun parseQuickSpotifyUri(raw: String): Pair<String, String>? =
+    io.github.thake.soundnest.feature.parental.settings.RuleEntityKind.parseSpotifyUri(raw)
+        ?.let { (kind, id) -> kind.wireKey to id }
 
 internal fun applyQuickUriRule(context: Context, raw: String, allow: Boolean): Boolean {
     val (kind, id) = parseQuickSpotifyUri(raw) ?: return false

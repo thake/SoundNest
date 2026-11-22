@@ -213,7 +213,9 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    var view: WebView = createView(null)
+    private var awakeView: AwakeWebView = createView(null)
+
+    val view: WebView get() = awakeView
 
     private var viewActivity: WeakReference<Activity>? = null
     private var releaseActivityWhenIdle = false
@@ -224,7 +226,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
      * [onRenderProcessGone] returns false (see [rebuild]).
      */
     @SuppressLint("SetJavaScriptEnabled")
-    private fun createView(activity: Activity? = null): WebView {
+    private fun createView(activity: Activity? = null): AwakeWebView {
         viewActivity = activity?.let(::WeakReference)
         return AwakeWebView(android.content.MutableContextWrapper(activity ?: context.applicationContext)).apply {
             importantForAutofill = if (activity != null) View.IMPORTANT_FOR_AUTOFILL_YES else View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
@@ -483,11 +485,11 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
         val wasLogin = _loginRequired.value || _loginLoad.value != LoginLoad.NONE
         val targetActivity = if (lastVisible || wasLogin || then != null) findActivity(container?.context) else null
         val box = container
-        box?.let { runCatching { it.removeView(view) } }
-        (view as? AwakeWebView)?.releaseFromWindow()
-        runCatching { view.stopLoading() }
-        runCatching { view.destroy() }
-        view = createView(targetActivity)
+        box?.let { runCatching { it.removeView(awakeView) } }
+        awakeView.releaseFromWindow()
+        runCatching { awakeView.stopLoading() }
+        runCatching { awakeView.destroy() }
+        awakeView = createView(targetActivity)
         applyAwake()
         pageStarts = 0
         _url.value = ""
@@ -506,11 +508,11 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
     private fun ensureActivityView(activity: Activity): Boolean {
         if (viewActivity?.get() === activity) return false
         val box = container
-        box?.let { runCatching { it.removeView(view) } }
-        (view as? AwakeWebView)?.releaseFromWindow()
-        runCatching { view.stopLoading() }
-        runCatching { view.destroy() }
-        view = createView(activity)
+        box?.let { runCatching { it.removeView(awakeView) } }
+        awakeView.releaseFromWindow()
+        runCatching { awakeView.stopLoading() }
+        runCatching { awakeView.destroy() }
+        awakeView = createView(activity)
         applyAwake()
         pageStarts = 0
         _url.value = ""
@@ -1063,7 +1065,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
 
     private fun applyAwake() {
         val awake = useful || android.os.SystemClock.uptimeMillis() < awakeUntil
-        (view as? AwakeWebView)?.setAwake(awake)
+        awakeView.setAwake(awake)
         // The renderer is important only while the page is of use (it plays, mirrors, is asked):
         // idle, it is bound to the app's own priority, never waived (a killed renderer is a reload).
         runCatching { view.setRendererPriorityPolicy(if (awake) WebView.RENDERER_PRIORITY_IMPORTANT else WebView.RENDERER_PRIORITY_BOUND, false) }

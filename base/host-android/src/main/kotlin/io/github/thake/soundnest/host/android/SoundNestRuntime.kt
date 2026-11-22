@@ -335,13 +335,21 @@ object SoundNestRuntime {
         }
 
         override fun load(deviceId: String): String? = runCatching {
-            val raw = file(deviceId).readText()
-            if (deviceId.endsWith("-web")) decrypt(raw) else raw
+            file(deviceId).readText()
         }.getOrNull()
 
         override fun save(deviceId: String, text: String) {
             val f = file(deviceId)
-            val toWrite = if (deviceId.endsWith("-web")) encrypt(text) else text
+            runCatching { f.parentFile?.mkdirs(); val tmp = java.io.File(f.path + ".tmp"); tmp.writeText(text); tmp.renameTo(f) }
+        }
+
+        override fun loadWebToken(deviceId: String): String? = runCatching {
+            decrypt(file("$deviceId-web").readText())
+        }.getOrNull()
+
+        override fun saveWebToken(deviceId: String, text: String) {
+            val f = file("$deviceId-web")
+            val toWrite = encrypt(text)
             runCatching { f.parentFile?.mkdirs(); val tmp = java.io.File(f.path + ".tmp"); tmp.writeText(toWrite); tmp.renameTo(f) }
         }
     }
