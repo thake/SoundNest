@@ -121,6 +121,7 @@ object SongPlayer {
 
     private val api: SoundNestApi get() = SoundNestRuntime.api
     private val scope get() = SoundNestRuntime.scope
+    private val overlayBackends = OverlayBackendRouter(listOf(AudiblePlaybackBackend, LocalPlaybackBackend))
 
     // ── Player state ──
     @Volatile private var playing = false
@@ -167,7 +168,7 @@ object SongPlayer {
      */
     private fun reconcile() {
         // A command still on its way: its own end puts the screen right (see [transport]).
-        fun leftAlone() = !acceptsSessionUpdates() || LocalPlayer.active.value || io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value || transportsInFlight.get() > 0
+        fun leftAlone() = !acceptsSessionUpdates() || overlayBackends.anyActive() || transportsInFlight.get() > 0
         if (leftAlone()) return
         scope.launch {
             // Read again first: the page's last push can be lost on the way (its events buffer
@@ -353,40 +354,45 @@ object SongPlayer {
             SoundNestRuntime.spotify.player.refused.collect {
                 // No Widevine in this WebView: the refusal is the WebView's, not the account's.
                 val message = if (SoundNestRuntime.spotify.player.drmMissing.value) io.github.thake.soundnest.R.string.drm_missing else io.github.thake.soundnest.R.string.play_refused
-                android.widget.Toast.makeText(Graph.app, message, android.widget.Toast.LENGTH_LONG).show()
+                PlaybackAlertBus.emitResource(message, longDuration = true)
             }
         }
         scope.launch {
             SoundNestRuntime.spotify.player.refusedAll.collect {
-                android.widget.Toast.makeText(Graph.app, io.github.thake.soundnest.R.string.play_refused_all, android.widget.Toast.LENGTH_LONG).show()
+                PlaybackAlertBus.emitResource(io.github.thake.soundnest.R.string.play_refused_all, longDuration = true)
             }
         }
         scope.launch {
             SoundNestRuntime.spotify.player.skipChained.collect {
-                android.widget.Toast.makeText(Graph.app, io.github.thake.soundnest.R.string.songs_skipped_by_spotify, android.widget.Toast.LENGTH_LONG).show()
+                PlaybackAlertBus.emitResource(io.github.thake.soundnest.R.string.songs_skipped_by_spotify, longDuration = true)
             }
         }
         scope.launch {
             SoundNestRuntime.spotify.player.licencesRefused.collect {
                 val drm = io.github.thake.soundnest.host.android.Widevine.version
-                val text = if (io.github.thake.soundnest.host.android.Widevine.tooOld(drm))
-                    Graph.app.getString(io.github.thake.soundnest.R.string.licences_refused_old_widevine, drm?.substringBefore('@'))
-                else Graph.app.getString(io.github.thake.soundnest.R.string.licences_refused_by_spotify)
-                android.widget.Toast.makeText(Graph.app, text, android.widget.Toast.LENGTH_LONG).show()
+                if (io.github.thake.soundnest.host.android.Widevine.tooOld(drm)) {
+                    PlaybackAlertBus.emitFormatted(
+                        io.github.thake.soundnest.R.string.licences_refused_old_widevine,
+                        drm?.substringBefore('@').orEmpty(),
+                        longDuration = true,
+                    )
+                } else {
+                    PlaybackAlertBus.emitResource(io.github.thake.soundnest.R.string.licences_refused_by_spotify, longDuration = true)
+                }
             }
         }
         // Said once the page has asked its WebView: a device that cannot decrypt Spotify's streams
         // plays nothing (no sound, 0:00), and nothing else in the app says why.
         scope.launch {
             SoundNestRuntime.spotify.player.drmMissing.first { it }
-            android.widget.Toast.makeText(Graph.app, io.github.thake.soundnest.R.string.drm_missing, android.widget.Toast.LENGTH_LONG).show()
+            PlaybackAlertBus.emitResource(io.github.thake.soundnest.R.string.drm_missing, longDuration = true)
         }
         scope.launch {
             SoundNestRuntime.host.licenseLimitedUntil.collect { until ->
                 if (until > SystemClock.elapsedRealtime()) main.post {
                     playing = false
                     boundState?.updatePlayingState(false)
-                    android.widget.Toast.makeText(Graph.app, io.github.thake.soundnest.R.string.spotify_limited, android.widget.Toast.LENGTH_LONG).show()
+                    PlaybackAlertBus.emitResource(io.github.thake.soundnest.R.string.spotify_limited, longDuration = true)
                 }
             }
         }
@@ -944,7 +950,7 @@ object SongPlayer {
         apiQueue = q
         if (restoredQueuePending && q != null && q.current == null && q.queued.isEmpty() && q.nextUp.isEmpty()) return
         // While a local file or Audible audiobook plays, the queue shown is that player's.
-        if (q == null || LocalPlayer.active.value || io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value) return
+        if (q == null || overlayBackends.anyActive()) return
         // A move is under way: its steps are not shown, the order dropped stays (see [queueMove]).
         if (queueMovesInFlight.get() > 0) return
         if (SystemClock.elapsedRealtime() < staleUntil && order(q) in staleOrders) return
@@ -967,7 +973,7 @@ object SongPlayer {
     /** The page's queue from the song [id] on, for the saved session (see [saveLastTrack]). */
     private fun spotifyQueueOf(id: String): List<SongsModel> {
         val q = _queue.value
-        if (LocalPlayer.active.value || io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value || id.isBlank()) return emptyList()
+        if (overlayBackends.anyActive() || id.isBlank()) return emptyList()
         return io.github.thake.soundnest.core.playback.LastSession.queueFor(id, listOfNotNull(q.current) + (q.queued + q.nextUp).map { it.song })
     }
 
@@ -1326,8 +1332,7 @@ object SongPlayer {
         }
         if (!api.ready.value) runCatching { SoundNestRuntime.host.retryIfLoadFailed() }
         if (by != BY_CALL) callPause.userActed()
-        if (io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value) { Haptics.click(); io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.resume(); return }
-        if (LocalPlayer.active.value) { Haptics.click(); LocalPlayer.resume(); return }
+        overlayBackends.active()?.let { Haptics.click(); it.resume(); return }
         // Smart shuffle was turned off while paused: the list's order comes back as it plays on.
         plainOrderDue?.let { if (restorePlainOrder(it)) return }
         Haptics.click(); intendPlaying(); playing = true; positionAt = SystemClock.elapsedRealtime()
@@ -1345,7 +1350,7 @@ object SongPlayer {
         if (!uri.startsWith("spotify:episode:")) return
         scope.launch {
             kotlinx.coroutines.delay(EPISODE_RESUME_CHECK_MS)
-            if (!playing || LocalPlayer.active.value || io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value) return@launch
+            if (!playing || overlayBackends.anyActive()) return@launch
             val s = api.player.state.value
             if (s?.item?.uri == uri && s.isPaused) {
                 Log.i(TAG, "episode resume not taken: playing $uri again (${queueTag()})")
@@ -1361,7 +1366,7 @@ object SongPlayer {
 
     /** The phone rings or a call ends, on the main thread. ExoPlayer deals with its own audio focus. */
     private fun phoneCall(busy: Boolean) {
-        if (LocalPlayer.holdsFocus || io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.holdsFocus || SoundNestRuntime.spotify.player.playsElsewhere.value) return
+        if (overlayBackends.anyHoldsFocus() || SoundNestRuntime.spotify.player.playsElsewhere.value) return
         when (callPause.modeChanged(busy, isPlaying(), SystemClock.elapsedRealtime())) {
             CallPause.Action.PAUSE -> pause(by = BY_CALL)
             CallPause.Action.RESUME -> play(by = BY_CALL)
@@ -1380,8 +1385,7 @@ object SongPlayer {
     internal fun pauseForSleep(send: Boolean = true) = pauseSilently(send)
 
     private fun pauseSilently(send: Boolean = true) {
-        if (io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value) { io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.pause(); return }
-        if (LocalPlayer.active.value) { LocalPlayer.pause(); return }
+        overlayBackends.active()?.let { it.pause(); return }
         intendPaused()
         positionMs = getCurrentPosition(); positionAt = SystemClock.elapsedRealtime(); playing = false
         if (send) { transport(pullBack = false) { api.player.pause() }; jamFollowUp(wantPaused = true) }
@@ -1421,14 +1425,13 @@ object SongPlayer {
         Log.d(TAG, "next tapped")
         io.github.thake.soundnest.host.android.Logbook.log("next asked by $by")
         Haptics.click()
-        if (io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value) { io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.next(); return }
-        if (LocalPlayer.active.value) { LocalPlayer.next(); return }
+        overlayBackends.active()?.let { it.next(); return }
         cancelRepeatOnce("next")
         // Spotify is refusing licences: every skip asks for one more and makes the limit last
         // (a tester's log: 183 refusals in 8 min of fast skipping, the page then skipping on its
         // own through songs it could not play). Nothing is sent until the limit is over.
         if (SoundNestRuntime.host.licenseLimited()) {
-            android.widget.Toast.makeText(Graph.app, io.github.thake.soundnest.R.string.spotify_limited, android.widget.Toast.LENGTH_SHORT).show()
+            PlaybackAlertBus.emitResource(io.github.thake.soundnest.R.string.spotify_limited, longDuration = false)
             return
         }
         intendPlaying()
@@ -1620,8 +1623,7 @@ object SongPlayer {
     fun previous(by: String = "user") {
         io.github.thake.soundnest.host.android.Logbook.log("previous asked by $by")
         Haptics.click()
-        if (io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value) { io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.previous(); return }
-        if (LocalPlayer.active.value) { LocalPlayer.previous(); return }
+        overlayBackends.active()?.let { it.previous(); return }
         cancelRepeatOnce("previous")
         intendPlaying()
         // A previous counts as -1 in the burst. Skips still waiting to be sent (nexts tapped
@@ -1664,8 +1666,7 @@ object SongPlayer {
     /** Shuffle-play a list: Spotify picks the first track of its own shuffled context. */
     fun shufflePlay(songs: List<SongsModel>) {
         if (songs.isEmpty()) return
-        LocalPlayer.stop()
-        io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.stop()
+        overlayBackends.stopAll()
         val ctx = contextRegistry[songs.first().url]
         cancelBurst()
         intendPlaying()
@@ -1785,10 +1786,7 @@ object SongPlayer {
     /** Podcast / Audible audiobook playback speed (Spotify refuses it on music). */
     fun setSpeed(speed: Double) {
         _speed.value = speed
-        if (io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value) {
-            io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.setSpeed(speed)
-            return
-        }
+        if (overlayBackends.active()?.setSpeed(speed) == true) return
         command { api.player.setSpeed(speed) }
     }
 
@@ -1798,10 +1796,7 @@ object SongPlayer {
 
     /** Lands within the episode when skipping: Spotify refuses a position past the end; Audible crosses chapters smoothly. */
     fun skipBy(deltaMs: Long) {
-        if (io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value) {
-            io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.skipBy(deltaMs)
-            return
-        }
+        if (overlayBackends.active()?.skipBy(deltaMs) == true) return
         val duration = getDuration()
         val target = (getCurrentPosition() + deltaMs).coerceAtLeast(0L)
         seekTo(if (duration > 0) target.coerceAtMost(duration - 1_000L) else target)
@@ -1966,8 +1961,7 @@ object SongPlayer {
     private fun seekHeld(uri: String) = uri == seekUri && SystemClock.elapsedRealtime() < seekUntil
 
     fun seekTo(ms: Long) {
-        if (io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value) { io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.seekTo(ms); return }
-        if (LocalPlayer.active.value) { LocalPlayer.seekTo(ms); return }
+        overlayBackends.active()?.let { it.seekTo(ms); return }
         cancelBurst()
         val now = SystemClock.elapsedRealtime()
         positionMs = ms
@@ -2125,7 +2119,7 @@ object SongPlayer {
                         intentUntil = 0
                         onLibraryItem(uri, !on)
                         if (track) likedTaps.tryEmit(trackIdOf(uri) to !on)
-                        android.widget.Toast.makeText(Graph.app, io.github.thake.soundnest.R.string.library_change_failed, android.widget.Toast.LENGTH_SHORT).show()
+                        PlaybackAlertBus.emitResource(io.github.thake.soundnest.R.string.library_change_failed, longDuration = false)
                     }
                 }
             }
@@ -2318,16 +2312,12 @@ object SongPlayer {
     /** Move playback to [device] (Spotify Connect transfer). */
     fun transferTo(device: ConnectDevice) {
         if (io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value) {
-            main.post {
-                android.widget.Toast.makeText(Graph.app, Graph.app.getString(io.github.thake.soundnest.R.string.cast_failed, device.name), android.widget.Toast.LENGTH_LONG).show()
-            }
+            PlaybackAlertBus.emitFormatted(io.github.thake.soundnest.R.string.cast_failed, device.name, longDuration = true)
             return
         }
         if (!io.github.thake.soundnest.feature.speakers.settings.TrustedNetworkGate.isDeviceAllowed(Graph.app, device.id, isSelf = device.isSelf)) {
             io.github.thake.soundnest.host.android.Logbook.log("connect: transfer refused by TrustedNetworkGate")
-            main.post {
-                android.widget.Toast.makeText(Graph.app, Graph.app.getString(io.github.thake.soundnest.R.string.cast_failed, device.name), android.widget.Toast.LENGTH_LONG).show()
-            }
+            PlaybackAlertBus.emitFormatted(io.github.thake.soundnest.R.string.cast_failed, device.name, longDuration = true)
             return
         }
         Haptics.confirm()
@@ -2423,9 +2413,7 @@ object SongPlayer {
         if (device.isSelf || !io.github.thake.soundnest.feature.speakers.connect.ConnectTransferMatcher.matchesChosenRemote(device.id, chosenRemote, device.aliasId)) return
         chosenRemote = null
         _activeDevice.value = null
-        main.post {
-            android.widget.Toast.makeText(Graph.app, Graph.app.getString(io.github.thake.soundnest.R.string.cast_failed, device.name), android.widget.Toast.LENGTH_LONG).show()
-        }
+        PlaybackAlertBus.emitFormatted(io.github.thake.soundnest.R.string.cast_failed, device.name, longDuration = true)
     }
 
     /** Volume (0..100) of the device that plays, as last reported. State: the player's volume bar follows it. */
@@ -2607,8 +2595,7 @@ object SongPlayer {
 
     /** "Clear queue": drops the tracks the user queued (not the context's next ones). */
     fun clearQueue() {
-        if (io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value) return
-        if (LocalPlayer.active.value) { LocalPlayer.clearQueued(); return }
+        overlayBackends.active()?.let { it.clearQueued(); return }
         _queue.value = _queue.value.copy(queued = emptyList())
         command { api.player.clearQueue() }
     }
@@ -2639,7 +2626,7 @@ object SongPlayer {
 
     /** Shows [queued] / [nextUp] at once: the order a drop made, kept while the move that makes it so runs. */
     fun showQueueOrder(queued: List<QueueItem>, nextUp: List<QueueItem>) {
-        if (LocalPlayer.active.value || io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value) return
+        if (overlayBackends.anyActive()) return
         val shown = _queue.value
         if (shown.queued == queued && shown.nextUp == nextUp) return
         if (queueMovesInFlight.get() == 0) staleOrders.clear()
@@ -2762,21 +2749,12 @@ object SongPlayer {
         }
     }
 
-    fun isPlaying(): Boolean = when {
-        io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value -> io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.isPlaying()
-        LocalPlayer.active.value -> LocalPlayer.isPlaying()
-        else -> playing
-    }
+    fun isPlaying(): Boolean = overlayBackends.active()?.isPlaying() ?: playing
 
-    fun getDuration(): Long = when {
-        io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value -> io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.duration()
-        LocalPlayer.active.value -> LocalPlayer.duration()
-        else -> durationMs
-    }
+    fun getDuration(): Long = overlayBackends.active()?.durationMs() ?: durationMs
 
     fun getCurrentPosition(): Long {
-        if (io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value) return io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.position()
-        if (LocalPlayer.active.value) return LocalPlayer.position()
+        overlayBackends.active()?.let { return it.positionMs() }
         val base = positionMs
         if (!playing || isBuffering) return base
         val now = base + (SystemClock.elapsedRealtime() - positionAt)
@@ -2788,12 +2766,7 @@ object SongPlayer {
      * loading (its start, a seek into what is not loaded yet, a stream that does not keep up)
      * stands still too; the lyrics hold meanwhile.
      */
-    fun positionMoving(): Boolean = when {
-        io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value ->
-            io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.isPlaying() && !io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.isBuffering()
-        LocalPlayer.active.value -> LocalPlayer.isPlaying()
-        else -> playing && !isBuffering
-    }
+    fun positionMoving(): Boolean = overlayBackends.active()?.isPositionMoving() ?: (playing && !isBuffering)
 
     /**
      * A tap on a synced lyric line, for the diagnostic: where it jumps, which player plays (and
@@ -2801,12 +2774,8 @@ object SongPlayer {
      */
     fun logLyricJump(targetMs: Long) {
         val log = io.github.thake.soundnest.host.android.Logbook::log
-        val player = when {
-            io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value -> "audible"
-            LocalPlayer.active.value -> "local, ${LocalPlayer.describe()}"
-            _activeDevice.value != null -> "spotify connect"
-            else -> "spotify"
-        }
+        val player = overlayBackends.active()?.describe()
+            ?: if (_activeDevice.value != null) "spotify connect" else "spotify"
         log("lyrics: tap on the line at $targetMs ms, from ${getCurrentPosition()} ms ($player)")
         for (afterMs in longArrayOf(300L, 2_000L)) main.postDelayed({
             log("lyrics: $afterMs ms after the tap to $targetMs ms: at ${getCurrentPosition()} ms" +

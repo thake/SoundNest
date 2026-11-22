@@ -42,6 +42,7 @@ fun App() {
     InviteLinksHost(navController, menuDrawerState)
     GeniusPrefetchHost()
     SpotifyCodeHost()
+    PlaybackAlertHost()
 
     val immersive = io.github.thake.soundnest.core.ui.navigation.isImmersive()
     val haze = if (immersive) io.github.thake.soundnest.core.ui.immersive.shell.rememberImmersiveHazeState() else null
@@ -189,6 +190,23 @@ private fun SpotifyCodeHost() {
     shareTarget?.let { t ->
         io.github.thake.soundnest.feature.player.ui.SpotifyCodeSheet(t) {
             io.github.thake.soundnest.feature.player.ui.SpotifyCode.request.value = null
+        }
+    }
+}
+
+@Composable
+private fun PlaybackAlertHost() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(context) {
+        io.github.thake.soundnest.core.playback.PlaybackAlertBus.alerts.collect { alert ->
+            val text = when (alert) {
+                is io.github.thake.soundnest.core.playback.PlaybackAlert.Resource ->
+                    context.getString(alert.resId)
+                is io.github.thake.soundnest.core.playback.PlaybackAlert.FormattedResource ->
+                    context.getString(alert.resId, alert.arg)
+            }
+            val length = if (alert.longDuration) android.widget.Toast.LENGTH_LONG else android.widget.Toast.LENGTH_SHORT
+            android.widget.Toast.makeText(context.applicationContext, text, length).show()
         }
     }
 }

@@ -64,6 +64,31 @@ object Graph {
         RadioSettings.init(application)
         EqualizerSettings.init(application)
         RadioFavoritesStore.init(application)
+        registerParentalPolicyHooks()
+    }
+
+    private fun registerParentalPolicyHooks() {
+        val store = io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore
+        listOf(
+            io.github.thake.soundnest.feature.speakers.settings.SpeakersSettings,
+            RadioSettings,
+            LocalFilesSettings,
+            AutoMixSettings,
+            LyricsSettings,
+            GeniusSettings,
+            LyricsTranslationSettings,
+            io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer,
+            PlaybackSettings,
+            io.github.thake.soundnest.feature.home.whatsnew.settings.NewReleaseNotifier,
+            HideDjPref,
+        ).forEach(store::registerPolicySynced)
+        store.registerCacheInvalidator {
+            Api.HomeCache.home = null
+            Api.HomeCache.facets.clear()
+            Api.HomeCache.library = null
+            Api.HomeCache.libraryRoot = null
+            Api.HomeCache.folders.clear()
+        }
     }
 
     val api: Api by lazy { Api(app) }

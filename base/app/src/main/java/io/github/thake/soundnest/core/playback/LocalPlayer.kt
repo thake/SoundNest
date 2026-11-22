@@ -274,12 +274,12 @@ object LocalPlayer {
         when (errors.failed(uri.toString(), p.hasNextMediaItem())) {
             StreamErrors.Step.SKIP -> {
                 log("skipped ${t.title}: its file is gone")
-                android.widget.Toast.makeText(Graph.app, Graph.app.getString(io.github.thake.soundnest.R.string.song_unavailable_skipped, t.title), android.widget.Toast.LENGTH_SHORT).show()
+                PlaybackAlertBus.emitFormatted(io.github.thake.soundnest.R.string.song_unavailable_skipped, t.title, longDuration = false)
                 p.seekToNextMediaItem(); p.prepare(); p.play()
             }
             else -> {
                 log("stopped on ${t.title}: its file is gone, and the songs after it failed too or none follows")
-                android.widget.Toast.makeText(Graph.app, Graph.app.getString(io.github.thake.soundnest.R.string.song_unavailable, t.title), android.widget.Toast.LENGTH_LONG).show()
+                PlaybackAlertBus.emitFormatted(io.github.thake.soundnest.R.string.song_unavailable, t.title, longDuration = true)
             }
         }
     }
@@ -1826,14 +1826,14 @@ object LocalPlayer {
         if (RadioReconnectController.isRetryableNetworkError(error.errorCode, status)) return reconnectRadio(p, t)
         radioReconnect.reset()
         log("${t.title}: not reconnected, the stream itself failed (${error.errorCodeName})")
-        android.widget.Toast.makeText(Graph.app, Graph.app.getString(io.github.thake.soundnest.R.string.song_unavailable, t.title), android.widget.Toast.LENGTH_LONG).show()
+        PlaybackAlertBus.emitFormatted(io.github.thake.soundnest.R.string.song_unavailable, t.title, longDuration = true)
     }
 
     private fun reconnectRadio(p: ExoPlayer, t: LocalTrack) {
         val attempt = radioReconnect.nextAttempt()
         if (attempt == null) {
             log("${t.title}: gave up reconnecting after repeated failures")
-            android.widget.Toast.makeText(Graph.app, Graph.app.getString(io.github.thake.soundnest.R.string.song_unavailable, t.title), android.widget.Toast.LENGTH_LONG).show()
+            PlaybackAlertBus.emitFormatted(io.github.thake.soundnest.R.string.song_unavailable, t.title, longDuration = true)
             return
         }
         log("${t.title}: stream dropped, reconnecting in ${attempt.delayMs}ms (try ${attempt.attemptNumber}/${radioReconnect.maxTries})")

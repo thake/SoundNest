@@ -6,30 +6,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
-import io.github.thake.soundnest.core.catalog.Api
 import io.github.thake.soundnest.core.di.Graph
 import io.github.thake.soundnest.core.preferences.PolicySyncedSetting
 import io.github.thake.soundnest.core.preferences.featurePrefs
-import io.github.thake.soundnest.feature.home.settings.HideDjPref
 import io.github.thake.soundnest.feature.home.settings.HomeParentalPolicy
-import io.github.thake.soundnest.feature.home.whatsnew.settings.NewReleaseNotifier
 import io.github.thake.soundnest.feature.library.settings.LibraryParentalPolicy
-import io.github.thake.soundnest.feature.localfiles.automix.settings.AutoMixSettings
 import io.github.thake.soundnest.feature.localfiles.settings.LocalFilesParentalPolicy
-import io.github.thake.soundnest.feature.localfiles.settings.LocalFilesSettings
-import io.github.thake.soundnest.feature.lyrics.genius.settings.GeniusSettings
 import io.github.thake.soundnest.feature.lyrics.settings.LyricsParentalPolicy
-import io.github.thake.soundnest.feature.lyrics.settings.LyricsSettings
-import io.github.thake.soundnest.feature.lyrics.translation.settings.LyricsTranslationSettings
 import io.github.thake.soundnest.feature.parental.schedule.ScheduleParentalPolicy
 import io.github.thake.soundnest.feature.player.settings.PlaybackParentalPolicy
-import io.github.thake.soundnest.feature.player.settings.PlaybackSettings
 import io.github.thake.soundnest.feature.radio.settings.RadioParentalPolicy
-import io.github.thake.soundnest.feature.radio.settings.RadioSettings
 import io.github.thake.soundnest.feature.speakers.settings.SpeakersParentalPolicy
-import io.github.thake.soundnest.feature.speakers.settings.SpeakersSettings
 import io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris
-import io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer
 import io.github.thake.soundnest.feature.spokenword.settings.SpokenWordParentalPolicy
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -225,30 +213,36 @@ object ParentalPolicyStore {
         _revision.value++
     }
 
-    private val policySyncedSettings: List<PolicySyncedSetting> = listOf(
-        SpeakersSettings,
-        RadioSettings,
-        LocalFilesSettings,
-        AutoMixSettings,
-        LyricsSettings,
-        GeniusSettings,
-        LyricsTranslationSettings,
-        AudiblePlayer,
-        PlaybackSettings,
-        NewReleaseNotifier,
-        HideDjPref,
-    )
+    private val policySyncedSettings = java.util.concurrent.CopyOnWriteArrayList<PolicySyncedSetting>()
+    private val cacheInvalidators = java.util.concurrent.CopyOnWriteArrayList<() -> Unit>()
+
+    /**
+     * Registers a feature-level [PolicySyncedSetting] to be notified whenever the policy is
+     * loaded or updated (wired from [Graph.init]). Idempotent.
+     */
+    fun registerPolicySynced(setting: PolicySyncedSetting) {
+        if (setting !in policySyncedSettings) policySyncedSettings.add(setting)
+    }
+
+    /**
+     * Registers a cache invalidation hook to run whenever the policy changes (wired from [Graph.init]).
+     * Idempotent.
+     */
+    fun registerCacheInvalidator(invalidator: () -> Unit) {
+        if (invalidator !in cacheInvalidators) cacheInvalidators.add(invalidator)
+    }
+
+    internal fun clearRegistrationsForTests() {
+        policySyncedSettings.clear()
+        cacheInvalidators.clear()
+    }
 
     private fun syncRuntimeFlags(context: Context, policy: ParentalPolicy) {
         policySyncedSettings.forEach { setting ->
             runCatching { setting.enforcePolicy(context, policy) }
         }
-        runCatching {
-            Api.HomeCache.home = null
-            Api.HomeCache.facets.clear()
-            Api.HomeCache.library = null
-            Api.HomeCache.libraryRoot = null
-            Api.HomeCache.folders.clear()
+        cacheInvalidators.forEach { invalidate ->
+            runCatching { invalidate() }
         }
     }
 
