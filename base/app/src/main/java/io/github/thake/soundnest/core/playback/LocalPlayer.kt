@@ -231,7 +231,7 @@ object LocalPlayer {
             if (isPlaying) tick.run()
             // A station that plays on for a while has its reconnect tries back (see reconnectRadio).
             handler.removeCallbacks(radioSteady)
-            if (isPlaying && current()?.isRadio == true) handler.postDelayed(radioSteady, RADIO_STEADY_MS)
+            if (isPlaying && current()?.isRadio == true) handler.postDelayed(radioSteady, RadioReconnectController.STEADY_MS)
         }
         override fun onPlaybackSuppressionReasonChanged(reason: Int) =
             log("suppressed: ${if (reason == Player.PLAYBACK_SUPPRESSION_REASON_NONE) "no" else "reason $reason"}")
@@ -300,7 +300,7 @@ object LocalPlayer {
         SongPlayer.pauseEngineForLocal()
         // A station is a queue of its own: its reconnect tries start afresh.
         val isStation = list.singleOrNull()?.isRadio == true
-        radioRetries = 0; handler.removeCallbacks(radioSteady)
+        radioReconnect.reset(); handler.removeCallbacks(radioSteady)
         tracks.clear(); tracks.addAll(list); unshuffled = null
         // An index kept from fading belonged to the list before: this one fades from its first song.
         noFadeFor = -1
@@ -1815,47 +1815,33 @@ object LocalPlayer {
     /**
      * A live stream drops often (a weak connection, the server's own hiccup): reconnected instead
      * of left stopped, a few times with a growing pause between tries. The tries come back only
-     * once a reconnect has played [RADIO_STEADY_MS] in a row ([radioSteady]): a stream that starts
-     * and drops at once gives up after [RADIO_TRIES] instead of retrying every second for good.
+     * once a reconnect has played [RadioReconnectController.STEADY_MS] in a row ([radioSteady]).
      */
-    private var radioRetries = 0
-    private const val RADIO_TRIES = 5
-    private const val RADIO_STEADY_MS = 30_000L
-    private val radioSteady = Runnable { radioRetries = 0 }
+    private val radioReconnect = RadioReconnectController()
+    private val radioSteady = Runnable { radioReconnect.reset() }
 
     /** Only a network failure is worth a reconnect: a stream the player cannot read stays as it is the next time. */
     private fun radioError(p: ExoPlayer, t: LocalTrack, error: androidx.media3.common.PlaybackException) {
         val status = (error.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.responseCode
-        val network = when (error.errorCode) {
-            androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
-            androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
-            androidx.media3.common.PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
-            androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT -> true
-            // The station's server busy or restarting (5xx), not a stream that is gone (404).
-            androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> status != null && status >= 500
-            else -> false
-        }
-        if (network) return reconnectRadio(p, t)
-        radioRetries = 0
+        if (RadioReconnectController.isRetryableNetworkError(error.errorCode, status)) return reconnectRadio(p, t)
+        radioReconnect.reset()
         log("${t.title}: not reconnected, the stream itself failed (${error.errorCodeName})")
         android.widget.Toast.makeText(Graph.app, Graph.app.getString(io.github.thake.soundnest.R.string.song_unavailable, t.title), android.widget.Toast.LENGTH_LONG).show()
     }
 
     private fun reconnectRadio(p: ExoPlayer, t: LocalTrack) {
-        if (radioRetries >= RADIO_TRIES) {
-            radioRetries = 0
+        val attempt = radioReconnect.nextAttempt()
+        if (attempt == null) {
             log("${t.title}: gave up reconnecting after repeated failures")
             android.widget.Toast.makeText(Graph.app, Graph.app.getString(io.github.thake.soundnest.R.string.song_unavailable, t.title), android.widget.Toast.LENGTH_LONG).show()
             return
         }
-        radioRetries++
-        val delayMs = (1000L shl (radioRetries - 1)).coerceAtMost(16_000L)
-        log("${t.title}: stream dropped, reconnecting in ${delayMs}ms (try $radioRetries/$RADIO_TRIES)")
+        log("${t.title}: stream dropped, reconnecting in ${attempt.delayMs}ms (try ${attempt.attemptNumber}/${radioReconnect.maxTries})")
         handler.postDelayed({
             // Paused meanwhile: it reconnects when the user plays it again, not by itself. Loaded
             // again where it is: songs queued after it stay in the player as in [tracks].
             if (exo === p && current() === t && p.playWhenReady) { p.seekTo(p.currentMediaItemIndex, 0L); p.prepare(); p.play() }
-        }, delayMs)
+        }, attempt.delayMs)
     }
 
     fun isPlaying() = if (CastPlayback.active) CastPlayback.isPlaying() else exo?.isPlaying == true
