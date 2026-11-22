@@ -50,7 +50,7 @@ class Palette {
     fun extractFirstColorFromImageUrl(context: Context, imageUrl: String, onColorExtracted: (Color) -> Unit) {
         val key = "1|$imageUrl"
         colors[key]?.let { onColorExtracted(it); return }
-        Glide.with(context)
+        Glide.with(context.applicationContext)
             .asBitmap()
             .load(imageUrl)
             .override(COVER_DECODE_PX, COVER_DECODE_PX)
@@ -77,18 +77,17 @@ class Palette {
     fun extractSecondColorFromCoverUrl(context: Context, imageUrl: String, onColorExtracted: (Color) -> Unit) {
         val key = "2|$imageUrl"
         colors[key]?.let { onColorExtracted(it); return }
-        Glide.with(context)
+        Glide.with(context.applicationContext)
             .asBitmap()
             .load(imageUrl)
             .override(COVER_DECODE_PX, COVER_DECODE_PX)
             .disallowHardwareConfig()
             .into(object : CustomTarget<Bitmap>() {
                 override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
-                    // A palette needs no detail: 50 px keeps the scaling (and its allocation) small.
-                    val scaledBitmap = Bitmap.createScaledBitmap(resource, 50, 50, true)
-
+                    // Palette downscales on its background worker thread (avoiding main-thread Bitmap.createScaledBitmap).
                     Palette
-                        .from(scaledBitmap)
+                        .from(resource)
+                        .resizeBitmapArea(50 * 50)
                         .generate { palette ->
                         val lightVibrantColor = palette?.let { it.mutedSwatch ?: it.darkMutedSwatch ?: it.dominantSwatch ?: it.vibrantSwatch }?.rgb
                         lightVibrantColor?.let {

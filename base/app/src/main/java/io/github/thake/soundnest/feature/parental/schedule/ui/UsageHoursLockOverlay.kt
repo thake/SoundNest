@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 package io.github.thake.soundnest.feature.parental.schedule.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -51,12 +52,21 @@ fun UsageHoursLockOverlay() {
     val state by ParentalScheduleController.state.collectAsState()
     if (!state.isLockedByUsageHours) return
 
+    BackHandler(enabled = true) {}
+
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .fillMaxSize()
             .background(AppBackground.copy(alpha = 0.98f))
-            .pointerInput(Unit) {}
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        event.changes.forEach { it.consume() }
+                    }
+                }
+            }
             .systemBarsPadding()
             .padding(horizontal = 32.dp)
             .testTag("usage_hours_lock_overlay"),

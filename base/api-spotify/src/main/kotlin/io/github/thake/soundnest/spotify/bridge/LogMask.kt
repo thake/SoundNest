@@ -19,7 +19,7 @@ object LogMask {
     private val address = Regex("[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}")
 
     /** A run this long without a space is a token or a blob, never a title or an id (a track id has 22 characters). */
-    private val blob = Regex("[A-Za-z0-9_=.-]{120,}")
+    private val blob = Regex("[A-Za-z0-9_=./+~-]{120,}")
 
     /** [text] with its secrets replaced by "(hidden)". */
     fun redact(text: String): String {

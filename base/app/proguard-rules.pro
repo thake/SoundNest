@@ -15,24 +15,7 @@
 -keepattributes *Annotation*,JavascriptInterface,SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
 
--keep class com.google.firebase.** { *; }
--keep class com.google.android.gms.** { *; }
--keep class com.google.protobuf.** { *; }
--keep class com.google.protos.** { *; }
--keep class ** extends com.google.protobuf.GeneratedMessageLite { *; }
--keep class ** extends com.google.protobuf.GeneratedMessage { *; }
--keepclassmembers class ** extends com.google.protobuf.GeneratedMessageLite {
-    <fields>;
-}
--keepclassmembers class ** extends com.google.protobuf.GeneratedMessage {
-    <fields>;
-}
-
 -dontwarn java.lang.instrument.**
-
--keep class androidx.work.** {
-    <init>(...);
-}
 
 # SoundNest UI & Spotify data layer
 -keep class io.github.thake.soundnest.core.model.** { *; }

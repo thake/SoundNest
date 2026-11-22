@@ -438,20 +438,23 @@ class Api constructor(
         cached?.let { emit(Response.Success(filterFeed(it, p))) } ?: emit(Response.Loading())
         if (!ready()) { if (cached == null) emit(Response.Error(notSignedIn())); return@flow }
         // Any facet Spotify offers: a top chip, or one opened beside it (Music > Following).
-        runCatching { api.home.feed(facet, itemsPerShelf = 20) }.fold(
-            onSuccess = { feed ->
-                io.github.thake.soundnest.core.model.HomeSubChips.learn(feed.chips)
-                val sections = feed.shelves.mapNotNull { shelf ->
-                    val items = shelf.items.distinctBy { it.uri }.mapNotNull { homeItem(it, p) }
-                        .distinctBy { it::class.simpleName + "|" + it.name.lowercase() }
-                    if (items.isEmpty()) null else HomeSection(title = shelf.title.orEmpty(), items = items, uri = shelf.uri.orEmpty())
-                }.distinctBy { it.uri.ifBlank { it.title.lowercase().ifBlank { it.hashCode().toString() } } }
-                val model = HomeFeedModel(greeting = feed.greeting, sections = sections)
-                if (facet.isEmpty()) { HomeCache.home = model; ScreenCache.home.write(model) } else HomeCache.facets[facet] = model
-                emit(Response.Success(model))
-            },
-            onFailure = { Log.e("Api", "getHomeFeed failed", it); if (cached == null) emit(Response.Error(it.message ?: "error")) },
-        )
+        try {
+            val feed = api.home.feed(facet, itemsPerShelf = 20)
+            io.github.thake.soundnest.core.model.HomeSubChips.learn(feed.chips)
+            val sections = feed.shelves.mapNotNull { shelf ->
+                val items = shelf.items.distinctBy { it.uri }.mapNotNull { homeItem(it, p) }
+                    .distinctBy { it::class.simpleName + "|" + it.name.lowercase() }
+                if (items.isEmpty()) null else HomeSection(title = shelf.title.orEmpty(), items = items, uri = shelf.uri.orEmpty())
+            }.distinctBy { it.uri.ifBlank { it.title.lowercase().ifBlank { it.hashCode().toString() } } }
+            val model = HomeFeedModel(greeting = feed.greeting, sections = sections)
+            if (facet.isEmpty()) { HomeCache.home = model; ScreenCache.home.write(model) } else HomeCache.facets[facet] = model
+            emit(Response.Success(model))
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Log.e("Api", "getHomeFeed failed", e)
+            if (cached == null) emit(Response.Error(e.message ?: "error"))
+        }
     }
 
     // ── Search ──
@@ -461,10 +464,15 @@ class Api constructor(
         if (query.isBlank()) { emit(Response.Success(emptyList())); return@flow }
         if (!ready()) { emit(Response.Error(notSignedIn())); return@flow }
         val p = policy()
-        runCatching { api.search.tracks(query, limit = 30).items.map(::songOf).filter { io.github.thake.soundnest.feature.parental.filter.ParentalFilterEngine.isTrackAllowed(it, p) } }.fold(
-            onSuccess = { emit(Response.Success(it)) },
-            onFailure = { Log.e("Api", "searchTracks failed", it); emit(Response.Error(it.message ?: "error")) },
-        )
+        try {
+            val result = api.search.tracks(query, limit = 30).items.map(::songOf).filter { io.github.thake.soundnest.feature.parental.filter.ParentalFilterEngine.isTrackAllowed(it, p) }
+            emit(Response.Success(result))
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Log.e("Api", "searchTracks failed", e)
+            emit(Response.Error(e.message ?: "error"))
+        }
     }
 
     /** Tracks, albums, artists and playlists in parallel, then podcasts and episodes. */

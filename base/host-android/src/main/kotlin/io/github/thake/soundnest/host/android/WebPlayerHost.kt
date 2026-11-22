@@ -68,7 +68,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
      * (reload, replay) asked again. A storm of them ends playback here for a while (growing on
      * repeats) instead of feeding it; [licenseLimitedUntil] tells the app and the player.
      */
-    @Volatile private var heldLicenses = 0
+    private val heldLicenses = java.util.concurrent.atomic.AtomicInteger(0)
     @Volatile private var licenseAnswersLogged = 0
     private val license429 = ArrayDeque<Long>()
     private var limitStreak = 0
@@ -98,7 +98,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
         limitStreak++
         license429.clear()
         Logbook.log("Spotify is limiting audio licences (429 x$LIMIT_COUNT in ${LIMIT_WINDOW_MS / 1000} s): playback held ${hold / 1000} s")
-        heldLicenses = 0
+        heldLicenses.set(0)
         _licenseLimitedUntil.value = now + hold
     }
 
@@ -196,7 +196,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
         }
     }
 
-    private lateinit var relay: ControlRelay
+    @Volatile private lateinit var relay: ControlRelay
 
     /** The guarded fallback channel of the bridge's messages, when the WebView has no web message listener. */
     private var hostChannel: PlayerChannel? = null
@@ -295,6 +295,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
         // The page plays the audio: its renderer keeps its priority when the screen is off.
         setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false)
         // Playback control requests leave from the app, without the WebView's X-Requested-With.
+        if (::relay.isInitialized) relay.dispose()
         relay = ControlRelay(this, fingerprint).also {
             it.onDeviceRegistered = { drmAsked = true; main.removeCallbacks(drmWatch) }
             // An idle page starting to play by itself (a transfer from another device): awake at
@@ -338,7 +339,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
                 // answer has for the page (log seen, 2.0.2-beta.5: without them the page read a CORS
                 // failure, status 0, not a 429) and the hold's time left.
                 if (request.method == "POST" && licenseLimited() && url.contains(LICENSE_PATH)) {
-                    if (heldLicenses++ == 0) Logbook.log("audio licence requests answered here while Spotify is limiting")
+                    if (heldLicenses.getAndIncrement() == 0) Logbook.log("audio licence requests answered here while Spotify is limiting")
                     io.github.thake.soundnest.spotify.report.Refusal402.licenceHeld()
                     val left = ((_licenseLimitedUntil.value - android.os.SystemClock.elapsedRealtime()) / 1000).coerceAtLeast(1)
                     val headers = mapOf(
@@ -353,8 +354,8 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
                 // "the login is stuck" into the exact request that failed (with the status from
                 // onReceivedHttpError below). Reported as B37 and unprovable without this trail.
                 if (url.startsWith("https://accounts.spotify.com/")) {
-                    loginSteps++
-                    Logbook.log("login step #$loginSteps ${request.method} ${url.substringAfter("accounts.spotify.com").substringBefore('?').take(90)}")
+                    val step = loginSteps.incrementAndGet()
+                    Logbook.log("login step #$step ${request.method} ${url.substringAfter("accounts.spotify.com").substringBefore('?').take(90)}")
                 }
                 // The music itself: fetched here, so the WebView's own package-name header never
                 // travels with it (see MediaProxy).
@@ -557,7 +558,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
     private var pageStarts = 0
 
     /** Sign-in requests seen (accounts.spotify.com): a trail for a login that goes nowhere. */
-    private var loginSteps = 0
+    private val loginSteps = java.util.concurrent.atomic.AtomicInteger(0)
     /** [load] was called and no [unload] since (data saver keeps the page off). */
     private var loadAsked = false
 
@@ -736,7 +737,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
         var finished = false
         val finish = { if (!finished) { finished = true; done() } }
         val url = _url.value
-        Logbook.log("report asked from the sign-in: ${Logbook.noQuery(url).take(120)} load=${_loginLoad.value} steps=$loginSteps")
+        Logbook.log("report asked from the sign-in: ${Logbook.noQuery(url).take(120)} load=${_loginLoad.value} steps=${loginSteps.get()}")
         if (!isLoginPage(url) && !LoginLoad.isSpotifyAccounts(url)) { finish(); return@post }
         main.postDelayed({ finish() }, 1_500)
         view.evaluateJavascript(LOGIN_PAGE_STATE_JS) { answer ->

@@ -443,15 +443,16 @@ class AudibleApiClient(
                     },
                 )
             }
-            val root = json.parseToJsonElement(raw).jsonObject
-            val licenseB64 = root["license"]?.jsonPrimitive?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
-                ?: root["drm_license"]?.jsonPrimitive?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
-                ?: root["content_license"]?.jsonObject?.get("license_response")?.jsonPrimitive?.contentOrNull
+            val root = runCatching { json.parseToJsonElement(raw) as? JsonObject }.getOrNull()
+                ?: throw AudibleApiException(resp.code, "Invalid JSON in drmlicense response")
+            val licenseB64 = (root["license"] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+                ?: (root["drm_license"] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+                ?: ((root["content_license"] as? JsonObject)?.get("license_response") as? JsonPrimitive)?.contentOrNull
                     ?.trim()
                     ?.takeIf { it.isNotEmpty() && !it.startsWith("http", ignoreCase = true) }
             if (licenseB64 == null) {
-                val errMsg = root["message"]?.jsonPrimitive?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
-                    ?: root["reason"]?.jsonPrimitive?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+                val errMsg = (root["message"] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+                    ?: (root["reason"] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
                 throw AudibleApiException(
                     resp.code,
                     buildString {
@@ -460,7 +461,9 @@ class AudibleApiClient(
                     },
                 )
             }
-            Base64.getMimeDecoder().decode(licenseB64)
+            runCatching { Base64.getMimeDecoder().decode(licenseB64) }.getOrElse { e ->
+                throw AudibleApiException(resp.code, "Malformed base64 license in drmlicense response", e)
+            }
         }
     }
 

@@ -324,8 +324,6 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
                 // song before an ad resumed next to the mirror's).
                 val own = ownReload
                 val mirrored = mirroring
-                // A new page forgot it was unheard (a mirror): told again before it plays on.
-                if (localMuted) { quietUri = null; applyQuiet() }
                 // A pick held over a reload that was not ours, or whose own play did not run: played now.
                 when (PageRecoveryRules.pageBack(own, mirrored, pickAfterReload != null, lost != null, liveIntent() != null)) {
                     PageRecoveryRules.PageBack.MIRROR -> {
@@ -818,7 +816,6 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
             val s = _state.value
             preloadNextSong(s, media)
             tickCrossfade(s, media, now)
-            if (localMuted && s?.item?.uri != quietUri) { quietUri = s?.item?.uri; applyQuiet() }
             if (tick % VOLUME_CHECK_TICKS == 0) guardVolume(s, media)
             if (!_adPlaying.value) remoteAdLogged = false
             if (_adPlaying.value) {
@@ -948,7 +945,7 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
         }
         if (media?.muted == true) {
             bridge.logger?.invoke("media element muted during a song: unmuted")
-            applyQuiet()
+            unmuteMedia()
         }
         val wanted = wantedVolume ?: 1.0
         if (wanted <= 0.0) return
@@ -963,7 +960,7 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
         }
         // A fade that never came back: the element back to the page player's own volume.
         // (Not while the page is unheard on purpose.)
-        if (!localMuted && media != null && media.active != false && media.own > 0.001 && media.level < media.own * 0.5) {
+        if (media != null && media.active != false && media.own > 0.001 && media.level < media.own * 0.5) {
             bridge.logger?.invoke("page player silent during a song: level ${media.level} back to ${media.own}")
             runCatching { restoreLevel() }
         }
@@ -1543,24 +1540,8 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
         }
     }
 
-    /**
-     * An extension plays the song itself and only mirrors it here (to count the listen): the page
-     * keeps playing, unheard. Sent again on a new song, whose element can change.
-     */
-    override suspend fun setLocalMute(on: Boolean) {
-        localMuted = on
-        quietUri = if (on) _state.value?.item?.uri else null
-        applyQuiet()
-    }
-
-    override val localMute: Boolean get() = localMuted
-
-    @Volatile private var localMuted = false
-    /** The song [localMuted] was last sent for: a new one is told again (its element can change). */
-    @Volatile private var quietUri: String? = null
-
-    private suspend fun applyQuiet() {
-        runCatching { bridge.call("media.quiet", buildJsonObject { put("on", localMuted) }) }
+    private suspend fun unmuteMedia() {
+        runCatching { bridge.call("media.quiet", buildJsonObject { put("on", false) }) }
     }
 
     /**
@@ -1947,7 +1928,7 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
             reloadAndPlayOn(stale.copy(isPaused = false, timestampMs = clock()), next = false)
             return
         }
-        val quiet = _adPlaying.value || localMuted || crossfadeArmed || _state.value?.isPaused == false || lastMedia?.active == false
+        val quiet = _adPlaying.value || crossfadeArmed || _state.value?.isPaused == false || lastMedia?.active == false
         if (quiet) { command("player.resume"); return }
         fadeBackTo = lastMedia?.own?.takeIf { it > 0.01 } ?: 1.0
         fadeBack?.cancel()

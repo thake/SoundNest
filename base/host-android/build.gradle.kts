@@ -29,10 +29,10 @@ dependencies {
     implementation(libs.okhttp.brotli)
     implementation(libs.okhttp.zstd)
     implementation(libs.play.services.cronet)
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
+    implementation(libs.coroutines.android)
 
-    testImplementation("junit:junit:4.13.2")
+    testImplementation(libs.junit4)
     // The real org.json in unit tests (android.jar only has stubs).
-    testImplementation("org.json:json:20240303")
-    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation(libs.org.json)
+    testImplementation(libs.robolectric)
 }

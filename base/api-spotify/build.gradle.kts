@@ -18,7 +18,7 @@ dependencies {
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     // Virtual time for the listen sync's timers.
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test-jvm:1.11.0")
+    testImplementation(libs.coroutines.test.jvm)
     testRuntimeOnly(libs.junit.launcher)
 }
 

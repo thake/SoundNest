@@ -196,10 +196,28 @@ fun MyNavHost(
         }
 
         page(Routes.ParentHub.route) {
-            io.github.thake.soundnest.feature.parental.remote.ui.ParentHubScreen(
-                isDedicatedMode = false,
-                onBack = { navHostController.popBackStack() },
-            )
+            val tick by io.github.thake.soundnest.feature.parental.security.ParentSecurityManager.sessionTick.collectAsState()
+            val unlocked = androidx.compose.runtime.remember(tick) {
+                io.github.thake.soundnest.feature.parental.security.ParentSecurityManager.canAccessWithoutPrompt(
+                    context,
+                    io.github.thake.soundnest.feature.parental.security.AppSurface.PARENT_CONTROLS,
+                )
+            }
+            LaunchedEffect(unlocked) {
+                if (!unlocked) {
+                    navHostController.popBackStack()
+                    io.github.thake.soundnest.feature.parental.security.ParentSecurityManager.runProtected(
+                        context,
+                        io.github.thake.soundnest.feature.parental.security.AppSurface.PARENT_CONTROLS,
+                    ) { navHostController.navigate(Routes.ParentHub.route) }
+                }
+            }
+            if (unlocked) {
+                io.github.thake.soundnest.feature.parental.remote.ui.ParentHubScreen(
+                    isDedicatedMode = false,
+                    onBack = { navHostController.popBackStack() },
+                )
+            }
         }
 
         page(Routes.About.route) {

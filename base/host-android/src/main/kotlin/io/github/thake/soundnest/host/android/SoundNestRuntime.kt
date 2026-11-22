@@ -274,13 +274,75 @@ object SoundNestRuntime {
     fun suspendPlayer() { pageHeld = true; host.unload() }
     fun resume() { pageHeld = false; if (pageWanted) host.load() }
 
-    /** The client token of each client device id, in the app's own files (spotify/client-token-<id>). */
+    /** The client token of each client device id, in the app's own files (spotify/client-token-<id>). Web OAuth tokens are encrypted at rest via Android Keystore AES-GCM. */
     private fun clientTokens(context: Context) = object : io.github.thake.soundnest.spotify.gql.ClientTokenStore {
+        private val KEY_ALIAS = "soundnest_spotify_web_token"
+        private val ENC_PREFIX = "enc:v1:"
+
         private fun file(id: String) = java.io.File(context.filesDir, "spotify/client-token-" + id.filter { it.isLetterOrDigit() || it == '-' })
-        override fun load(deviceId: String): String? = runCatching { file(deviceId).readText() }.getOrNull()
+
+        private fun getOrCreateKey(): javax.crypto.SecretKey? = runCatching {
+            val ks = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+            (ks.getKey(KEY_ALIAS, null) as? javax.crypto.SecretKey) ?: run {
+                val kg = javax.crypto.KeyGenerator.getInstance(
+                    android.security.keystore.KeyProperties.KEY_ALGORITHM_AES,
+                    "AndroidKeyStore",
+                )
+                kg.init(
+                    android.security.keystore.KeyGenParameterSpec.Builder(
+                        KEY_ALIAS,
+                        android.security.keystore.KeyProperties.PURPOSE_ENCRYPT or android.security.keystore.KeyProperties.PURPOSE_DECRYPT,
+                    )
+                        .setBlockModes(android.security.keystore.KeyProperties.BLOCK_MODE_GCM)
+                        .setEncryptionPaddings(android.security.keystore.KeyProperties.ENCRYPTION_PADDING_NONE)
+                        .setKeySize(256)
+                        .build(),
+                )
+                kg.generateKey()
+            }
+        }.getOrNull()
+
+        private fun encrypt(plain: String): String {
+            if (plain.isEmpty()) return ""
+            val key = getOrCreateKey() ?: return plain
+            return runCatching {
+                val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+                cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, key)
+                val iv = cipher.iv
+                val ct = cipher.doFinal(plain.toByteArray(Charsets.UTF_8))
+                val packed = ByteArray(1 + iv.size + ct.size)
+                packed[0] = iv.size.toByte()
+                System.arraycopy(iv, 0, packed, 1, iv.size)
+                System.arraycopy(ct, 0, packed, 1 + iv.size, ct.size)
+                ENC_PREFIX + android.util.Base64.encodeToString(packed, android.util.Base64.NO_WRAP)
+            }.getOrDefault(plain)
+        }
+
+        private fun decrypt(stored: String): String? {
+            if (!stored.startsWith(ENC_PREFIX)) return stored
+            val key = getOrCreateKey() ?: return null
+            return runCatching {
+                val packed = android.util.Base64.decode(stored.removePrefix(ENC_PREFIX), android.util.Base64.NO_WRAP)
+                if (packed.size < 14) return null
+                val ivLen = packed[0].toInt() and 0xFF
+                if (ivLen < 12 || packed.size <= 1 + ivLen) return null
+                val iv = packed.copyOfRange(1, 1 + ivLen)
+                val ct = packed.copyOfRange(1 + ivLen, packed.size)
+                val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+                cipher.init(javax.crypto.Cipher.DECRYPT_MODE, key, javax.crypto.spec.GCMParameterSpec(128, iv))
+                String(cipher.doFinal(ct), Charsets.UTF_8)
+            }.getOrNull()
+        }
+
+        override fun load(deviceId: String): String? = runCatching {
+            val raw = file(deviceId).readText()
+            if (deviceId.endsWith("-web")) decrypt(raw) else raw
+        }.getOrNull()
+
         override fun save(deviceId: String, text: String) {
             val f = file(deviceId)
-            runCatching { f.parentFile?.mkdirs(); val tmp = java.io.File(f.path + ".tmp"); tmp.writeText(text); tmp.renameTo(f) }
+            val toWrite = if (deviceId.endsWith("-web")) encrypt(text) else text
+            runCatching { f.parentFile?.mkdirs(); val tmp = java.io.File(f.path + ".tmp"); tmp.writeText(toWrite); tmp.renameTo(f) }
         }
     }
 

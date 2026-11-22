@@ -1347,6 +1347,9 @@ object LocalPlayer {
     private const val FADE_READY_MS = 1_500L
     private const val FADE_READY_METERED_MS = 4_000L
 
+    private var preparingOut: ExoPlayer? = null
+    private var fadeReadyTimeout: Runnable? = null
+
     private fun beginFade(p: ExoPlayer) {
         val item = p.currentMediaItem ?: return
         val index = p.currentMediaItemIndex
@@ -1355,13 +1358,14 @@ object LocalPlayer {
         if (fade < 500) return
         preparingFade = true
         val out = build(false)
+        preparingOut = out
         out.volume = 1f
         // The copy starts a little ahead of the main player: it is heard once it is ready.
         out.setMediaItem(item, p.currentPosition + 300)
         out.addListener(object : Player.Listener {
             private var aligned = false
             override fun onPlaybackStateChanged(state: Int) {
-                if (state != Player.STATE_READY || exo == null) return
+                if (state != Player.STATE_READY || exo == null || preparingOut !== out) return
                 val main = exo ?: return
                 // Ready later than its lead (an extension's stream opened at an offset can take a
                 // second): started there, the copy would play again what was just heard. Moved
@@ -1372,6 +1376,9 @@ object LocalPlayer {
                     return
                 }
                 out.removeListener(this)
+                fadeReadyTimeout?.let(handler::removeCallbacks)
+                fadeReadyTimeout = null
+                preparingOut = null
                 preparingFade = false
                 if (!active.value || main.currentMediaItemIndex != index || !main.playWhenReady || !canFade(main)) return out.release()
                 // What is left of the song now, not when the copy was asked for: a longer fade would
@@ -1391,7 +1398,13 @@ object LocalPlayer {
             }
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 // Could not start the copy: this song ends as usual.
-                preparingFade = false; noFadeFor = index; out.release()
+                if (preparingOut === out) {
+                    fadeReadyTimeout?.let(handler::removeCallbacks)
+                    fadeReadyTimeout = null
+                    preparingOut = null
+                    preparingFade = false
+                }
+                noFadeFor = index; out.release()
             }
         })
         out.prepare()
@@ -1400,17 +1413,26 @@ object LocalPlayer {
         // heard there ("crossfade only works on Wi-Fi", B12). Longer on a metered network (the fade
         // starts later and is shorter, see its length above), and said in the log.
         val ready = if (io.github.thake.soundnest.feature.system.settings.DataSaver.metered) FADE_READY_METERED_MS else FADE_READY_MS
-        handler.postDelayed({
-            if (preparingFade && outgoing == null) {
+        val timeout = Runnable {
+            if (preparingOut === out && outgoing == null) {
                 log("crossfade: the song's second stream not ready in $ready ms, no fade")
+                preparingOut = null
+                fadeReadyTimeout = null
                 preparingFade = false; noFadeFor = index; out.release()
             }
-        }, ready)
+        }
+        fadeReadyTimeout = timeout
+        handler.postDelayed(timeout, ready)
     }
 
     /** Ends a fade (done, or interrupted by a skip/seek/stop): the copy goes, the main player is at full volume. */
     private fun endFade() {
         handler.removeCallbacks(tick)
+        fadeReadyTimeout?.let(handler::removeCallbacks)
+        fadeReadyTimeout = null
+        preparingOut?.let { it.stop(); it.release() }
+        preparingOut = null
+        preparingFade = false
         outgoing?.let { it.stop(); it.release() }
         if (outgoing != null) SongPlayer.onLocalFade(false)
         outgoing = null
@@ -1432,6 +1454,10 @@ object LocalPlayer {
 
     /** A player stopped by an error (idle) is prepared again first: a play alone does nothing there. */
     fun resume() {
+        if (runCatching { io.github.thake.soundnest.feature.parental.schedule.ParentalScheduleController.evaluateNow(Graph.app).isLockedByUsageHours }.getOrDefault(false)) {
+            log("resume refused: outside allowed listening hours")
+            return
+        }
         if (CastPlayback.active) return CastPlayback.play()
         val p = exo ?: return
         if (p.playbackState == Player.STATE_IDLE && p.mediaItemCount > 0) { log("resume after an error: preparing again"); p.prepare() }

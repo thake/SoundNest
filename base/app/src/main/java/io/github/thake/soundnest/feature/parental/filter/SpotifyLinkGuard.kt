@@ -59,7 +59,12 @@ object SpotifyLinkGuard {
 
         if (!isSpotifyLink(trimmed)) {
             val normalizedWeb = if (trimmed.startsWith("www.", ignoreCase = true)) "https://$trimmed" else trimmed
-            return LinkDecision.ExternalBrowser(normalizedWeb)
+            val lower = normalizedWeb.lowercase()
+            return if (lower.startsWith("https://") || lower.startsWith("http://")) {
+                LinkDecision.ExternalBrowser(normalizedWeb)
+            } else {
+                LinkDecision.Blocked("unsupported_scheme")
+            }
         }
 
         // Short links require redirect resolution first, then re-evaluation through evaluate()

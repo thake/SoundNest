@@ -311,7 +311,7 @@ NEXT, PREV, PLAY, PAUSE, HOME, SLEEP, WAKE = 87, 88, 126, 127, 3, 223, 224
 def launch():
     if HEADLESS:
         # The playback service alone (no activity, nothing in front): the engine runs without a screen.
-        adb("shell", "am", "start-foreground-service", "-n", PKG + "/app.myspoti.host.android.PlaybackService")
+        adb("shell", "am", "start-foreground-service", "-n", PKG + "/io.github.thake.soundnest.host.android.PlaybackService")
         return
     adb("shell", "monkey", "-p", PKG, "-c", "android.intent.category.LAUNCHER", "1")
 

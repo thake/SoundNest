@@ -163,6 +163,7 @@ fun ImmersiveLibraryScreen(navController: NavController) {
         val top = (entries as? Response.Success)?.data.orEmpty().take(8).mapNotNull { e ->
             when {
                 e.isFolder || e.spotifyId.startsWith(LOCAL_PLAYLIST_PREFIX) -> null
+                io.github.thake.soundnest.core.catalog.LibraryEdits.isPending(e.spotifyId) -> null
                 io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.isAudibleUri(e.spotifyId) -> null
                 e.spotifyId in setOf(Api.HomeCache.LOCAL_FILES_ID, Api.HomeCache.EPISODES_ID) -> null
                 e.spotifyId == Api.HomeCache.LIKED_SONGS_ID -> "liked" to ""

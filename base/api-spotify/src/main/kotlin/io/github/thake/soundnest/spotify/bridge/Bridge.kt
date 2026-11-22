@@ -127,7 +127,7 @@ class Bridge(private val host: BridgeHost, scope: CoroutineScope, val clock: () 
                 // Results are logged by call(); never write their values (tokens) here.
             } else if (type == "net" && !netWorthLogging(msg)) {
                 // A playback request that went through, or a licence answer (counted in the 402 summary).
-            } else if (type != "queue") log("page $type: " + raw.take(300))
+            } else if (type != "queue") log("page $type: " + LogMask.shown(raw, 300))
         }
         when (type) {
             "ready" -> { gone = false; _ready.value = true }

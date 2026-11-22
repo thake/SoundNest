@@ -66,8 +66,10 @@ object SonosLocal {
         startIfSilent(d, wanted)
     }
 
-    private fun call(host: InetAddress, action: String, args: String = ""): Pair<Int, String>? =
-        LanDiscovery.call(host, PORT, request(host.hostAddress.orEmpty(), action, args), 4_000)
+    private suspend fun call(host: InetAddress, action: String, args: String = ""): Pair<Int, String>? =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            LanDiscovery.call(host, PORT, request(host.hostAddress.orEmpty(), action, args), 4_000)
+        }
 
     private fun log(line: String) = io.github.thake.soundnest.host.android.Logbook.log("lan: sonos local: $line")
 }

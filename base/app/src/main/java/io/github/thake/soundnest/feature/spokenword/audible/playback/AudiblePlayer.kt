@@ -596,6 +596,9 @@ object AudiblePlayer : io.github.thake.soundnest.core.preferences.PolicySyncedSe
 
     fun resume() {
         if (!active.value) return
+        if (runCatching { io.github.thake.soundnest.feature.parental.schedule.ParentalScheduleController.evaluateNow(io.github.thake.soundnest.core.di.Graph.app).isLockedByUsageHours }.getOrDefault(false)) {
+            return
+        }
         activeBackendOrNull()?.resume()
     }
 

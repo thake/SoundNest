@@ -129,8 +129,11 @@ class ContextViewModel(
     /** "Recommended songs" under an own playlist; null until asked. */
     val recs = mutableStateOf<List<SongsModel>?>(null)
     /** Suggested already (shown, added or refreshed away): not suggested again on this page. */
-    private val recsSeen = LinkedHashSet<String>()
+    private val recsSeen = java.util.Collections.synchronizedSet(LinkedHashSet<String>())
     private var recsJob: kotlinx.coroutines.Job? = null
+    private var loadJob: kotlinx.coroutines.Job? = null
+    private var likedTapsJob: kotlinx.coroutines.Job? = null
+    private var likedChangesJob: kotlinx.coroutines.Job? = null
 
     /** Asks Spotify for songs that fit [p] (its name when it is empty), [refresh] for new ones. */
     fun loadRecs(p: ContextPageModel, refresh: Boolean = false) {
@@ -143,11 +146,12 @@ class ContextViewModel(
         recsJob = viewModelScope.launch(Dispatchers.IO) {
             val policy = io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore.current()
             val inList = p.tracks.mapTo(HashSet()) { it.spotifyTrackId }
-            val skip = (inList + recsSeen).map { "spotify:track:$it" }
+            val seenSnapshot = synchronized(recsSeen) { recsSeen.toSet() }
+            val skip = (inList + seenSnapshot).map { "spotify:track:$it" }
             val got = runCatching { SoundNestRuntime.api.playlists.recommended(p.uri, limit = RECS_COUNT, skip = skip) }
                 .getOrDefault(emptyList()).map(api::songOf)
-                .filter { it.spotifyTrackId !in inList && it.spotifyTrackId !in recsSeen && io.github.thake.soundnest.feature.parental.filter.ParentalFilterEngine.isTrackAllowed(it, policy) }
-            got.forEach { recsSeen += it.spotifyTrackId }
+                .filter { it.spotifyTrackId !in inList && it.spotifyTrackId !in seenSnapshot && io.github.thake.soundnest.feature.parental.filter.ParentalFilterEngine.isTrackAllowed(it, policy) }
+            synchronized(recsSeen) { got.forEach { recsSeen += it.spotifyTrackId } }
             recs.value = got
         }
     }
@@ -187,17 +191,21 @@ class ContextViewModel(
             recent.clear()
             cachedPolicyRevision = rev
         }
-        if (key == "$type:$id") return
-        key = "$type:$id"
+        val cacheKey = "$type:$id"
+        if (key == cacheKey) return
+        key = cacheKey
+        loadJob?.cancel()
+        likedTapsJob?.cancel()
+        likedChangesJob?.cancel()
         // A page seen recently is on screen from the first frame (no blank, then pop,
         // in the middle of the slide); the network still refreshes it behind.
-        recent[key]?.let { _page.value = it }
-        val pending = inflight[key]
-        viewModelScope.launch(Dispatchers.IO) {
+        recent[cacheKey]?.let { _page.value = it }
+        val pending = inflight[cacheKey]
+        loadJob = viewModelScope.launch(Dispatchers.IO) {
             // Touched a moment ago: join that look-up instead of sending a second one.
             if (pending != null && _page.value !is Response.Success) {
                 runCatching { pending.await() }
-                recent[key]?.let { _page.value = it }
+                recent[cacheKey]?.let { _page.value = it }
             }
             val force = fresh.also { fresh = false }
             val flow = when (type) {
@@ -216,10 +224,10 @@ class ContextViewModel(
                         metaLine = Graph.app.resources.getQuantityString(R.plurals.liked_songs_header_metadata_text, songs.size, songs.size),
                     ))
                     _page.value = updated
-                    recent[key!!] = updated
+                    recent[cacheKey] = updated
                 }
                 // An unlike leaves the list on the tap, before Spotify has answered (reported: slow).
-                viewModelScope.launch(Dispatchers.IO) {
+                likedTapsJob = viewModelScope.launch(Dispatchers.IO) {
                     SongPlayer.likedTaps.collect { (id, liked) ->
                         if (liked) return@collect
                         val current = (_page.value as? Response.Success)?.data ?: return@collect
@@ -228,7 +236,7 @@ class ContextViewModel(
                 }
                 // Once Spotify took it, the newest songs are read again: at once, then once more
                 // in case the first read still had the old list.
-                viewModelScope.launch(Dispatchers.IO) {
+                likedChangesJob = viewModelScope.launch(Dispatchers.IO) {
                     SongPlayer.likedChanges.drop(1).collectLatest {
                         api.mergeLikedHead()?.let(::show)
                         kotlinx.coroutines.delay(2_500)
@@ -245,7 +253,7 @@ class ContextViewModel(
                     (_page.value as? Response.Success)?.data?.let { it.uri == r.data.uri && it.tracks.size > r.data.tracks.size } == true) return@collect
                 _page.value = r
                 if (r is Response.Success) {
-                    recent[key!!] = r
+                    recent[cacheKey] = r
                     val p = r.data
                     if (type == "playlist" && p.complete) io.github.thake.soundnest.core.catalog.PagePrefetch.refreshed(id, p)
                     // Check saved state on the first page and again once complete.

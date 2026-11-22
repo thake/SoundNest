@@ -112,7 +112,6 @@ object ParentLanDiscovery {
     private fun onResolved(s: NsdServiceInfo) {
         val addrs = if (Build.VERSION.SDK_INT >= 34) s.hostAddresses else listOfNotNull(s.host)
         val ipv4 = addrs.filterIsInstance<Inet4Address>().firstOrNull { !it.isLoopbackAddress && it.isSiteLocalAddress }
-            ?: addrs.firstOrNull { !it.isLoopbackAddress }
             ?: return
         val host = ipv4.hostAddress ?: return
         val childId = s.attributes["id"]?.let { String(it, Charsets.UTF_8) }?.trim().orEmpty()

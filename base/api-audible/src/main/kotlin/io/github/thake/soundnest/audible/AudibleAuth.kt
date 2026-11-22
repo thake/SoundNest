@@ -201,21 +201,31 @@ object AudibleAuth {
     ): Boolean = withContext(Dispatchers.IO) {
         val m = tokens.marketplace
         val baseUrl = (deregisterBaseUrlOverride ?: "https://api.${m.amazonDomain}").trimEnd('/')
-        val accessToken = tokens.accessToken.ifBlank {
-            refreshAccessToken(http, tokens, baseUrl) ?: return@withContext false
-        }
         val payload = buildJsonObject {
             put("deregister_all_existing_accounts", false)
         }
-        val req = Request.Builder()
-            .url("$baseUrl/auth/deregister")
-            .post(payload.toString().toRequestBody(JSON_MEDIA))
-            .header("Accept", "application/json")
-            .header("Authorization", "Bearer $accessToken")
-            .build()
-        runCatching {
-            http.newCall(req).execute().use { it.isSuccessful }
-        }.getOrDefault(false)
+        fun postDeregister(bearer: String): Int {
+            val req = Request.Builder()
+                .url("$baseUrl/auth/deregister")
+                .post(payload.toString().toRequestBody(JSON_MEDIA))
+                .header("Accept", "application/json")
+                .header("Authorization", "Bearer $bearer")
+                .build()
+            return runCatching {
+                http.newCall(req).execute().use { it.code }
+            }.getOrDefault(-1)
+        }
+
+        val initialToken = tokens.accessToken.ifBlank {
+            refreshAccessToken(http, tokens, baseUrl) ?: return@withContext false
+        }
+        val firstCode = postDeregister(initialToken)
+        if (firstCode in 200..299) return@withContext true
+        if (firstCode == 401 && tokens.accessToken.isNotBlank()) {
+            val refreshed = refreshAccessToken(http, tokens, baseUrl) ?: return@withContext false
+            return@withContext postDeregister(refreshed) in 200..299
+        }
+        false
     }
 
     private fun refreshAccessToken(

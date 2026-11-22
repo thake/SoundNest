@@ -9,7 +9,10 @@ data class AudiblePkceSession(
     val deviceSerial: String,
     val codeVerifier: String,
     val codeChallenge: String,
-)
+) {
+    override fun toString(): String =
+        "AudiblePkceSession(marketplace=$marketplace, deviceSerial=${deviceSerial.take(4)}…)"
+}
 
 @Serializable
 data class AudibleSessionTokens(
@@ -20,7 +23,10 @@ data class AudibleSessionTokens(
     val refreshToken: String,
     val accessToken: String = "",
     val customerName: String? = null,
-)
+) {
+    override fun toString(): String =
+        "AudibleSessionTokens(marketplace=$marketplace, deviceSerial=${deviceSerial.take(4)}…, customerName=$customerName)"
+}
 
 @Serializable
 data class AudibleChapter(

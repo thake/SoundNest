@@ -377,7 +377,15 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
         reply(id, doc, it.code, out.toString(), text)
     }
 
+    @Volatile private var disposed = false
+
+    fun dispose() {
+        disposed = true
+        main.removeCallbacksAndMessages(null)
+    }
+
     private fun reply(id: Int, doc: String, status: Int, headersJson: String, body: String) {
+        if (disposed) return
         val posted = android.os.SystemClock.uptimeMillis()
         // Quoted here, on the network thread: a large reply (a track-playback state machine) was
         // quoted on the main thread, which also draws the app and runs every tap behind it.
@@ -386,9 +394,10 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
     }
 
     private fun replyNow(id: Int, script: String, posted: Long) {
+        if (disposed) return
         val waited = android.os.SystemClock.uptimeMillis() - posted
         if (waited > 30) Logbook.log("relay reply #$id waited $waited ms for the main thread")
-        view.evaluateJavascript(script, null)
+        runCatching { view.evaluateJavascript(script, null) }
     }
 
     /** The last page's playback device, kept across starts (see [PlayerDeviceRecord]). */
@@ -426,10 +435,13 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
      * later (a 2xx alone proved nothing: the page path's 200s were all dropped, 402-ANALYSIS fact 2).
      */
     private fun checkAudio(route: String) = main.postDelayed({
-        view.evaluateJavascript(PLAYING) { r ->
-            val started = r == "true"
-            Logbook.log("audio after the $route retry: ${if (started) "playing" else "nothing played"} within 10 s")
-            io.github.thake.soundnest.spotify.report.Refusal402.audioAfterRetry(route, started)
+        if (disposed) return@postDelayed
+        runCatching {
+            view.evaluateJavascript(PLAYING) { r ->
+                val started = r == "true"
+                Logbook.log("audio after the $route retry: ${if (started) "playing" else "nothing played"} within 10 s")
+                io.github.thake.soundnest.spotify.report.Refusal402.audioAfterRetry(route, started)
+            }
         }
     }, 10_000)
 
@@ -817,6 +829,7 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
               window.__mspSilence = silence;
               const play = HTMLMediaElement.prototype.play;
               HTMLMediaElement.prototype.play = function () {
+                for (const m of media) { if (m !== this && m.ended && !m.isConnected) media.delete(m); }
                 media.add(this);
                 silence(this);
                 if (window.__mspQuiet) { this.muted = false; this.volume = 0.001; }

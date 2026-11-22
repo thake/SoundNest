@@ -208,7 +208,7 @@ internal fun widevinePssh(init: ByteArray): ByteArray? {
         var at = from
         while (at + 8 <= to) {
             val size = u32(at).toInt()
-            if (size < 8 || at + size > to) return null
+            if (size < 8 || size > to - at) return null
             when (type(at)) {
                 "moov" -> scan(at + 8, at + size)?.let { return it }
                 "pssh" -> if (size >= 28 && init.copyOfRange(at + 12, at + 28).contentEquals(systemId)) return init.copyOfRange(at, at + size)

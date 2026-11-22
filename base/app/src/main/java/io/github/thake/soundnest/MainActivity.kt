@@ -349,6 +349,7 @@ class MainActivity : AppCompatActivity() {
             // Signed in again after a logout or an account switch, maybe as someone else: start the
             // screens over (a new activity also drops their view models).
             io.github.thake.soundnest.feature.accounts.session.SessionActions.signedIn()
+            io.github.thake.soundnest.core.ui.navigation.PlayerSheet.close()
             OnboardingSettings.setLoggedIn(this, true)
             SoundNestRuntime.host.flushCookies()
             SoundNestRuntime.host.attach(root, visible = false)

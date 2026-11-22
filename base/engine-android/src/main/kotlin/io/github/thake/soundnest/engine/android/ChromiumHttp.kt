@@ -67,8 +67,8 @@ class ChromiumHttp(context: Context, private val timeoutMs: Long = 30_000) : Htt
     }
 
     override suspend fun request(request: HttpRequest): HttpResponse {
-        val b = backend.await()
         return withTimeout(timeoutMs) {
+            val b = backend.await()
             suspendCancellableCoroutine { cont ->
                 val collector = Collector(
                     onDone = { r -> if (cont.isActive) cont.resume(r) },

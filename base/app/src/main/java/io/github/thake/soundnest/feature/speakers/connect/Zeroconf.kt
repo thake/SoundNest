@@ -226,7 +226,7 @@ object Zeroconf {
             val eol = indexOf(raw, "\r\n".toByteArray(), at)
             if (eol < 0) break
             val size = String(raw, at, eol - at, Charsets.ISO_8859_1).substringBefore(';').trim().toIntOrNull(16) ?: break
-            if (size == 0) break
+            if (size <= 0) break
             val start = eol + 2
             out.write(raw, start, minOf(size, raw.size - start))
             at = start + size + 2

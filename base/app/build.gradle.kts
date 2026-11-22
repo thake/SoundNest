@@ -143,25 +143,25 @@ dependencies {
     implementation(project(":engine-android"))
     // AutoMix: song analysis and transition planning (pure Kotlin), Beat This on ONNX Runtime.
     implementation(project(":automix"))
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.23.2")
+    implementation(libs.onnxruntime.android)
     // The queue's drag and drop (Apache-2.0): the row carried stays in the list, auto-scroll at the edges.
-    implementation("sh.calvin.reorderable:reorderable:3.1.0")
+    implementation(libs.reorderable)
     // Jam & Parent Device pairing: scan QR codes (Google code scanner, no camera permission).
-    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+    implementation(libs.play.services.code.scanner)
     // Child Device pairing: render QR codes locally (Apache-2.0, pure JVM).
-    implementation("com.google.zxing:core:3.5.3")
-    testImplementation("junit:junit:4.13.2")
+    implementation(libs.zxing.core)
+    testImplementation(libs.junit4)
     // Virtual time for the tests of timed coroutines (graces, timeouts): no real waits.
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test-jvm:1.11.0")
+    testImplementation(libs.coroutines.test.jvm)
     // The real org.json in unit tests (android.jar only has stubs).
-    testImplementation("org.json:json:20240303")
+    testImplementation(libs.org.json)
     // A real XML pull parser in unit tests (the TTML lyrics parser; the tests skip themselves without it).
-    testImplementation("net.sf.kxml:kxml2:2.3.0")
+    testImplementation(libs.kxml2)
     // Roborazzi asks for kotlinx-io 0.3.3; Ktor (removed) had raised it to 0.9.1, the version the unit tests ran with.
-    testImplementation("org.jetbrains.kotlinx:kotlinx-io-core:0.9.1")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-io-bytestring:0.9.1")
-    androidTestImplementation("androidx.test:runner:1.6.2")
-    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    testImplementation(libs.kotlinx.io.core)
+    testImplementation(libs.kotlinx.io.bytestring)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.webkit)
@@ -179,34 +179,34 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
 
     // Native UI (ported from Spotui / Orpheon, GPL-3.0)
-    implementation("androidx.navigation:navigation-compose:2.9.0")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.0")
-    implementation("com.github.bumptech.glide:compose:1.0.0-beta10")
+    implementation(libs.navigation.compose)
+    implementation(libs.lifecycle.viewmodel.compose)
+    implementation(libs.glide.compose)
     // Used directly (Glide, GlideUrl, the disk cache...): beta10 only brings it at runtime.
-    implementation("com.github.bumptech.glide:glide:5.0.9")
-    implementation("androidx.palette:palette-ktx:1.0.0")
+    implementation(libs.glide)
+    implementation(libs.androidx.palette.ktx)
     // Frosted (blurred) bars of the Immersive look. Apache-2.0.
-    implementation("dev.chrisbanes.haze:haze:1.3.1")
-    implementation("androidx.compose.material:material-icons-extended:1.7.8")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
+    implementation(libs.haze)
+    implementation(libs.compose.material.icons.extended)
+    implementation(libs.coroutines.android)
     implementation(libs.serialization.json)
     // ExoPlayer for Live Radio, Local Files & Audible audiobooks.
-    implementation("androidx.media3:media3-exoplayer:1.8.0")
+    implementation(libs.media3.exoplayer)
     // HLS (.m3u8) Live Radio & Audible HLS-CMAF streams.
-    implementation("androidx.media3:media3-exoplayer-hls:1.8.0")
+    implementation(libs.media3.exoplayer.hls)
     // MPEG-DASH (.mpd) Audible Widevine / adaptive audiobook streams.
     implementation(libs.media3.exoplayer.dash)
     // Installs the Baseline Profiles shipped by Compose & co. on sideloaded builds.
-    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
+    implementation(libs.androidx.profileinstaller)
     implementation(libs.okhttp)
-    implementation("androidx.media3:media3-datasource:1.8.0")
+    implementation(libs.media3.datasource)
 
-    testImplementation("org.robolectric:robolectric:4.14.1")
-    testImplementation("io.github.takahirom.roborazzi:roborazzi:1.40.1")
-    testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.40.1")
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
     testImplementation(platform(libs.compose.bom))
-    testImplementation("androidx.compose.ui:ui-test-junit4")
-    debugImplementation("androidx.compose.ui:ui-test-manifest")
+    testImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
 }
 
 tasks.register("collectApks") {

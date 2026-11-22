@@ -4,11 +4,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** When the user last touched the app's window (uptime ms), from MainActivity's touch dispatch. */
+/** When the user last touched the app's window (elapsedRealtime ms), from MainActivity's touch dispatch. */
 object UserTouch {
-    private val _lastAt = MutableStateFlow(android.os.SystemClock.uptimeMillis())
+    private val _lastAt = MutableStateFlow(android.os.SystemClock.elapsedRealtime())
     val lastAt: StateFlow<Long> = _lastAt.asStateFlow()
 
     /** A finger went down on the window. */
-    fun touched() { _lastAt.value = android.os.SystemClock.uptimeMillis() }
+    fun touched() { _lastAt.value = android.os.SystemClock.elapsedRealtime() }
 }

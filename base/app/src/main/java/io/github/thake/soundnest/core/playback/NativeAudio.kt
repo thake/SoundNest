@@ -51,7 +51,7 @@ import kotlinx.serialization.json.jsonPrimitive
  * Logbook as "native: …": HTTP calls with state PUT debug_source and melody types, licence sizes
  * and latency, CDN ranges, Widevine level, time to first audio.
  */
-object NativeAudio : io.github.thake.soundnest.spotify.AccountAudio, io.github.thake.soundnest.spotify.sync.MirrorEngine {
+object NativeAudio : io.github.thake.soundnest.spotify.AccountAudio {
     private const val PREFS = "core_native_audio"
     private const val KEY_ORPHAN_IDS = "orphaned_device_ids"
 
@@ -109,7 +109,7 @@ object NativeAudio : io.github.thake.soundnest.spotify.AccountAudio, io.github.t
     override val holdsPlayback: Boolean get() = engine?.now?.value != null
 
     @Volatile private var mirrorHolds = false
-    override fun mirrorHeld(on: Boolean) { mirrorHolds = on }
+    fun mirrorHeld(on: Boolean) { mirrorHolds = on }
     override val mirrors: Boolean get() = engine?.let { mirrorHolds || it.muted } == true
 
     /**
@@ -141,11 +141,11 @@ object NativeAudio : io.github.thake.soundnest.spotify.AccountAudio, io.github.t
     }
 
     /** The engine, started and registered first if it was not (the account's player, or the listen mirror's device). */
-    override suspend fun ready(): NativeEngine = started(Graph.app, forceL3 = false)
+    suspend fun ready(): NativeEngine = started(Graph.app, forceL3 = false)
 
     private val _current = kotlinx.coroutines.flow.MutableStateFlow<NativeEngine?>(null)
     /** The engine registered on the account now, or null. */
-    override val current: kotlinx.coroutines.flow.StateFlow<NativeEngine?> = _current
+    val current: kotlinx.coroutines.flow.StateFlow<NativeEngine?> = _current
 
     override suspend fun play(contextUri: String, trackUri: String?, index: Int?, positionMs: Long?, order: List<String>?, shuffle: Boolean?) {
         val e = runCatching { ready() }.getOrElse { setAside("it did not start (${it.message})"); throw it }
@@ -236,9 +236,10 @@ object NativeAudio : io.github.thake.soundnest.spotify.AccountAudio, io.github.t
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val lock = Mutex()
-    private var engine: NativeEngine? = null
+    @Volatile private var engine: NativeEngine? = null
     private var player: Media3DrmPlayer? = null
     private var http: ChromiumHttp? = null
+    private var eventsJob: kotlinx.coroutines.Job? = null
     @Volatile private var commandAtMs = 0L
     @Volatile private var lastEvent = ""
     private val ring = ArrayDeque<String>()
@@ -295,15 +296,15 @@ object NativeAudio : io.github.thake.soundnest.spotify.AccountAudio, io.github.t
     private suspend fun started(context: Context, forceL3: Boolean): NativeEngine = lock.withLock {
         engine?.let { return it }
         val spotify = SoundNestRuntime.spotify
-        val chromium = ChromiumHttp(context).also { http = it }
+        val chromium = http ?: ChromiumHttp(context).also { http = it }
         val logged = LoggedHttp(chromium)
-        val p = Media3DrmPlayer(context, chromium, log = ::log, forceL3 = forceL3).also { player = it }
+        val p = Media3DrmPlayer(context, chromium, log = ::log, forceL3 = forceL3)
         val config = NativeTokens.config(spotify.http)
         val e = NativeEngine(logged, NativeTokens(spotify.http), OkHttpWebSockets(SoundNestRuntime.apiHttp), Observed(p), AndroidEnvironment, config, scope)
         // A pause the player made itself (focus lost, headphones out) becomes a pause command, so
         // the account's state follows and the engine reports it when the push comes back.
         p.onPlayerPause = { why -> log("player paused itself: $why"); scope.launch { runCatching { e.pause() } } }
-        scope.launch {
+        val collector = scope.launch {
             e.events.collect { ev ->
                 lastEvent = ev.toString().take(120)
                 log("event $ev")
@@ -315,7 +316,16 @@ object NativeAudio : io.github.thake.soundnest.spotify.AccountAudio, io.github.t
             }
         }
         log("starting: widevine ${WidevineInfo.summary}, ${config.deviceName}, app ${config.appVersion}")
-        e.start()
+        try {
+            e.start()
+        } catch (t: Throwable) {
+            collector.cancel()
+            runCatching { e.close() }
+            p.release()
+            throw t
+        }
+        player = p
+        eventsJob = collector
         log("registered ${e.deviceId.take(8)}… on ${e.spclient.substringAfter("://")}, http ${chromium.status}")
         val staleOrphans = recordRegisteredDevice(context, e.deviceId)
         if (staleOrphans.isNotEmpty()) {
@@ -338,6 +348,8 @@ object NativeAudio : io.github.thake.soundnest.spotify.AccountAudio, io.github.t
             lock.withLock {
                 if (engine !== e) return@withLock
                 log("the dealer closed: the engine leaves the account until its next use")
+                eventsJob?.cancel()
+                eventsJob = null
                 runCatching { e.close() }
                 if (e.unregisteredOnServer) removeTrackedDevice(Graph.app, e.deviceId)
                 player?.release()
@@ -347,6 +359,8 @@ object NativeAudio : io.github.thake.soundnest.spotify.AccountAudio, io.github.t
     }
 
     private suspend fun stop() = lock.withLock {
+        eventsJob?.cancel()
+        eventsJob = null
         engine?.let { e ->
             runCatching { e.close() }.onFailure { t -> log("close failed: ${t.message}") }
             if (e.unregisteredOnServer) removeTrackedDevice(Graph.app, e.deviceId)

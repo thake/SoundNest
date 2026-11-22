@@ -3,10 +3,19 @@ build/
 .gradle/
 .kotlin/
 *.apk
+*.aab
 *.zip
 *.log
 dist/
 local.properties
+# signing keys (never commit)
+keystore/
+*.jks
+*.keystore
+# IDE & local tooling
+*.iml
+/overnight/
+/skills/
 # device captures (logs can contain session data)
 tools/captures/
 base/tools/captures/

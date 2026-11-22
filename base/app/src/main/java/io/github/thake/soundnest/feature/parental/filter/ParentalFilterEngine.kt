@@ -38,6 +38,23 @@ object ParentalFilterEngine {
     private val NON_WORD_SPACES = Regex("[^\\p{L}\\p{N}]+")
     private val MULTI_SPACE = Regex("\\s+")
 
+    @Volatile
+    private var cachedRegexSource: Set<String> = emptySet()
+
+    @Volatile
+    private var cachedCompiledRegexes: List<Regex> = emptyList()
+
+    private fun compiledBlockedRegexes(patterns: Set<String>): List<Regex> {
+        if (patterns.isEmpty()) return emptyList()
+        if (patterns == cachedRegexSource) return cachedCompiledRegexes
+        val compiled = patterns.mapNotNull { pat ->
+            runCatching { Regex(pat, RegexOption.IGNORE_CASE) }.getOrNull()
+        }
+        cachedRegexSource = patterns.toSet()
+        cachedCompiledRegexes = compiled
+        return compiled
+    }
+
     /** Strips accents/diacritics and lowercases while preserving digits/punctuation for regex checks. */
     fun stripDiacriticsLower(raw: String): String {
         if (raw.isBlank()) return ""
@@ -135,9 +152,7 @@ object ParentalFilterEngine {
         }
 
         if (policy.blockedRegexPatterns.isNotEmpty()) {
-            val compiled = policy.blockedRegexPatterns.mapNotNull { pat ->
-                runCatching { Regex(pat, RegexOption.IGNORE_CASE) }.getOrNull()
-            }
+            val compiled = compiledBlockedRegexes(policy.blockedRegexPatterns)
             for (field in nonBlank) {
                 val stripped = stripDiacriticsLower(field)
                 val folded = normalizeForKeywords(field)
@@ -377,6 +392,7 @@ object ParentalFilterEngine {
         val albumName = track.album?.name.orEmpty()
 
         if (trackId.isNotEmpty() && trackId in policy.blockedTrackIds) return false
+        if (isContextBlocked(parentContextUri, policy)) return false
         if (trackId.isNotEmpty() && trackId in policy.allowedTrackIds) return true
 
         if (artistIds.any { it in policy.blockedArtistIds }) return false
@@ -414,6 +430,7 @@ object ParentalFilterEngine {
         val showName = episode.show?.name.orEmpty()
 
         if (episodeId.isNotEmpty() && episodeId in policy.blockedTrackIds) return false
+        if (isContextBlocked(parentContextUri, policy)) return false
         if (showId.isNotEmpty() && showId in pods.blockedShowIds) return false
         if (episodeId.isNotEmpty() && episodeId in policy.allowedTrackIds) return true
         if (policy.blockExplicit && episode.explicit) return false

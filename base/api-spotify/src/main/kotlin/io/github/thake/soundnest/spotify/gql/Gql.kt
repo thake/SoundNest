@@ -96,7 +96,7 @@ class SpotifyHttp(
      * every launch, so Spotify saw a brand-new client every start (a new client token each time,
      * one more device). The host passes an id kept across restarts; null keeps the old behaviour.
      */
-    private var deviceId: String = java.util.UUID.randomUUID().toString(),
+    @Volatile private var deviceId: String = java.util.UUID.randomUUID().toString(),
     /** Keeps the client token across launches; null: minted once per launch, as before. */
     private val tokenStore: ClientTokenStore? = null,
 ) {
@@ -115,8 +115,15 @@ class SpotifyHttp(
     private data class ClientToken(val value: String, val expiresAtMs: Long, val clientId: String = "")
 
     private val lock = Mutex()
-    private var web: WebToken? = null
-    private var client: ClientToken? = null
+    @Volatile private var web: WebToken? = null
+    @Volatile private var client: ClientToken? = null
+
+    private suspend fun invalidateWebTokenIfMatches(failedAccess: String) = lock.withLock {
+        if (web?.access == failedAccess) {
+            web = null
+            runCatching { tokenStore?.save(storedKey(), "") }
+        }
+    }
 
     /**
      * Another account's device id (each account kept here has its own, so Spotify is not shown
@@ -219,8 +226,10 @@ class SpotifyHttp(
 
     /** Sends a request with browser headers. Returns the status and body text. */
     suspend fun send(method: String, url: String, body: String? = null, contentType: String = JSON_TYPE, accept: String = "application/json"): Pair<Int, String> {
-        // The account's token only ever goes to Spotify itself.
-        val host = url.toHttpUrl().host
+        // The account's token only ever goes to Spotify itself over HTTPS.
+        val parsed = url.toHttpUrl()
+        require(parsed.scheme == "https") { "HTTPS required: ${parsed.scheme}" }
+        val host = parsed.host
         require(host == "spotify.com" || host.endsWith(".spotify.com")) { "not a Spotify host: $host" }
         val (w, c) = tokens()
         val builder = Request.Builder().url(url)
@@ -242,7 +251,7 @@ class SpotifyHttp(
         // (log seen: an extension asked for a skipped-to song 10 s late, behind its ISRC lookup).
         // Writes still run to their end: a caller gone must not leave one half sent.
         val result = if (method == "GET") call.executeCancellable() else withContext(Dispatchers.IO) { call.execute().use { it.code to it.body.string() } }
-        if (result.first == 401) lock.withLock { web = null; runCatching { tokenStore?.save(storedKey(), "") } }
+        if (result.first == 401) invalidateWebTokenIfMatches(w.access)
         return result
     }
 
@@ -297,7 +306,10 @@ class SpotifyHttp(
                     if (m == "HEAD") "" else r.body.string())
             }
         }
-        if (result.status == 401 && kind == RawTarget.ACCOUNT) lock.withLock { web = null }
+        if (result.status == 401 && kind == RawTarget.ACCOUNT) {
+            val sentAuth = builder.build().header("authorization")?.removePrefix("Bearer ")
+            if (sentAuth != null) invalidateWebTokenIfMatches(sentAuth)
+        }
         return result
     }
 
@@ -306,7 +318,9 @@ class SpotifyHttp(
      * credentials and headers as in [send], bytes in and out. Returns the status and the body bytes.
      */
     suspend fun sendProto(method: String, url: String, body: ByteArray?): Pair<Int, ByteArray> {
-        val host = url.toHttpUrl().host
+        val parsed = url.toHttpUrl()
+        require(parsed.scheme == "https") { "HTTPS required: ${parsed.scheme}" }
+        val host = parsed.host
         require(host == "spotify.com" || host.endsWith(".spotify.com")) { "not a Spotify host: $host" }
         val (w, c) = tokens()
         val request = Request.Builder().url(url)
@@ -322,7 +336,7 @@ class SpotifyHttp(
             .method(method, body?.toRequestBody("application/x-protobuf".toMediaType()) ?: if (method == "GET" || method == "DELETE") null else ByteArray(0).toRequestBody(null))
             .build()
         val result = withContext(Dispatchers.IO) { http.newCall(request).execute().use { it.code to it.body.bytes() } }
-        if (result.first == 401) lock.withLock { web = null }
+        if (result.first == 401) invalidateWebTokenIfMatches(w.access)
         return result
     }
 
@@ -474,8 +488,13 @@ class HttpGql(private val http: SpotifyHttp, private val source: OpsSource, priv
             if (mutation && code >= 500) throw GqlException(name, "HTTP $code")
             fellBack.incrementAndGet(); return fallback.query(name, variables)
         }
+        val response = try {
+            Bridge.json.parseToJsonElement(text)
+        } catch (e: Exception) {
+            if (mutation) throw GqlException(name, "invalid JSON: ${e.message}")
+            fellBack.incrementAndGet(); return fallback.query(name, variables)
+        }
         direct.incrementAndGet()
-        val response = Bridge.json.parseToJsonElement(text)
         checkErrors(name, response)
         return response
     }

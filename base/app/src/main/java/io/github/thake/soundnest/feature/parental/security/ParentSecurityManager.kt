@@ -4,6 +4,8 @@ package io.github.thake.soundnest.feature.parental.security
 import android.content.Context
 import android.hardware.biometrics.BiometricManager
 import android.os.Build
+import android.os.SystemClock
+import android.provider.Settings
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -73,6 +75,7 @@ object ParentSecurityManager {
     private const val KEY_HASH_WRAPPED = "pin_hash_wrapped"
     private const val KEY_FAILED_ATTEMPTS = "failed_attempts"
     private const val KEY_LOCKED_UNTIL_MS = "locked_until_ms"
+    private const val KEY_LOCKED_BOOT_COUNT = "locked_boot_count"
     private const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
     internal const val KEYSTORE_ALIAS = "soundnest_parent_pin"
 
@@ -94,7 +97,11 @@ object ParentSecurityManager {
     )
 
     @Volatile
-    internal var clockMs: () -> Long = { System.currentTimeMillis() }
+    internal var clockMs: () -> Long = { SystemClock.elapsedRealtime() }
+
+    private fun currentBootCount(context: Context): Int = runCatching {
+        Settings.Global.getInt(context.applicationContext.contentResolver, Settings.Global.BOOT_COUNT, -1)
+    }.getOrDefault(-1)
 
     @Volatile
     private var adminUnlockedUntilMs: Long = 0L
@@ -135,12 +142,22 @@ object ParentSecurityManager {
     fun failedAttempts(context: Context): Int =
         prefs(context).getInt(KEY_FAILED_ATTEMPTS, 0)
 
-    fun lockedUntilMs(context: Context): Long =
-        prefs(context).getLong(KEY_LOCKED_UNTIL_MS, 0L)
+    fun lockedUntilMs(context: Context): Long {
+        val p = prefs(context)
+        val storedUntil = p.getLong(KEY_LOCKED_UNTIL_MS, 0L)
+        if (storedUntil <= 0L) return 0L
+        val storedBoot = p.getInt(KEY_LOCKED_BOOT_COUNT, -1)
+        val currentBoot = currentBootCount(context)
+        if (storedBoot >= 0 && currentBoot >= 0 && storedBoot != currentBoot) {
+            return 0L
+        }
+        return storedUntil
+    }
 
     fun lockoutRemainingMs(context: Context): Long =
         (lockedUntilMs(context) - clockMs()).coerceAtLeast(0L)
 
+    @Synchronized
     fun setupInitialPin(context: Context, pin: String): PinSetupResult {
         if (isPinConfigured(context)) return PinSetupResult.AlreadyConfigured
         if (!isValidPinFormat(pin)) return PinSetupResult.InvalidFormat
@@ -149,6 +166,7 @@ object ParentSecurityManager {
         return PinSetupResult.Success
     }
 
+    @Synchronized
     fun changePin(context: Context, currentPin: String, newPin: String): PinChangeResult {
         return when (verifyPin(context, currentPin)) {
             is PinVerifyResult.LockedOut -> PinChangeResult.LockedOut
@@ -162,11 +180,12 @@ object ParentSecurityManager {
         }
     }
 
+    @Synchronized
     fun verifyPin(context: Context, candidatePin: String): PinVerifyResult {
         if (!isPinConfigured(context)) return PinVerifyResult.NotConfigured
         val now = clockMs()
         val p = prefs(context)
-        val lockedUntil = p.getLong(KEY_LOCKED_UNTIL_MS, 0L)
+        val lockedUntil = lockedUntilMs(context)
         if (now < lockedUntil) {
             return PinVerifyResult.LockedOut(remainingMs = lockedUntil - now)
         }
@@ -205,6 +224,7 @@ object ParentSecurityManager {
             p.edit()
                 .putInt(KEY_FAILED_ATTEMPTS, attempts)
                 .putLong(KEY_LOCKED_UNTIL_MS, now + cooldown)
+                .putInt(KEY_LOCKED_BOOT_COUNT, currentBootCount(context))
                 .commit()
             bumpTick()
             PinVerifyResult.LockedOut(remainingMs = cooldown)
@@ -232,7 +252,7 @@ object ParentSecurityManager {
     fun isDeviceBiometricAvailable(context: Context): Boolean = runCatching {
         val bm = context.getSystemService(BiometricManager::class.java) ?: return false
         val res = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            bm.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.BIOMETRIC_WEAK)
+            bm.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
         } else {
             @Suppress("DEPRECATION")
             bm.canAuthenticate()
@@ -240,6 +260,7 @@ object ParentSecurityManager {
         res == BiometricManager.BIOMETRIC_SUCCESS
     }.getOrDefault(false)
 
+    @Synchronized
     fun onBiometricSucceeded(context: Context): Boolean {
         if (!isPinConfigured(context) || !isBiometricEnabled(context)) return false
         if (clockMs() < lockedUntilMs(context)) return false

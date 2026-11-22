@@ -199,21 +199,6 @@ data class Episode(
     val previewUrl: String?,
 )
 
-/**
- * A podcast episode's audio, as the Web Player resolves it (soundfinder REST endpoint).
- *
- * [url] is the publisher's own file — clear MP3/M4A, no DRM — when Spotify exposes one.
- * It is null for Spotify-exclusive shows, whose only copy is Widevine-encrypted.
- */
-data class EpisodeAudio(
-    val url: String?,
-    /** "ALLOWED", "MANDATORY" or "NONE": whether the publisher's file exists. */
-    val passthrough: String,
-    /** Spotify's copy format ("MP4_128", "DO_NOT_USE"…); diagnostic only. */
-    val format: String,
-) {
-}
-
 data class Audiobook(
     val uri: Uri,
     val name: String,

@@ -264,9 +264,11 @@ class Media3DrmPlayer(
         }
     }
 
+    private val preloadJobs = java.util.Collections.synchronizedList(mutableListOf<kotlinx.coroutines.Job>())
+
     override fun preload(media: PlayableMedia, licence: LicenceChannel) {
         this.licence = licence
-        scope.launch {
+        val preloadJob = scope.launch {
             val item = items.getOrPut(uriOf(media)) { CdnItem(media, http, log) }
             val job = async { item.prefetch() }
             item.prefetchJob = job
@@ -284,6 +286,8 @@ class Media3DrmPlayer(
                 log("preload ${media.trackUri}: first segment in memory, licence requested")
             }
         }
+        preloadJobs += preloadJob
+        preloadJob.invokeOnCompletion { preloadJobs.remove(preloadJob) }
     }
 
     private fun releaseOnPlayback(s: DrmSession) { Handler(exo.playbackLooper).post { s.release(null) } }
@@ -307,6 +311,7 @@ class Media3DrmPlayer(
     }
 
     override fun stop() = onPlayer {
+        synchronized(preloadJobs) { preloadJobs.toList() }.forEach { it.cancel() }
         exo.stop()
         exo.clearMediaItems()
         current = null
@@ -356,15 +361,28 @@ class Media3DrmPlayer(
 
     /** Frees the player and its thread; the object is unusable afterwards. */
     fun release() = enqueue {
+        synchronized(preloadJobs) { preloadJobs.toList() }.forEach { it.cancel() }
         withContext(appDispatcher) {
-            preloads.values.forEach(::releaseOnPlayback)
+            handler.removeCallbacks(ticker)
+            val playbackDispatcher = Handler(exo.playbackLooper).asCoroutineDispatcher()
+            val toRelease = preloads.values.toList()
             preloads.clear()
-            if (drmHeld) Handler(exo.playbackLooper).post { drm.release() }
+            if (toRelease.isNotEmpty() || drmHeld) {
+                runCatching {
+                    withContext(playbackDispatcher) {
+                        toRelease.forEach { it.release(null) }
+                        if (drmHeld) {
+                            drm.release()
+                            drmHeld = false
+                        }
+                    }
+                }
+            }
             exo.release()
         }
-        thread?.quitSafely()
         commands.close()
         scope.cancel()
+        thread?.quitSafely()
     }
 
     private fun uriOf(media: PlayableMedia) = "myspoti-cdn://audio/${media.fileId}"

@@ -90,9 +90,9 @@ class LayerBackdrop internal constructor(
 
     internal fun retire(source: Source) {
         sources.remove(source)
-        // Keep the latest valid coordinates when an outgoing source detaches during a tab transition (#172).
-        val remaining = sources.lastOrNull { it.coordinates != null }?.coordinates
-        if (remaining != null) layerCoordinates = remaining
+        // Keep the latest valid coordinates when an outgoing source detaches during a tab transition (#172),
+        // and clear the reference once all sources have retired so detached NodeCoordinators aren't leaked.
+        layerCoordinates = sources.lastOrNull { it.coordinates != null }?.coordinates
         moves++
     }
 

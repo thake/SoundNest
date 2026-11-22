@@ -111,7 +111,7 @@ fun ParentPinSetupScreen(
     var showSecret by remember { mutableStateOf(false) }
     var initialFilterMode by remember(context) { mutableStateOf(ParentalPolicyStore.current(context).filterMode) }
     val biometricSupported = remember(context) { ParentSecurityManager.isDeviceBiometricAvailable(context) }
-    var enableBiometric by remember { mutableStateOf(biometricSupported) }
+    var enableBiometric by remember { mutableStateOf(false) }
     val snap = remember(context) { TrustedNetworkGate.currentSnapshot(context) }
     val onWifi = snap.onWifi
     var trustCurrentWifi by remember { mutableStateOf(onWifi) }
@@ -493,11 +493,14 @@ private fun launchSystemBiometric(context: Context, onError: (String) -> Unit) {
         return
     }
     runCatching {
-        val prompt = BiometricPrompt.Builder(activity)
+        val builder = BiometricPrompt.Builder(activity)
             .setTitle(context.getString(R.string.parent_action_unlock))
             .setSubtitle(context.getString(R.string.parent_pin_biometric_prompt_subtitle))
             .setNegativeButton(context.getString(R.string.parent_pin_biometric_use_pin), activity.mainExecutor) { _, _ -> }
-            .build()
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            builder.setAllowedAuthenticators(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG)
+        }
+        val prompt = builder.build()
         prompt.authenticate(
             CancellationSignal(),
             activity.mainExecutor,

@@ -54,7 +54,7 @@ object ParentalScheduleController {
     internal var wallClockMs: () -> Long = { System.currentTimeMillis() }
 
     @Volatile
-    internal var monoClockMs: () -> Long = { SystemClock.uptimeMillis() }
+    internal var monoClockMs: () -> Long = { SystemClock.elapsedRealtime() }
 
     @Volatile
     internal var isPlayingProvider: () -> Boolean = { runCatching { SongPlayer.isPlaying() }.getOrDefault(false) }
@@ -84,7 +84,7 @@ object ParentalScheduleController {
     private var bedtimeFadeTriggered: Boolean = false
 
     @Volatile
-    private var extensionUntilWallMs: Long = 0L
+    private var extensionUntilMonoMs: Long = 0L
 
     @Synchronized
     fun start(context: Context) {
@@ -136,13 +136,13 @@ object ParentalScheduleController {
     fun grantTemporaryExtension(context: Context, minutes: Int): Boolean {
         val app = context.applicationContext
         if (!ParentSecurityManager.isAdminUnlocked(app) || minutes <= 0) return false
-        extensionUntilWallMs = wallClockMs() + minutes * 60_000L
+        extensionUntilMonoMs = monoClockMs() + minutes * 60_000L
         evaluateNow(app)
         return true
     }
 
     fun clearTemporaryExtension(context: Context) {
-        extensionUntilWallMs = 0L
+        extensionUntilMonoMs = 0L
         evaluateNow(context.applicationContext)
     }
 
@@ -172,14 +172,15 @@ object ParentalScheduleController {
         }
         wasPlaying = playing
 
-        // Clear expired temporary extension
-        if (extensionUntilWallMs > 0L && nowWall >= extensionUntilWallMs) {
-            extensionUntilWallMs = 0L
+        // Clear expired temporary extension (monotonic clock prevents wall-clock rewind bypass)
+        if (extensionUntilMonoMs > 0L && nowMono >= extensionUntilMonoMs) {
+            extensionUntilMonoMs = 0L
         }
 
         val withinHours = ScheduleEvaluator.isWithinAllowedUsageHours(schedule, nowZoned)
         val adminUnlocked = ParentSecurityManager.isAdminUnlocked(app)
-        val hasExtension = extensionUntilWallMs > nowWall
+        val hasExtension = extensionUntilMonoMs > nowMono
+        val extensionDisplayWallMs = if (hasExtension) nowWall + (extensionUntilMonoMs - nowMono) else 0L
         val locked = schedule.usageHoursEnabled && !withinHours && !adminUnlocked && !hasExtension
         val nextAllowed = if (locked) ScheduleEvaluator.nextAllowedStart(schedule, nowZoned) else null
 
@@ -207,7 +208,7 @@ object ParentalScheduleController {
         val nextState = ScheduleRuntimeState(
             isLockedByUsageHours = locked,
             nextAllowedWindow = nextAllowed,
-            temporaryExtensionUntilMs = if (hasExtension) extensionUntilWallMs else 0L,
+            temporaryExtensionUntilMs = extensionDisplayWallMs,
             bedtimeInactivityActive = bedtimeRemaining != null,
             bedtimeRemainingMs = bedtimeRemaining,
         )
@@ -222,14 +223,14 @@ object ParentalScheduleController {
         started = false
         nowZonedProvider = { ZonedDateTime.now() }
         wallClockMs = { System.currentTimeMillis() }
-        monoClockMs = { SystemClock.uptimeMillis() }
+        monoClockMs = { SystemClock.elapsedRealtime() }
         isPlayingProvider = { runCatching { SongPlayer.isPlaying() }.getOrDefault(false) }
         sleepTrigger = { fade -> runCatching { SleepTimerController.triggerParentalSleep(fade) } }
         fadeCanceller = { runCatching { SleepTimerController.cancelParentalFadeIfActive() } }
         lastActivityMonoMs = 0L
         wasPlaying = false
         bedtimeFadeTriggered = false
-        extensionUntilWallMs = 0L
+        extensionUntilMonoMs = 0L
         _state.value = ScheduleRuntimeState()
     }
 }

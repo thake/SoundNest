@@ -40,11 +40,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.NetworkInterface
 import java.net.ServerSocket
 import java.net.Socket
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
 data class ActivePairingSession(
@@ -331,8 +334,12 @@ object DefaultChildControlDelegate : ChildControlDelegate {
 object ChildRemoteServer {
     const val PAIRING_TTL_MS = 3 * 60_000L
     private const val SOCKET_TIMEOUT_MS = 8_000
+    private const val MAX_PAIRING_ATTEMPTS = 5
+    private const val MAX_CONCURRENT_CLIENTS = 8
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val clientSemaphore = Semaphore(MAX_CONCURRENT_CLIENTS)
+    private val failedPairingAttempts = AtomicInteger(0)
 
     @Volatile
     internal var delegate: ChildControlDelegate = DefaultChildControlDelegate
@@ -420,6 +427,7 @@ object ChildRemoteServer {
             inviteUri = PairingUri.encode(invite),
         )
         activePairing.set(session)
+        failedPairingAttempts.set(0)
         _pairingSessionFlow.value = session
         reRegisterMdns(app, port)
         return Result.success(session)
@@ -428,6 +436,7 @@ object ChildRemoteServer {
     @Synchronized
     fun cancelPairingSession(context: Context) {
         activePairing.set(null)
+        failedPairingAttempts.set(0)
         _pairingSessionFlow.value = null
         val app = context.applicationContext
         val port = listeningPort
@@ -443,8 +452,9 @@ object ChildRemoteServer {
         val app = context.applicationContext
         appContext = app
         if (serverSocket != null && serverSocket?.isClosed == false) return
+        val effectiveBind = bindAddress ?: resolveLocalLanIpv4(app)?.let { runCatching { InetAddress.getByName(it) }.getOrNull() }
         val ss = runCatching {
-            if (bindAddress != null) ServerSocket(0, 16, bindAddress) else ServerSocket(0)
+            if (effectiveBind != null) ServerSocket(0, 16, effectiveBind) else ServerSocket(0, 16)
         }.getOrNull() ?: return
         serverSocket = ss
         _runningFlow.value = true
@@ -453,7 +463,11 @@ object ChildRemoteServer {
         acceptJob = scope.launch {
             while (isActive && !ss.isClosed) {
                 val client = runCatching { ss.accept() }.getOrNull() ?: break
-                launch { handleClient(app, client) }
+                launch {
+                    clientSemaphore.withPermit {
+                        handleClient(app, client)
+                    }
+                }
             }
         }
     }
@@ -531,6 +545,13 @@ object ChildRemoteServer {
         val pairingKey = RemoteCrypto.derivePairingKey(session.code, challengeNonce, childId)
         val expectedInput = "pair-init|${msg.parentId}|$childId|".toByteArray(Charsets.UTF_8) + parentPubBytes
         if (!RemoteCrypto.verifyHmacSha256(pairingKey, expectedInput, proofBytes)) {
+            if (failedPairingAttempts.incrementAndGet() >= MAX_PAIRING_ATTEMPTS) {
+                if (activePairing.compareAndSet(session, null)) {
+                    _pairingSessionFlow.value = null
+                    val port = listeningPort
+                    if (port > 0) reRegisterMdns(context, port)
+                }
+            }
             RemoteProtocol.writeJsonFrame<ServerWireMessage>(output, ServerWireMessage.Error("INVALID_CODE", "Pairing code verification failed"))
             return
         }
@@ -613,8 +634,14 @@ object ChildRemoteServer {
                 is RemoteRequest.PlaybackAction -> RemoteResponse.Status(delegate.executePlayback(context, req))
                 RemoteRequest.GetPolicy -> RemoteResponse.Policy(delegate.getPolicy(context))
                 is RemoteRequest.UpdatePolicy -> {
-                    val (rev, snap) = delegate.updatePolicy(context, req.policy, req.ruleLabels)
-                    RemoteResponse.PolicyUpdated(policyRevision = rev, snapshot = snap)
+                    val expectedRev = req.expectedRevision
+                    val currentRev = delegate.getPolicy(context).policyRevision
+                    if (expectedRev != null && expectedRev != currentRev) {
+                        RemoteResponse.Error("REVISION_CONFLICT", "Policy changed on device (expected $expectedRev, current $currentRev)")
+                    } else {
+                        val (rev, snap) = delegate.updatePolicy(context, req.policy, req.ruleLabels)
+                        RemoteResponse.PolicyUpdated(policyRevision = rev, snapshot = snap)
+                    }
                 }
                 is RemoteRequest.RenameDevice -> {
                     val snap = delegate.renameDevice(context, req.displayName)

@@ -144,16 +144,18 @@ object RemotePolicySession {
             Triple(p, remoteLabels.toMap(), remoteRevision)
         }
         _syncStateFlow.value = RemoteSyncState.Syncing
-        ParentRemoteClient.pushPolicy(app, child, policy, labels, rev).map { updated ->
-            synchronized(this) {
-                remoteRevision = updated.policyRevision
+        kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+            ParentRemoteClient.pushPolicy(app, child, policy, labels, rev).map { updated ->
+                synchronized(this@RemotePolicySession) {
+                    remoteRevision = updated.policyRevision
+                }
+                if (!dirty) {
+                    _syncStateFlow.value = RemoteSyncState.Synced
+                }
+            }.onFailure { e ->
+                synchronized(this@RemotePolicySession) { dirty = true }
+                _syncStateFlow.value = RemoteSyncState.Error(e.message ?: "Sync failed")
             }
-            if (!dirty) {
-                _syncStateFlow.value = RemoteSyncState.Synced
-            }
-        }.onFailure { e ->
-            synchronized(this) { dirty = true }
-            _syncStateFlow.value = RemoteSyncState.Error(e.message ?: "Sync failed")
         }
     }
 

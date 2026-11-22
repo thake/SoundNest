@@ -31,7 +31,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.play.services.cronet)
     implementation(libs.coroutines.core)
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("org.robolectric:robolectric:4.14.1")
+    implementation(libs.coroutines.android)
+    testImplementation(libs.junit4)
+    testImplementation(libs.robolectric)
 }

@@ -159,30 +159,35 @@ class NativeEngine(
 
         val ws = sockets.connect("wss://$dealer/?access_token=${tokens.accessToken().value}", dealerHeaders())
         socket = ws
-        connectionId = awaitConnectionId(ws)
-        player.setListener { playerInputs.trySend(it) }
-        jobs += scope.launch { for (e in playerInputs) handlePlayerEvent(e) }
-        jobs += scope.launch { readDealer(ws) }
-        jobs += scope.launch { while (true) { delay(30_000); runCatching { ws.send("""{"type":"ping"}""") } } }
+        try {
+            connectionId = awaitConnectionId(ws)
+            player.setListener { playerInputs.trySend(it) }
+            jobs += scope.launch { for (e in playerInputs) handlePlayerEvent(e) }
+            jobs += scope.launch { readDealer(ws) }
+            jobs += scope.launch { while (true) { delay(30_000); runCatching { ws.send("""{"type":"ping"}""") } } }
 
-        val correlation = tokens.clientToken().deviceId
-        val reg = sp.send(
-            "POST", "$spclient/track-playback/v1/devices", HeaderProfile.PLAYER,
-            body = Bodies.register(config, deviceId, connectionId, correlation).toString().encodeToByteArray(),
-            contentType = "application/json",
-        )
-        val r = EngineJson.decodeFromString(RegisterResponse.serializer(), reg.text())
-        seq = r.initialSeqNum
-        formatFilter = r.fileFormatFilter
-        val hobs = sp.send(
-            "PUT", "$spclient/connect-state/v1/devices/hobs_${deviceId.take(35)}", HeaderProfile.PLAYER,
-            body = Bodies.hobs().toString().encodeToByteArray(),
-            accept = "application/json", contentType = "application/json",
-            extra = mapOf("x-spotify-connection-id" to connectionId),
-        )
-        // Its answer is the account's cluster as it stands: the devices before any update comes.
-        runCatching { (EngineJson.parseToJsonElement(hobs.text()) as? JsonObject)?.let(Cluster::parse) }.getOrNull()?.let { _cluster.value = it }
-        emit(EngineEvent.Registered(deviceId))
+            val correlation = tokens.clientToken().deviceId
+            val reg = sp.send(
+                "POST", "$spclient/track-playback/v1/devices", HeaderProfile.PLAYER,
+                body = Bodies.register(config, deviceId, connectionId, correlation).toString().encodeToByteArray(),
+                contentType = "application/json",
+            )
+            val r = EngineJson.decodeFromString(RegisterResponse.serializer(), reg.text())
+            seq = r.initialSeqNum
+            formatFilter = r.fileFormatFilter
+            val hobs = sp.send(
+                "PUT", "$spclient/connect-state/v1/devices/hobs_${deviceId.take(35)}", HeaderProfile.PLAYER,
+                body = Bodies.hobs().toString().encodeToByteArray(),
+                accept = "application/json", contentType = "application/json",
+                extra = mapOf("x-spotify-connection-id" to connectionId),
+            )
+            // Its answer is the account's cluster as it stands: the devices before any update comes.
+            runCatching { (EngineJson.parseToJsonElement(hobs.text()) as? JsonObject)?.let(Cluster::parse) }.getOrNull()?.let { _cluster.value = it }
+            emit(EngineEvent.Registered(deviceId))
+        } catch (t: Throwable) {
+            runCatching { close() }
+            throw t
+        }
     }
 
     /** True once the server confirmed this engine's device was unregistered (2xx or 404). */

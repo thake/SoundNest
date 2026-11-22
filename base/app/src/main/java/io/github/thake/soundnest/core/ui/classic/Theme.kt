@@ -68,14 +68,19 @@ fun SpotuiTheme(
     val visualScheme: ColorScheme = spotifyColorScheme(AppAccent)
     val view = LocalView.current
     if (!view.isInEditMode) {
-        SideEffect {
-            val window = (view.context as Activity).window
+        androidx.compose.runtime.LaunchedEffect(view, policy.displayRefreshCap, AppBackground) {
+            val activity = generateSequence(view.context) { (it as? android.content.ContextWrapper)?.baseContext }
+                .filterIsInstance<Activity>()
+                .firstOrNull() ?: return@LaunchedEffect
+            val window = activity.window
             window.attributes = window.attributes.apply { preferredRefreshRate = policy.displayRefreshCap }
+            @Suppress("DEPRECATION")
             window.statusBarColor = Color.Transparent.toArgb()
             // White icons on the dark palette.
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
             // B19: the navigation bar was left to the system — a white band under the always-dark
             // UI (reported in the modal sheets, where the bar was opaque) with dark icons on it.
+            @Suppress("DEPRECATION")
             window.navigationBarColor = Color.Transparent.toArgb()
             window.isNavigationBarContrastEnforced = false
             WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = false

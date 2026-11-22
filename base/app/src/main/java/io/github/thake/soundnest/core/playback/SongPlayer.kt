@@ -567,6 +567,8 @@ object SongPlayer {
             state.updateSongState("", "", "", false, 0, 0, "")
             state.likeState.value = false
         }
+        // Re-arm periodic position persistence after clearing pending handler callbacks.
+        main.postDelayed(savePosition, POSITION_SAVE_MS)
     }
 
     private fun trackIdOf(uri: String) = uri.removePrefix(SPOTIFY_TRACK_PREFIX).takeIf { uri.startsWith(SPOTIFY_TRACK_PREFIX) }.orEmpty()
@@ -1173,7 +1175,13 @@ object SongPlayer {
             if (attempt == 0) { Log.w(TAG, "play of $itemUri not taken: sent again"); play() }
         }
         if (!isLatest()) return
-        val healed = runCatching { WebPlayerSelfHealer.healIfWedged(Graph.app, "play_not_taken") }.getOrDefault(false)
+        val healed = try {
+            WebPlayerSelfHealer.healIfWedged(Graph.app, "play_not_taken")
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Throwable) {
+            false
+        }
         if (healed && isLatest()) {
             // Wait for the reloaded Web Player page to become ready, then replay the child's tap once.
             kotlinx.coroutines.delay(1_000L)
@@ -1259,6 +1267,10 @@ object SongPlayer {
         order: List<String>? = null, positionMs: Long? = null,
         songs: List<SongsModel>? = null, alone: Boolean = false,
     ) {
+        if (runCatching { io.github.thake.soundnest.feature.parental.schedule.ParentalScheduleController.evaluateNow(Graph.app).isLockedByUsageHours }.getOrDefault(false)) {
+            io.github.thake.soundnest.host.android.Logbook.log("playSong refused: outside allowed listening hours")
+            return
+        }
         if (io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.isAudibleUri(song)) {
             val asin = io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.asinFromAny(song) ?: return
             val chapterIdx = io.github.thake.soundnest.feature.spokenword.audible.data.AudibleUris.chapterIndexFromUri(song)
@@ -1327,6 +1339,10 @@ object SongPlayer {
     /** [by]: who asked, for the diagnostic (the app's screens, the media session...). */
     fun play(by: String = "user") {
         io.github.thake.soundnest.host.android.Logbook.log("play asked by $by")
+        if (runCatching { io.github.thake.soundnest.feature.parental.schedule.ParentalScheduleController.evaluateNow(Graph.app).isLockedByUsageHours }.getOrDefault(false)) {
+            io.github.thake.soundnest.host.android.Logbook.log("play refused ($by): outside allowed listening hours")
+            return
+        }
         if (!api.ready.value) runCatching { SoundNestRuntime.host.retryIfLoadFailed() }
         if (by != BY_CALL) callPause.userActed()
         if (io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value) { Haptics.click(); io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.resume(); return }

@@ -94,8 +94,10 @@ class ParentalScheduleControllerTest {
         ParentSecurityManager.lockNow(context)
         assertFalse(ParentalScheduleController.evaluateNow(context).isLockedByUsageHours)
 
-        // After 31 minutes, extension expires and lock returns
-        wallMs += 31 * 60_000L
+        // Rewinding wall clock must not extend the monotonic temporary override
+        wallMs -= 60 * 60_000L
+        // After 31 monotonic minutes, extension expires and lock returns
+        monoMs += 31 * 60_000L
         assertTrue(ParentalScheduleController.evaluateNow(context).isLockedByUsageHours)
     }
 

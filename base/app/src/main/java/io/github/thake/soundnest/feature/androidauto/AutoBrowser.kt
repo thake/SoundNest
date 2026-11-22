@@ -278,6 +278,9 @@ object AutoBrowser {
 
     /** Voice search ("play X on Myspoti"): the best matching allowed track. */
     suspend fun playFromSearch(query: String): Boolean {
+        if (runCatching { io.github.thake.soundnest.feature.parental.schedule.ParentalScheduleController.evaluateNow(Graph.app).isLockedByUsageHours }.getOrDefault(false)) {
+            return false
+        }
         // A cold start asks before the page is up: waiting gives the answer, returning at
         // once would tell the driver nothing matched.
         if (!awaitPlayer()) {

@@ -389,6 +389,9 @@ object ParentRemoteClient {
             val host = discovered?.host ?: child.lastHost
             val port = discovered?.port ?: child.lastPort
             require(host.isNotBlank() && port in 1..65535) { "No known Wi-Fi address for ${child.displayName}" }
+            require(PairingUri.isValidLanHost(host) || host == "127.0.0.1" || host == "localhost") {
+                "Refusing non-LAN host for ${child.displayName}"
+            }
 
             Socket().use { s ->
                 s.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)

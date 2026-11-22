@@ -62,12 +62,6 @@ interface Player {
     suspend fun setVolume(level: Double)
     /** Playback speed (podcasts): 0.5 to 3.5. */
     suspend fun setSpeed(speed: Double)
-    /**
-     * Unheard on this phone while it keeps playing: an extension plays the song itself and only
-     * mirrors it here. The app then ignores this player's state ([localMute]).
-     */
-    suspend fun setLocalMute(on: Boolean) {}
-    val localMute: Boolean get() = false
 }
 
 interface Search {
@@ -236,14 +230,6 @@ interface Home {
 
 interface Podcasts {
     suspend fun show(uri: Uri): Show
-    /**
-     * The episode's audio, resolved right before a download (the links are signed and expire).
-     *
-     * Spotify serves its own copy only as a Widevine-encrypted MP4; the clear file we can play
-     * offline is the publisher's own upload ("passthrough"). It does not exist for
-     * Spotify-exclusive shows, which report [EpisodeAudio.passthrough] = "NONE".
-     */
-    suspend fun audioUrl(uri: Uri): EpisodeAudio
     suspend fun episodes(uri: Uri, offset: Int = 0, limit: Int = 50): Page<Episode>
     suspend fun episode(uri: Uri): Episode
     suspend fun audiobook(uri: Uri): Audiobook

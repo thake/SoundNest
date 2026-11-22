@@ -187,19 +187,25 @@ fun ParentSettingsScreen(
         }
     }
 
+    val backupScope = androidx.compose.runtime.rememberCoroutineScope()
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json"),
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        runCatching {
-            val jsonText = ParentalConfigBackup.exportJson(context)
-            context.contentResolver.openOutputStream(uri)?.use { out ->
-                out.write(jsonText.toByteArray(Charsets.UTF_8))
-            } ?: error("Could not open file output stream")
-        }.onSuccess {
-            Toast.makeText(context, context.getString(R.string.parent_toast_export_success), Toast.LENGTH_SHORT).show()
-        }.onFailure { e ->
-            Toast.makeText(context, context.getString(R.string.parent_toast_export_failed, e.message ?: ""), Toast.LENGTH_LONG).show()
+        backupScope.launch {
+            val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    val jsonText = ParentalConfigBackup.exportJson(context)
+                    context.contentResolver.openOutputStream(uri)?.use { out ->
+                        out.write(jsonText.toByteArray(Charsets.UTF_8))
+                    } ?: error("Could not open file output stream")
+                }
+            }
+            result.onSuccess {
+                Toast.makeText(context, context.getString(R.string.parent_toast_export_success), Toast.LENGTH_SHORT).show()
+            }.onFailure { e ->
+                Toast.makeText(context, context.getString(R.string.parent_toast_export_failed, e.message ?: ""), Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -207,16 +213,21 @@ fun ParentSettingsScreen(
         contract = ActivityResultContracts.OpenDocument(),
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        runCatching {
-            val raw = context.contentResolver.openInputStream(uri)?.use { input ->
-                input.readBytes().toString(Charsets.UTF_8)
-            } ?: error("Could not read selected file")
-            ParentalConfigBackup.importJson(context, raw).getOrThrow()
-        }.onSuccess {
-            networkRefresh++
-            Toast.makeText(context, context.getString(R.string.parent_toast_import_success), Toast.LENGTH_SHORT).show()
-        }.onFailure { e ->
-            Toast.makeText(context, context.getString(R.string.parent_toast_import_failed, e.message ?: ""), Toast.LENGTH_LONG).show()
+        backupScope.launch {
+            val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    val raw = context.contentResolver.openInputStream(uri)?.use { input ->
+                        input.readBytes().toString(Charsets.UTF_8)
+                    } ?: error("Could not read selected file")
+                    ParentalConfigBackup.importJson(context, raw).getOrThrow()
+                }
+            }
+            result.onSuccess {
+                networkRefresh++
+                Toast.makeText(context, context.getString(R.string.parent_toast_import_success), Toast.LENGTH_SHORT).show()
+            }.onFailure { e ->
+                Toast.makeText(context, context.getString(R.string.parent_toast_import_failed, e.message ?: ""), Toast.LENGTH_LONG).show()
+            }
         }
     }
 

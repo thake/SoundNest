@@ -190,7 +190,14 @@ class PlaybackService : MediaBrowserServiceCompat() {
         applyQueue()
     }
 
+    private val closeStopRunnable = Runnable {
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        foreground = false
+        stopSelf()
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        handler.removeCallbacks(closeStopRunnable)
         // Every start may be a startForegroundService() (playback, a headset button or the
         // notification's dismissal through MediaButtonReceiver, another app): Android kills the
         // app unless startForeground() follows, paused or not. A paused player then leaves the
@@ -216,6 +223,7 @@ class PlaybackService : MediaBrowserServiceCompat() {
                 ?.keyCode == android.view.KeyEvent.KEYCODE_MEDIA_STOP
 
     override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
         runCatching { unregisterReceiver(localeReceiver) }
         instance = null
         releaseLocks()
@@ -242,11 +250,8 @@ class PlaybackService : MediaBrowserServiceCompat() {
         // player started again on its own once the service had gone.
         if (current != null) controls?.pause()
         if (!sounding) { stopSelf(); return }
-        handler.postDelayed({
-            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-            foreground = false
-            stopSelf()
-        }, CLOSE_STOP_MS)
+        handler.removeCallbacks(closeStopRunnable)
+        handler.postDelayed(closeStopRunnable, CLOSE_STOP_MS)
     }
 
     /** A Spotify Connect device plays (the session's volume is that device's). */
@@ -556,8 +561,14 @@ class PlaybackService : MediaBrowserServiceCompat() {
     private fun holdWifi(on: Boolean) {
         runCatching {
             if (on) {
+                val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    android.net.wifi.WifiManager.WIFI_MODE_FULL_LOW_LATENCY
+                } else {
+                    @Suppress("DEPRECATION")
+                    android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF
+                }
                 val wifi = wifiLock ?: applicationContext.getSystemService(android.net.wifi.WifiManager::class.java)
-                    .createWifiLock(android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF, "Myspoti:playback")
+                    .createWifiLock(mode, "SoundNest:playback")
                     .apply { setReferenceCounted(false) }.also { wifiLock = it }
                 if (!wifi.isHeld) wifi.acquire()
             } else {
@@ -567,6 +578,7 @@ class PlaybackService : MediaBrowserServiceCompat() {
     }
 
     private fun show(info: NowPlayingInfo) {
+        handler.removeCallbacks(closeStopRunnable)
         // A cover recycled behind our back since [apply] (the reported crash: "Can't copy a
         // recycled bitmap" building the notification) is dropped and fetched again.
         if (cover?.isRecycled == true) { cover = null; lastCoverUrl = null; loadCover(info.coverUrl?.let(Covers::large)) }

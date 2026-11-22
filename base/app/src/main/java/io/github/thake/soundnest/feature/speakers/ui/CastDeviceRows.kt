@@ -37,6 +37,7 @@ import io.github.thake.soundnest.core.ui.classic.AppText
 import io.github.thake.soundnest.feature.speakers.cast.CastDiscovery
 import io.github.thake.soundnest.feature.speakers.cast.CastPlayback
 import io.github.thake.soundnest.feature.speakers.cast.CastSpotify
+import io.github.thake.soundnest.feature.speakers.settings.TrustedNetworkGate
 import io.github.thake.soundnest.host.android.SoundNestRuntime
 
 /**
@@ -49,8 +50,11 @@ import io.github.thake.soundnest.host.android.SoundNestRuntime
 @Composable
 fun CastDeviceRows(onDismiss: () -> Unit) {
     val context = LocalContext.current
-    DisposableEffect(Unit) {
-        CastDiscovery.start(context)
+    val networkTrusted = TrustedNetworkGate.isNetworkTrusted(context)
+    DisposableEffect(networkTrusted) {
+        if (networkTrusted) {
+            CastDiscovery.start(context)
+        }
         onDispose { CastDiscovery.stop() }
     }
     val casting = CastPlayback.device.value
@@ -69,9 +73,14 @@ fun CastDeviceRows(onDismiss: () -> Unit) {
             CastPlayback.stop(back = true); onDismiss()
         }
     }
+    if (!networkTrusted) return
     val waking = CastSpotify.waking.value
     val connectNames = SoundNestRuntime.spotify.devices.devices.collectAsState().value.filter { !it.local }.map { it.name }.toSet()
-    CastDiscovery.devices.filter { it.id != casting?.id && (ownSong || it.name !in connectNames) }.forEach { d ->
+    CastDiscovery.devices.filter {
+        it.id != casting?.id &&
+            TrustedNetworkGate.isDeviceAllowed(context, it.id, isSelf = false) &&
+            (ownSong || it.name !in connectNames)
+    }.forEach { d ->
         val detail = when {
             waking?.id == d.id -> stringResource(R.string.cast_connecting)
             !ownSong -> stringResource(R.string.cast_spotify_detail)
