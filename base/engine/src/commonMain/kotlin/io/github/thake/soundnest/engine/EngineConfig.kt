@@ -42,8 +42,10 @@ data class EngineConfig(
     val preloadBeforeEndMs: Long? = null,
     /** Retries after a 429 before the error reaches the caller. */
     val maxRateLimitRetries: Int = 3,
+    /** Optional human-readable device name (e.g. phone's own name) replacing "Web Player (Chrome)". */
+    val customDeviceName: String? = null,
 ) {
-    val deviceName get() = "Web Player ($browserName)"
+    val deviceName get() = customDeviceName?.takeIf { it.isNotBlank() } ?: "Web Player ($browserName)"
     val platformIdentifier get() = "web_player $os undefined;${browserName.lowercase()} $browserVersion;desktop"
     val harmonyVersion get() = "harmony:$sdkVersion-$sdkBuild"
 

@@ -1327,6 +1327,7 @@ object SongPlayer {
     /** [by]: who asked, for the diagnostic (the app's screens, the media session...). */
     fun play(by: String = "user") {
         io.github.thake.soundnest.host.android.Logbook.log("play asked by $by")
+        if (!api.ready.value) runCatching { SoundNestRuntime.host.retryIfLoadFailed() }
         if (by != BY_CALL) callPause.userActed()
         if (io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value) { Haptics.click(); io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.resume(); return }
         if (LocalPlayer.active.value) { Haptics.click(); LocalPlayer.resume(); return }

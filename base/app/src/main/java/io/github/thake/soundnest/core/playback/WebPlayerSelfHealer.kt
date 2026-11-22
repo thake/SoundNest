@@ -73,6 +73,9 @@ object WebPlayerSelfHealer {
     @Volatile internal var triggerReload: () -> Unit = {
         runCatching { SoundNestRuntime.host.reload() }
     }
+    @Volatile internal var triggerRetryFailedLoad: () -> Boolean = {
+        runCatching { SoundNestRuntime.isStarted && SoundNestRuntime.host.retryIfLoadFailed() }.getOrDefault(false)
+    }
 
     @Volatile private var backgroundedAtMs: Long = 0L
     @Volatile private var lastReloadAtMs: Long = 0L
@@ -86,13 +89,18 @@ object WebPlayerSelfHealer {
     }
 
     fun onForeground(context: Context) {
+        val app = context.applicationContext
+        // If the WebView failed to load while Doze/background blocked DNS (backing off up to 600 s),
+        // retry immediately when the user returns to the foreground with a validated network.
+        if (isSignedIn(app) && !isParentController(app) && !isDataSaverActive() && !isApiReady() && isNetworkValidated(app)) {
+            triggerRetryFailedLoad()
+        }
         val bgAt = backgroundedAtMs
         backgroundedAtMs = 0L
         if (bgAt <= 0L) return
         val bgDuration = clockMs() - bgAt
         if (bgDuration < MIN_BACKGROUND_FOR_PROBE_MS) return
 
-        val app = context.applicationContext
         foregroundProbeJob?.cancel()
         foregroundProbeJob = scope.launch {
             delay(FOREGROUND_SETTLE_MS)
@@ -118,7 +126,9 @@ object WebPlayerSelfHealer {
         if (isParentController(context)) return false
         if (isDataSaverActive()) return false
         if (isPlayingNow()) return false
-        if (!isApiReady()) return false
+        if (!isApiReady()) {
+            return isNetworkValidated(context) && triggerRetryFailedLoad()
+        }
         if (!isNetworkValidated(context)) return false
         if (hasPlayerState()) {
             recordHealthy()
@@ -201,5 +211,8 @@ object WebPlayerSelfHealer {
             }.getOrDefault(false)
         }
         triggerReload = { runCatching { SoundNestRuntime.host.reload() } }
+        triggerRetryFailedLoad = {
+            runCatching { SoundNestRuntime.isStarted && SoundNestRuntime.host.retryIfLoadFailed() }.getOrDefault(false)
+        }
     }
 }

@@ -677,6 +677,24 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
         main.postDelayed(retryPlayerPage, wait)
     }
 
+    /**
+     * Immediately retries loading the Web Player when a previous load failed (for example after
+     * Android Doze blocked DNS in the background and backed off to 600 s) and the user returns
+     * to the foreground or taps Play.
+     */
+    fun retryIfLoadFailed(): Boolean {
+        if (!loadAsked || _loginRequired.value || !mainFrameFailed) return false
+        main.post {
+            if (!loadAsked || _loginRequired.value || !mainFrameFailed) return@post
+            pageFailures = 0
+            main.removeCallbacks(retryPlayerPage)
+            Logbook.log("player page: retrying failed load immediately")
+            view.stopLoading()
+            view.loadUrl(playerRoot())
+        }
+        return true
+    }
+
     fun openLogin() = main.post {
         findActivity(container?.context)?.let { ensureActivityView(it) }
         // A player retry or load timeout still pending would replace the sign-in page just asked for.

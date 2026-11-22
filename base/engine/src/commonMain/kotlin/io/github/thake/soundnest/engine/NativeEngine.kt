@@ -185,14 +185,18 @@ class NativeEngine(
         emit(EngineEvent.Registered(deviceId))
     }
 
+    /** True once the server confirmed this engine's device was unregistered (2xx or 404). */
+    @kotlin.concurrent.Volatile var unregisteredOnServer: Boolean = false
+        private set
+
     /** Leaves like a closing tab: finalizes the current track, then the two DELETEs of SESSION.md. */
     suspend fun close() = lock.withLock {
         // A report the server refuses must not keep the device registered and the socket open.
         current?.let { runCatching { finalize(it, "endplay", null) }; player.stop() }
         current = null
         runCatching { flushTimeline() }
-        runCatching {
-            sp.send(
+        val deleted = runCatching {
+            val r1 = sp.send(
                 "DELETE", "$spclient/track-playback/v1/devices/$deviceId", HeaderProfile.PLAYER,
                 body = buildJsonObject {
                     put("seq_num", ++seq); put("state_ref", kotlinx.serialization.json.JsonNull)
@@ -200,10 +204,33 @@ class NativeEngine(
                 }.toString().encodeToByteArray(),
                 contentType = "application/json",
             )
-            sp.send("DELETE", "$spclient/connect-state/v1/devices/hobs_${deviceId.take(35)}", HeaderProfile.PLAYER)
-        }
+            val r2 = sp.send("DELETE", "$spclient/connect-state/v1/devices/hobs_${deviceId.take(35)}", HeaderProfile.PLAYER)
+            (r1.status in 200..299 || r1.status == 404) && (r2.status in 200..299 || r2.status == 404)
+        }.getOrDefault(false)
+        if (deleted) unregisteredOnServer = true
         jobs.forEach { it.cancel() }
         socket?.close()
+    }
+
+    /**
+     * Unregisters an orphaned device ID left behind by an earlier [NativeEngine] instance whose
+     * [close] failed while offline or whose process was killed. Returns true if confirmed removed.
+     */
+    suspend fun unregisterOrphan(orphanDeviceId: String): Boolean {
+        val clean = orphanDeviceId.trim()
+        if (clean.isEmpty() || clean == deviceId || spclient.isBlank()) return false
+        return runCatching {
+            val r1 = sp.send(
+                "DELETE", "$spclient/track-playback/v1/devices/$clean", HeaderProfile.PLAYER,
+                body = buildJsonObject {
+                    put("seq_num", 1); put("state_ref", kotlinx.serialization.json.JsonNull)
+                    put("sub_state", buildJsonObject {}); put("previous_position", 0); put("debug_source", "deregister")
+                }.toString().encodeToByteArray(),
+                contentType = "application/json",
+            )
+            val r2 = sp.send("DELETE", "$spclient/connect-state/v1/devices/hobs_${clean.take(35)}", HeaderProfile.PLAYER)
+            (r1.status in 200..299 || r1.status == 404) && (r2.status in 200..299 || r2.status == 404)
+        }.getOrDefault(false)
     }
 
     private fun dealerHeaders() = mapOf(

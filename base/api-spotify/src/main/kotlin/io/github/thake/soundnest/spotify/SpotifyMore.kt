@@ -530,12 +530,17 @@ class SpotifyDevices(
 ) : Devices {
     /** A device id that is this app too (the native engine's, see [AccountAudio.deviceId]); null: none. */
     @Volatile var ownDeviceId: () -> String? = { null }
+    /** All device ids owned by this app (active native engine + any pending-cleanup orphan ids). */
+    @Volatile var ownDeviceIds: () -> Set<String> = { ownDeviceId()?.let(::setOf).orEmpty() }
     @Volatile var audio: AccountAudio? = null
     private val _devices = MutableStateFlow<List<Device>>(emptyList())
     override val devices: StateFlow<List<Device>> = _devices
 
     override suspend fun refresh() {
-        val own = ownDeviceId()
+        val ownIds = buildSet {
+            ownDeviceId()?.takeIf { it.isNotBlank() }?.let(::add)
+            ownDeviceIds().filter { it.isNotBlank() }.forEach(::add)
+        }
         val all = ConnectDeviceLabels.fetchDevicesJson(bridge).mapNotNull { d ->
             val id = (d.str("id") ?: d.str("connectStateId") ?: d.str("deviceId"))?.trim()?.takeIf { it.isNotEmpty() }
                 ?: return@mapNotNull null
@@ -548,7 +553,7 @@ class SpotifyDevices(
                 type = type,
                 active = d.bool("isActive") ?: false,
                 volume = d.double("volume"),
-                local = d.bool("isLocal") ?: false || (own != null && id == own),
+                local = (d.bool("isLocal") ?: false) || id in ownIds,
                 aliasId = parsed.aliasId,
             )
         }

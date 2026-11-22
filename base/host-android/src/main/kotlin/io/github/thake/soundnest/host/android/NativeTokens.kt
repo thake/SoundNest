@@ -55,6 +55,7 @@ class NativeTokens(private val http: SpotifyHttp) : TokenSource {
                     "sec-ch-ua-mobile" to "?0",
                     "sec-ch-ua-platform" to "\"Linux\"",
                 ),
+                customDeviceName = SoundNestRuntime.appContext?.let { PhoneName.of(it) },
             )
         }
     }

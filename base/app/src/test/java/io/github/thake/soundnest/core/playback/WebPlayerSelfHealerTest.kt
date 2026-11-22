@@ -120,4 +120,18 @@ class WebPlayerSelfHealerTest {
         assertTrue(WebPlayerSelfHealer.checkAndHealIfWedged(context, "transport_timeout"))
         assertEquals(4, reloadCount)
     }
+
+    @Test
+    fun retriesFailedInitialLoadImmediatelyOnForegroundAndHeal() = runBlocking {
+        var retried = 0
+        WebPlayerSelfHealer.isApiReady = { false }
+        WebPlayerSelfHealer.triggerRetryFailedLoad = { retried++; true }
+
+        WebPlayerSelfHealer.onForeground(context)
+        assertEquals(1, retried)
+
+        assertTrue(WebPlayerSelfHealer.checkAndHealIfWedged(context, "transport_timeout"))
+        assertEquals(2, retried)
+        assertEquals(0, reloadCount)
+    }
 }

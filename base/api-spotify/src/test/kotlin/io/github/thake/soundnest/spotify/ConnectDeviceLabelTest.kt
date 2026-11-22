@@ -250,6 +250,32 @@ class ConnectDeviceLabelTest {
     }
 
     @Test
+    fun `SpotifyDevices refresh hides orphaned NativeEngine device ids via ownDeviceIds`() = runTest {
+        val payload = """
+            [
+              {"id":"webview-local","name":"Joris","type":"COMPUTER","isActive":false,"isLocal":true},
+              {"id":"orphan-native-1","name":"Web Player (Chrome)","type":"COMPUTER","isActive":true,"isLocal":false},
+              {"id":"native-current","name":"Joris","type":"COMPUTER","isActive":false,"isLocal":false},
+              {"id":"remote-speaker","name":"Kitchen Echo","type":"SPEAKER","isActive":false,"isLocal":false}
+            ]
+        """.trimIndent()
+        val host = FakeConnectHost(connectDevicesJson = payload)
+        val bridge = Bridge(host, scope)
+        val devices = SpotifyDevices(bridge)
+        devices.ownDeviceId = { "native-current" }
+        devices.ownDeviceIds = { setOf("native-current", "orphan-native-1") }
+
+        devices.refresh()
+
+        val list = devices.devices.value
+        assertEquals(2, list.size)
+        assertTrue(list[0].local)
+        assertTrue(list[0].active)
+        assertFalse(list[1].local)
+        assertEquals("Kitchen Echo", list[1].name)
+    }
+
+    @Test
     fun `SpotifyDevices transfer delegates to AccountAudio when holdsPlayback is true`() = runTest {
         val host = FakeConnectHost(connectDevicesJson = "[]")
         val bridge = Bridge(host, scope)

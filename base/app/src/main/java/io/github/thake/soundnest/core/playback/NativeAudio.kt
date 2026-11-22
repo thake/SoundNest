@@ -53,6 +53,7 @@ import kotlinx.serialization.json.jsonPrimitive
  */
 object NativeAudio : io.github.thake.soundnest.spotify.AccountAudio, io.github.thake.soundnest.spotify.sync.MirrorEngine {
     private const val PREFS = "core_native_audio"
+    private const val KEY_ORPHAN_IDS = "orphaned_device_ids"
 
     /** The setting: the engine plays the account's songs (on unless turned off). */
     @Volatile var enabled: Boolean = Graph.app.getSharedPreferences(PREFS, 0).getBoolean("on", true)
@@ -128,6 +129,7 @@ object NativeAudio : io.github.thake.soundnest.spotify.AccountAudio, io.github.t
         spotify.player.audio = this
         spotify.devices.audio = this
         spotify.devices.ownDeviceId = { deviceId }
+        spotify.devices.ownDeviceIds = { knownOwnDeviceIds() }
         scope.launch {
             io.github.thake.soundnest.spotify.AccountPlan.premium.collect { isPremium ->
                 if (isPremium != true && engine != null) {
@@ -315,6 +317,17 @@ object NativeAudio : io.github.thake.soundnest.spotify.AccountAudio, io.github.t
         log("starting: widevine ${WidevineInfo.summary}, ${config.deviceName}, app ${config.appVersion}")
         e.start()
         log("registered ${e.deviceId.take(8)}… on ${e.spclient.substringAfter("://")}, http ${chromium.status}")
+        val staleOrphans = recordRegisteredDevice(context, e.deviceId)
+        if (staleOrphans.isNotEmpty()) {
+            scope.launch {
+                staleOrphans.forEach { oldId ->
+                    if (e.unregisterOrphan(oldId)) {
+                        log("cleaned up orphaned device ${oldId.take(8)}…")
+                        removeTrackedDevice(context, oldId)
+                    }
+                }
+            }
+        }
         engine = e
         _current.value = e
         e
@@ -326,6 +339,7 @@ object NativeAudio : io.github.thake.soundnest.spotify.AccountAudio, io.github.t
                 if (engine !== e) return@withLock
                 log("the dealer closed: the engine leaves the account until its next use")
                 runCatching { e.close() }
+                if (e.unregisteredOnServer) removeTrackedDevice(Graph.app, e.deviceId)
                 player?.release()
                 engine = null; player = null; _current.value = null
             }
@@ -333,12 +347,48 @@ object NativeAudio : io.github.thake.soundnest.spotify.AccountAudio, io.github.t
     }
 
     private suspend fun stop() = lock.withLock {
-        engine?.let { runCatching { it.close() }.onFailure { t -> log("close failed: ${t.message}") } }
+        engine?.let { e ->
+            runCatching { e.close() }.onFailure { t -> log("close failed: ${t.message}") }
+            if (e.unregisteredOnServer) removeTrackedDevice(Graph.app, e.deviceId)
+        }
         player?.release()
         engine = null
         player = null
         _current.value = null
         log("stopped")
+    }
+
+    @Synchronized
+    private fun persistedOrphanIds(context: Context): Set<String> =
+        runCatching {
+            context.applicationContext.getSharedPreferences(PREFS, 0)
+                .getStringSet(KEY_ORPHAN_IDS, emptySet())
+                .orEmpty()
+                .toSet()
+        }.getOrDefault(emptySet())
+
+    @Synchronized
+    private fun recordRegisteredDevice(context: Context, newId: String): List<String> {
+        val prefs = context.applicationContext.getSharedPreferences(PREFS, 0)
+        val existing = prefs.getStringSet(KEY_ORPHAN_IDS, emptySet()).orEmpty().toMutableSet()
+        val stale = existing.filter { it != newId && it.isNotBlank() }
+        existing.add(newId)
+        prefs.edit().putStringSet(KEY_ORPHAN_IDS, existing).apply()
+        return stale
+    }
+
+    @Synchronized
+    private fun removeTrackedDevice(context: Context, id: String) {
+        val prefs = context.applicationContext.getSharedPreferences(PREFS, 0)
+        val existing = prefs.getStringSet(KEY_ORPHAN_IDS, emptySet()).orEmpty().toMutableSet()
+        if (existing.remove(id)) {
+            prefs.edit().putStringSet(KEY_ORPHAN_IDS, existing).apply()
+        }
+    }
+
+    fun knownOwnDeviceIds(context: Context = Graph.app): Set<String> = buildSet {
+        deviceId?.takeIf { it.isNotBlank() }?.let(::add)
+        addAll(persistedOrphanIds(context))
     }
 
     /** The player as the engine sees it, plus the time from the command to the first audio. */
