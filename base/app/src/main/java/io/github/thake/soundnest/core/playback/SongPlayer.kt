@@ -421,64 +421,56 @@ object SongPlayer {
 
     // ── Last track: shown at launch (mini player) before the Web Player reports ──
 
-    private fun lastTrackPrefs() = Graph.app.getSharedPreferences("core_playback_session", Context.MODE_PRIVATE)
-    private var savedLast = ""
-    // Who played the saved session and when it was saved: Spotify's state at launch is older than a
-    // local-player session saved after it, and must not replace it.
-    private var savedSource = io.github.thake.soundnest.core.playback.LastSession.SOURCE_SPOTIFY
-    private var savedAtMs = 0L
+    private val sessionStore = PlaybackSessionStore()
     @Volatile private var resumeWhenReady = false
 
     private fun restoreLastTrack(state: CurrentSongState) {
         if (state.title.value.isNotBlank() || !acceptsSessionUpdates()) return
         val policy = io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore.current(Graph.app)
-        val p = lastTrackPrefs()
-        val uri = p.getString("uri", "").orEmpty()
-        val title = p.getString("title", "").orEmpty()
-        if (uri.isBlank() || title.isBlank()) return
+        val saved = sessionStore.loadTrack() ?: return
+        val uri = saved.uri
+        val title = saved.title
         val id = trackIdOf(uri)
-        val contextUri = p.getString("contextUri", "").orEmpty()
+        val contextUri = saved.contextUri
         val restoredSong = SongsModel(
             id = songIdFor(id, uri),
             title = title,
-            album = p.getString("album", "").orEmpty(),
-            singer = p.getString("singer", "").orEmpty(),
-            coverUri = p.getString("cover", "").orEmpty(),
-            url = if (uri.startsWith("spotify:episode:")) "episode:" + uri.substringAfterLast(':') else buildSpotifyPlayQuery(id, title, p.getString("singer", "").orEmpty()),
+            album = saved.album,
+            singer = saved.singer,
+            coverUri = saved.coverUri,
+            url = if (uri.startsWith("spotify:episode:")) "episode:" + uri.substringAfterLast(':') else buildSpotifyPlayQuery(id, title, saved.singer),
             spotifyTrackId = id,
         )
         if (!io.github.thake.soundnest.feature.parental.filter.ParentalFilterEngine.isTrackAllowed(restoredSong, policy, contextUri)) return
         currentTrackId = id
-        savedSource = p.getString("source", null) ?: io.github.thake.soundnest.core.playback.LastSession.SOURCE_SPOTIFY
-        savedAtMs = p.getLong("savedAt", 0L)
-        durationMs = p.getLong("duration", 0L)
-        positionMs = p.getLong("position", 0L)
+        durationMs = saved.durationMs
+        positionMs = saved.positionMs
         positionAt = SystemClock.elapsedRealtime()
         playing = false
-        val contextName = p.getString("contextName", "").orEmpty()
+        val contextName = saved.contextName
         registerContextName(contextUri, contextName)
         currentContextUri = contextUri
         _nowPlaying.value = NowPlaying(uri = uri, contextUri = contextUri, contextName = contextName)
         state.updateSongState(
-            coverUri = p.getString("cover", "").orEmpty(),
+            coverUri = saved.coverUri,
             title = title,
-            singer = p.getString("singer", "").orEmpty(),
+            singer = saved.singer,
             playingState = false,
             songId = songIdFor(id, uri),
             songIndex = 0,
-            album = p.getString("album", "").orEmpty(),
+            album = saved.album,
         )
-        state.likeState.value = p.getBoolean("liked", false)
+        state.likeState.value = saved.liked
         // The media session has the last song, paused, before anything plays: a car or a Bluetooth
         // stereo that binds first (after the app was killed too) shows it and can resume it (#142).
         PlaybackService.update(Graph.app, NowPlayingInfo(
-            id = uri, title = title, artist = p.getString("singer", "").orEmpty(), album = p.getString("album", "").orEmpty(),
-            coverUrl = p.getString("cover", "").orEmpty().ifBlank { null }, durationMs = durationMs, positionMs = positionMs,
+            id = uri, title = title, artist = saved.singer, album = saved.album,
+            coverUrl = saved.coverUri.ifBlank { null }, durationMs = durationMs, positionMs = positionMs,
             playing = false, liked = state.likeState.value, shuffle = state.shuffle.value == true,
             episode = uri.startsWith("spotify:episode:"),
         ))
         // Spotify's own queue too: the page's replaces it once it reports.
-        val rest = io.github.thake.soundnest.core.playback.LastSession.decodeQueue(p.getString("queue", null))
+        val rest = saved.queue
         if (rest.isNotEmpty()) {
             val rawQueue = EngineQueue(
                 current = rest.first(),
@@ -497,22 +489,18 @@ object SongPlayer {
         song: SongsModel, uri: String, liked: Boolean, contextUri: String, contextName: String,
         source: String = io.github.thake.soundnest.core.playback.LastSession.SOURCE_SPOTIFY, queue: List<SongsModel>? = null,
     ) {
-        val key = "$uri|$playing|$liked|$source|$contextUri"
-        if (uri.isBlank() || key == savedLast) return
-        savedLast = key
-        savedSource = source; savedAtMs = System.currentTimeMillis()
-        val p = lastTrackPrefs()
-        // No queue known yet for this song: the one saved with it stays (a pause, a like), another song's goes.
-        val kept = if (queue.isNullOrEmpty() && p.getString("uri", "") == uri) p.getString("queue", "").orEmpty() else null
-        p.edit()
-            .putString("source", source).putLong("savedAt", savedAtMs)
-            .putString("queue", kept ?: queue?.let(io.github.thake.soundnest.core.playback.LastSession::encodeQueue).orEmpty())
-            .putString("contextUri", contextUri).putString("contextName", contextName)
-            .putString("uri", uri).putString("title", song.title).putString("singer", song.singer)
-            .putString("album", song.album).putString("cover", song.coverUri)
-            .putLong("duration", durationMs).putLong("position", getCurrentPosition())
-            .putBoolean("liked", liked)
-            .apply()
+        sessionStore.saveTrack(
+            song = song,
+            uri = uri,
+            playing = playing,
+            liked = liked,
+            contextUri = contextUri,
+            contextName = contextName,
+            durationMs = durationMs,
+            positionMs = getCurrentPosition(),
+            source = source,
+            queue = queue,
+        )
     }
 
     /**
@@ -525,11 +513,8 @@ object SongPlayer {
             val on = playing || LocalPlayer.isPlaying()
             main.postDelayed(this, if (on) POSITION_SAVE_MS else POSITION_IDLE_MS)
             if (!on) return
-            val p = lastTrackPrefs()
-            val uri = p.getString("uri", "").orEmpty()
-            val now = if (LocalPlayer.active.value) localSpotifyUri(LocalPlayer.current()) else _nowPlaying.value.uri
-            if (uri.isBlank() || uri != now) return
-            p.edit().putLong("position", getCurrentPosition()).apply()
+            val now = if (LocalPlayer.active.value) localSpotifyUri(LocalPlayer.current()).orEmpty() else _nowPlaying.value.uri
+            sessionStore.updatePositionIfCurrent(now, getCurrentPosition())
         }
     }
     init { main.postDelayed(savePosition, POSITION_SAVE_MS) }
@@ -557,8 +542,7 @@ object SongPlayer {
         contextRegistry.clear(); contextRows.clear(); contextNames.clear(); library.clear()
         synchronized(wantedSaved) { wantedSaved.clear() }
         _queue.value = EngineQueue(); apiQueue = null; restoredQueuePending = false; _nowPlaying.value = NowPlaying()
-        lastTrackPrefs().edit().clear().apply(); savedLast = ""; resumeWhenReady = false
-        savedSource = io.github.thake.soundnest.core.playback.LastSession.SOURCE_SPOTIFY; savedAtMs = 0L
+        sessionStore.clear(); resumeWhenReady = false
         _activeDevice.value = null; io.github.thake.soundnest.feature.player.sleeptimer.playback.SleepTimerController.clear()
         // The Connect device picked was the account's that leaves: the next one starts on this phone.
         chosenRemote = null
@@ -742,7 +726,7 @@ object SongPlayer {
         if (LocalPlayer.active.value && engineWhileLocal(s)) return
         if (io.github.thake.soundnest.feature.spokenword.audible.playback.AudiblePlayer.active.value && engineWhileAudible(s)) return
         // Spotify's server still shows the song played before the local-player session saved at exit.
-        if (io.github.thake.soundnest.core.playback.LastSession.engineStateIsStale(savedSource, savedAtMs, s.timestampMs, s.isPaused)) return
+        if (io.github.thake.soundnest.core.playback.LastSession.engineStateIsStale(sessionStore.savedSource, sessionStore.savedAtMs, s.timestampMs, s.isPaused)) return
         val policy = io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore.current(Graph.app)
         val item = s.item
         val uri = item?.uri.orEmpty()
@@ -991,10 +975,7 @@ object SongPlayer {
     private fun saveSpotifyQueue() {
         val uri = _nowPlaying.value.uri
         val queue = spotifyQueueOf(trackIdOf(uri)).ifEmpty { return }
-        val p = lastTrackPrefs()
-        if (savedSource != io.github.thake.soundnest.core.playback.LastSession.SOURCE_SPOTIFY || p.getString("uri", "") != uri) return
-        val encoded = io.github.thake.soundnest.core.playback.LastSession.encodeQueue(queue)
-        if (p.getString("queue", "") != encoded) p.edit().putString("queue", encoded).apply()
+        sessionStore.updateSpotifyQueueIfCurrent(uri, queue)
     }
 
     /**
@@ -1768,13 +1749,13 @@ object SongPlayer {
     fun setRepeat(on: Boolean) = setRepeatMode(if (on) 1 else 0)
 
     fun setRepeatMode(mode: Int) {
-        if (LocalPlayer.active.value) { _repeatMode.value = mode; boundState?.repeat?.value = mode != 0; LocalPlayer.setRepeatMode(mode); lastTrackPrefs().edit().putInt("repeat", mode.coerceIn(0, 3)).apply(); return }
+        if (LocalPlayer.active.value) { _repeatMode.value = mode; boundState?.repeat?.value = mode != 0; LocalPlayer.setRepeatMode(mode); sessionStore.saveRepeatMode(mode); return }
         Haptics.toggle(mode != 0)
         _repeatMode.value = mode
         repeatWanted = LocalRepeat.pageMode(mode)
         repeatWantedUntil = SystemClock.elapsedRealtime() + SHUFFLE_HOLD_MS
         boundState?.repeat?.value = mode != 0
-        lastTrackPrefs().edit().putInt("repeat", mode.coerceIn(0, 3)).apply()
+        sessionStore.saveRepeatMode(mode)
         command { api.player.setRepeat(Repeat.entries[LocalRepeat.pageMode(mode)]) }
     }
 
@@ -1784,11 +1765,10 @@ object SongPlayer {
      * set again on the first song the page reports.
      */
     private fun restoreRepeat(state: CurrentSongState) {
-        val p = lastTrackPrefs()
-        if (!p.contains("repeat")) return
-        val mode = p.getInt("repeat", 0).coerceIn(0, 3)
+        val mode = sessionStore.loadRepeatMode()
+        if (mode == 0) return
         _repeatMode.value = mode
-        state.repeat.value = mode != 0
+        state.repeat.value = true
         SoundNestRuntime.spotify.player.restoreRepeat(Repeat.entries[LocalRepeat.pageMode(mode)])
     }
 

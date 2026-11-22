@@ -127,8 +127,8 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
     @Volatile private var userMoveAt = 0L
     /** The last play sent was the user's: only its refusal walks [onRefused]'s steps. */
     @Volatile private var lastPlayRefusable = false
-    /** How far down [onRefused]'s steps the current play went (0: not refused). */
-    @Volatile private var refusalStep = 0
+    /** Tracks 402 refusal step progression and session-wide refused command kinds. */
+    private val refusalLadder = RefusalLadder(REFUSED_KINDS_MS)
     @Volatile private var refusalTransferring = false
     private val _refused = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     /**
@@ -136,8 +136,6 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
      * pick a song): the UI says so.
      */
     val refused: kotlinx.coroutines.flow.SharedFlow<Unit> = _refused
-    /** When each kind of command (play, seek_to, transfer...) was last refused. */
-    private val refusedKinds = java.util.concurrent.ConcurrentHashMap<String, Long>()
     /** The page was reloaded once this session for an account refused everything. */
     @Volatile private var refusedReloaded = false
     @Volatile private var refusedAllToldAt = 0L
@@ -990,10 +988,9 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
         // another way (see RelayRoutes). Two kinds refused: playing the list, transferring and
         // shuffling would only be refused in turn. The page is loaded again once, the song asked
         // again there, and the user is told.
-        if (kind != null) {
-            refusedKinds[kind] = now
-            refusedKinds.entries.removeIf { now - it.value > REFUSED_KINDS_MS }
-            if (refusedKinds.size >= 2) { refusedEverything(); return }
+        if (kind != null && refusalLadder.recordRefusedKind(kind, now)) {
+            refusedEverything()
+            return
         }
         val last = lastPlay ?: return
         if (now - last.third > if (late) LATE_REFUSED_WINDOW_MS else REFUSED_WINDOW_MS) return
@@ -1005,8 +1002,7 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
         // A Jam member: taking playback here (step 2) would take this account out of the Jam.
         if (inJam()) { bridge.logger?.invoke("play refused by Spotify in a Jam: left to the host"); return }
         val ctx = last.first
-        var step = ++refusalStep
-        if (step == 1 && last.second == null) step = ++refusalStep
+        val step = refusalLadder.nextStep(hasTrack = last.second != null)
         // Each step's own play may be refused in its turn: it opens a new window.
         lastPlay = last.copy(third = now)
         // The list as it was picked: a sorted list or a smart shuffle keeps its order.
@@ -1054,15 +1050,15 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
     }
 
     private fun refusedEverything() {
-        refusalStep = 0
+        refusalLadder.reset()
         val now = clock()
         if (now - refusedAllToldAt > REFUSED_TOLD_GAP_MS) {
             refusedAllToldAt = now
             _refusedAll.tryEmit(Unit)
         }
-        if (refusedReloaded) { bridge.logger?.invoke("refused: ${refusedKinds.keys.sorted()}: fallbacks stopped"); return }
+        if (refusedReloaded) { bridge.logger?.invoke("refused: ${refusalLadder.sortedKinds()}: fallbacks stopped"); return }
         refusedReloaded = true
-        bridge.logger?.invoke("refused: ${refusedKinds.keys.sorted()}: fallbacks stopped, the page loaded again once")
+        bridge.logger?.invoke("refused: ${refusalLadder.sortedKinds()}: fallbacks stopped, the page loaded again once")
         val pick = lastPlay
         val order = lastOrder?.takeIf { pick != null && it.first == pick.first }?.second
         scope.launch {
@@ -1381,7 +1377,7 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
         // and 2 went on in turns for minutes, each state of the old song resetting them.
         val asked = lastPlay
         if (asked == null || clock() - asked.third > LATE_REFUSED_WINDOW_MS ||
-            (if (asked.second != null) s?.item?.uri == asked.second else s?.contextUri == asked.first)) refusalStep = 0
+            (if (asked.second != null) s?.item?.uri == asked.second else s?.contextUri == asked.first)) refusalLadder.reset()
         // A transient empty report at the loop must not erase the song that just ended.
         val repeatBefore = lastTrackState ?: lastSong?.takeIf {
             clock() - lastSongUntil in 0..UNLOAD_NULL_MS
@@ -1757,7 +1753,7 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
         lastPlay = Triple(contextUri, trackUri, clock())
         lastIndex = index
         lastPlayRefusable = refusable
-        refusalStep = 0
+        refusalLadder.reset()
         pausedByUser = false
         // The play starts the page on its own options: what it reports next is no answer to a set of ours.
         repeatRestoreUntil = clock() + REPEAT_RESTORE_MS

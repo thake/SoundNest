@@ -68,39 +68,15 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
      * (reload, replay) asked again. A storm of them ends playback here for a while (growing on
      * repeats) instead of feeding it; [licenseLimitedUntil] tells the app and the player.
      */
-    private val heldLicenses = java.util.concurrent.atomic.AtomicInteger(0)
+    private val widevineGuard = WidevineLimitGuard(log = { Logbook.log(it) })
     @Volatile private var licenseAnswersLogged = 0
-    private val license429 = ArrayDeque<Long>()
-    private var limitStreak = 0
-    private var lastLimitAt = 0L
-    private val _licenseLimitedUntil = MutableStateFlow(0L)
     /** Elapsed-realtime end of the current hold, 0 or past when none. */
-    val licenseLimitedUntil: StateFlow<Long> = _licenseLimitedUntil
-    fun licenseLimited(): Boolean = android.os.SystemClock.elapsedRealtime() < _licenseLimitedUntil.value
+    val licenseLimitedUntil: StateFlow<Long> = widevineGuard.limitedUntil
+    fun licenseLimited(): Boolean = widevineGuard.isLimited()
 
-    /**
-     * When Spotify last refused this page an audio licence (403 and the like, not a 429 limit). The
-     * page then skips the song by itself, and on to the next one, a second or so each: those moves are
-     * not the user's (see the listen sync, io.github.thake.soundnest.spotify.sync.SpotifyListenSync).
-     */
-    @Volatile private var licenceRefusedAt = 0L
-    fun licenceRefusedWithin(ms: Long): Boolean =
-        licenceRefusedAt != 0L && android.os.SystemClock.elapsedRealtime() - licenceRefusedAt < ms
+    fun licenceRefusedWithin(ms: Long): Boolean = widevineGuard.refusedWithin(ms)
 
-    private fun onLicenseLimited() = synchronized(license429) {
-        val now = android.os.SystemClock.elapsedRealtime()
-        license429.addLast(now)
-        while (license429.isNotEmpty() && now - license429.first() > LIMIT_WINDOW_MS) license429.removeFirst()
-        if (license429.size < LIMIT_COUNT || licenseLimited()) return@synchronized
-        if (now - lastLimitAt > LIMIT_FORGET_MS) limitStreak = 0
-        lastLimitAt = now
-        val hold = (LIMIT_HOLD_MS shl limitStreak.coerceAtMost(4)).coerceAtMost(LIMIT_HOLD_MAX_MS)
-        limitStreak++
-        license429.clear()
-        Logbook.log("Spotify is limiting audio licences (429 x$LIMIT_COUNT in ${LIMIT_WINDOW_MS / 1000} s): playback held ${hold / 1000} s")
-        heldLicenses.set(0)
-        _licenseLimitedUntil.value = now + hold
-    }
+    private fun onLicenseLimited() { widevineGuard.onLicenseLimited() }
 
     private val _loginRequired = MutableStateFlow(false)
     val loginRequired: StateFlow<Boolean> = _loginRequired
@@ -339,9 +315,9 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
                 // answer has for the page (log seen, 2.0.2-beta.5: without them the page read a CORS
                 // failure, status 0, not a 429) and the hold's time left.
                 if (request.method == "POST" && licenseLimited() && url.contains(LICENSE_PATH)) {
-                    if (heldLicenses.getAndIncrement() == 0) Logbook.log("audio licence requests answered here while Spotify is limiting")
+                    if (widevineGuard.recordHeldIsFirst()) Logbook.log("audio licence requests answered here while Spotify is limiting")
                     io.github.thake.soundnest.spotify.report.Refusal402.licenceHeld()
-                    val left = ((_licenseLimitedUntil.value - android.os.SystemClock.elapsedRealtime()) / 1000).coerceAtLeast(1)
+                    val left = widevineGuard.retryAfterSeconds()
                     val headers = mapOf(
                         "Access-Control-Allow-Origin" to PLAYER_URL.trimEnd('/'),
                         "Access-Control-Allow-Credentials" to "true",
@@ -420,7 +396,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
                     loginFailed("http ${response.statusCode}")
                 if (request.url.path?.contains("widevine-license") == true) {
                     if (response.statusCode == 429) onLicenseLimited()
-                    else if (response.statusCode in 400..499) licenceRefusedAt = android.os.SystemClock.elapsedRealtime()
+                    else if (response.statusCode in 400..499) widevineGuard.recordRefused()
                     response.responseHeaders.entries.firstOrNull { it.key.equals("retry-after", true) }
                         ?.let { io.github.thake.soundnest.spotify.report.Refusal402.licenceRetryAfter(it.value) }
                     // A refused licence (403 seen on a new sign-in, 429 on others) says why in its

@@ -37,66 +37,24 @@ fun App() {
     // The playlists at the top of the library, fetched ahead on Wi-Fi (see PagePrefetch).
     LaunchedEffect(Unit) { io.github.thake.soundnest.core.catalog.PagePrefetch.start() }
 
-    // A collaborative-playlist invitation was opened (see InviteLinks): its playlist page offers "Join".
-    val invite by io.github.thake.soundnest.core.catalog.InviteLinks.pending.collectAsState()
-    LaunchedEffect(invite) {
-        val i = invite?.takeIf { !it.opened } ?: return@LaunchedEffect
-        if (!io.github.thake.soundnest.feature.parental.settings.FeatureGates.canModifySpotifyLibrary()) {
-            io.github.thake.soundnest.core.catalog.InviteLinks.pending.value = null
-            return@LaunchedEffect
-        }
-        io.github.thake.soundnest.host.android.SoundNestRuntime.api.ready.first { it }
-        i.opened = true
-        if (menuDrawerState.isOpen) runCatching { menuDrawerState.close() }
-        navController.navigateSingleTop(io.github.thake.soundnest.core.ui.navigation.playlistRoute(i.playlistId))
-    }
-
-    // Genius's explanations of the song playing, read while it starts: ready when the lyrics open.
-    val geniusLang = io.github.thake.soundnest.feature.lyrics.genius.ui.classic.readerLanguage()
-    val playingUri = io.github.thake.soundnest.core.playback.SongPlayer.nowPlaying.value.uri
-    LaunchedEffect(playingUri) {
-        if (!playingUri.startsWith("spotify:track:")) return@LaunchedEffect
-        if (!io.github.thake.soundnest.feature.parental.settings.FeatureGates.canUseGeniusMeanings()) return@LaunchedEffect
-        kotlinx.coroutines.delay(2_000)
-        if (!io.github.thake.soundnest.feature.parental.settings.FeatureGates.canUseGeniusMeanings()) return@LaunchedEffect
-        val st = io.github.thake.soundnest.core.di.Graph.currentSongState
-        io.github.thake.soundnest.feature.lyrics.genius.data.GeniusMeaning.prefetch(playingUri.substringAfterLast(':'), st.title.value, st.singer.value, geniusLang)
-    }
-
-    // A shared link to a list / artist / podcast: its page, over whatever was open.
-    val pageLink by io.github.thake.soundnest.core.catalog.InviteLinks.page.collectAsState()
-    LaunchedEffect(pageLink) {
-        val uri = pageLink ?: return@LaunchedEffect
-        io.github.thake.soundnest.core.catalog.InviteLinks.page.value = null
-        val decision = io.github.thake.soundnest.feature.parental.filter.SpotifyLinkGuard.evaluate(uri, io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore.current())
-        if (decision !is io.github.thake.soundnest.feature.parental.filter.LinkDecision.OpenInAppPage) return@LaunchedEffect
-        val id = decision.spotifyUri.substringAfterLast(':')
-        io.github.thake.soundnest.core.ui.navigation.PlayerSheet.close()
-        if (menuDrawerState.isOpen) runCatching { menuDrawerState.close() }
-        runCatching {
-            navController.navigateSingleTop(when (decision.spotifyUri.split(':')[1]) {
-                "playlist" -> io.github.thake.soundnest.core.ui.navigation.playlistRoute(id)
-                "album" -> io.github.thake.soundnest.core.ui.navigation.albumRoute("", "", id)
-                "artist" -> io.github.thake.soundnest.core.ui.navigation.artistRoute("artist", id)
-                else -> io.github.thake.soundnest.core.ui.navigation.showRoute(id)
-            })
-        }
-    }
-    val shareTarget by io.github.thake.soundnest.feature.player.ui.SpotifyCode.request.collectAsState()
-    shareTarget?.let { t -> io.github.thake.soundnest.feature.player.ui.SpotifyCodeSheet(t) { io.github.thake.soundnest.feature.player.ui.SpotifyCode.request.value = null } }
+    // Leaf side-effect hosts: reading nowPlaying / invite / share state inside dedicated
+    // composables prevents track changes and deep links from recomposing the entire App tree.
+    InviteLinksHost(navController, menuDrawerState)
+    GeniusPrefetchHost()
+    SpotifyCodeHost()
 
     val immersive = io.github.thake.soundnest.core.ui.navigation.isImmersive()
-    val haze = io.github.thake.soundnest.core.ui.immersive.shell.rememberImmersiveHazeState()
-    val glassPage = io.github.thake.soundnest.core.ui.immersive.shell.rememberImmersiveBackdrop()
+    val haze = if (immersive) io.github.thake.soundnest.core.ui.immersive.shell.rememberImmersiveHazeState() else null
     val liquidGlass = immersive && io.github.thake.soundnest.core.ui.immersive.shell.rememberLiquidGlassActive()
     val frostPage = immersive && !liquidGlass && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
-    val chrome = io.github.thake.soundnest.core.ui.immersive.shell.rememberImmersiveChromeState()
+    val glassPage = if (liquidGlass || frostPage) io.github.thake.soundnest.core.ui.immersive.shell.rememberImmersiveBackdrop() else null
+    val chrome = if (immersive) io.github.thake.soundnest.core.ui.immersive.shell.rememberImmersiveChromeState() else null
     androidx.compose.runtime.CompositionLocalProvider(
         io.github.thake.soundnest.core.ui.look.LocalReduceMotion provides io.github.thake.soundnest.core.ui.look.rememberReduceMotion(),
-        io.github.thake.soundnest.core.ui.immersive.shell.LocalImmersiveHaze provides if (immersive) haze else null,
+        io.github.thake.soundnest.core.ui.immersive.shell.LocalImmersiveHaze provides haze,
         io.github.thake.soundnest.core.ui.immersive.shell.LocalImmersiveBackdrop provides if (liquidGlass) glassPage else null,
         io.github.thake.soundnest.core.ui.immersive.shell.LocalImmersiveFrostPage provides if (frostPage) glassPage else null,
-        io.github.thake.soundnest.core.ui.immersive.shell.LocalImmersiveChrome provides if (immersive) chrome else null,
+        io.github.thake.soundnest.core.ui.immersive.shell.LocalImmersiveChrome provides chrome,
     ) {
         val rail = io.github.thake.soundnest.core.ui.look.windowSize().navigationRail
         val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -159,6 +117,78 @@ fun App() {
             io.github.thake.soundnest.feature.library.hiddensongs.ui.HiddenSongUndo()
             io.github.thake.soundnest.feature.parental.schedule.ui.UsageHoursLockOverlay()
             io.github.thake.soundnest.feature.parental.ui.ParentPinPromptHost()
+        }
+    }
+}
+
+@Composable
+private fun InviteLinksHost(
+    navController: androidx.navigation.NavHostController,
+    menuDrawerState: androidx.compose.material3.DrawerState,
+) {
+    val invite by io.github.thake.soundnest.core.catalog.InviteLinks.pending.collectAsState()
+    LaunchedEffect(invite) {
+        val i = invite?.takeIf { !it.opened } ?: return@LaunchedEffect
+        if (!io.github.thake.soundnest.feature.parental.settings.FeatureGates.canModifySpotifyLibrary()) {
+            io.github.thake.soundnest.core.catalog.InviteLinks.pending.value = null
+            return@LaunchedEffect
+        }
+        io.github.thake.soundnest.host.android.SoundNestRuntime.api.ready.first { it }
+        i.opened = true
+        if (menuDrawerState.isOpen) runCatching { menuDrawerState.close() }
+        navController.navigateSingleTop(io.github.thake.soundnest.core.ui.navigation.playlistRoute(i.playlistId))
+    }
+
+    val pageLink by io.github.thake.soundnest.core.catalog.InviteLinks.page.collectAsState()
+    LaunchedEffect(pageLink) {
+        val uri = pageLink ?: return@LaunchedEffect
+        io.github.thake.soundnest.core.catalog.InviteLinks.page.value = null
+        val decision = io.github.thake.soundnest.feature.parental.filter.SpotifyLinkGuard.evaluate(
+            uri,
+            io.github.thake.soundnest.feature.parental.settings.ParentalPolicyStore.current(),
+        )
+        if (decision !is io.github.thake.soundnest.feature.parental.filter.LinkDecision.OpenInAppPage) return@LaunchedEffect
+        val id = decision.spotifyUri.substringAfterLast(':')
+        io.github.thake.soundnest.core.ui.navigation.PlayerSheet.close()
+        if (menuDrawerState.isOpen) runCatching { menuDrawerState.close() }
+        runCatching {
+            navController.navigateSingleTop(
+                when (decision.spotifyUri.split(':')[1]) {
+                    "playlist" -> io.github.thake.soundnest.core.ui.navigation.playlistRoute(id)
+                    "album" -> io.github.thake.soundnest.core.ui.navigation.albumRoute("", "", id)
+                    "artist" -> io.github.thake.soundnest.core.ui.navigation.artistRoute("artist", id)
+                    else -> io.github.thake.soundnest.core.ui.navigation.showRoute(id)
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun GeniusPrefetchHost() {
+    val geniusLang = io.github.thake.soundnest.feature.lyrics.genius.ui.classic.readerLanguage()
+    val playingUri = io.github.thake.soundnest.core.playback.SongPlayer.nowPlaying.value.uri
+    LaunchedEffect(playingUri) {
+        if (!playingUri.startsWith("spotify:track:")) return@LaunchedEffect
+        if (!io.github.thake.soundnest.feature.parental.settings.FeatureGates.canUseGeniusMeanings()) return@LaunchedEffect
+        kotlinx.coroutines.delay(2_000)
+        if (!io.github.thake.soundnest.feature.parental.settings.FeatureGates.canUseGeniusMeanings()) return@LaunchedEffect
+        val st = io.github.thake.soundnest.core.di.Graph.currentSongState
+        io.github.thake.soundnest.feature.lyrics.genius.data.GeniusMeaning.prefetch(
+            playingUri.substringAfterLast(':'),
+            st.title.value,
+            st.singer.value,
+            geniusLang,
+        )
+    }
+}
+
+@Composable
+private fun SpotifyCodeHost() {
+    val shareTarget by io.github.thake.soundnest.feature.player.ui.SpotifyCode.request.collectAsState()
+    shareTarget?.let { t ->
+        io.github.thake.soundnest.feature.player.ui.SpotifyCodeSheet(t) {
+            io.github.thake.soundnest.feature.player.ui.SpotifyCode.request.value = null
         }
     }
 }
